@@ -335,7 +335,7 @@ const Chat: FC<Props> = (props) => {
         ) : undefined
       }
       topRightTool={
-        showConversation ? (
+        showConversation && !props.compare ? (
           <>
             {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
             <TopicRightPane.Shortcuts

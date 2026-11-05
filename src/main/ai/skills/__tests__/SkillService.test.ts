@@ -2750,6 +2750,28 @@ describe('SkillService', () => {
       ).toHaveLength(1)
     })
 
+    it('reconcileSkills skips a user-owned external skill export conflict quietly', async () => {
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+      const userSkill = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one')
+      await fs.promises.mkdir(userSkill, { recursive: true })
+      await fs.promises.writeFile(path.join(userSkill, 'SKILL.md'), '# user skill')
+      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      await expect(fs.promises.readFile(path.join(userSkill, 'SKILL.md'), 'utf-8')).resolves.toBe('# user skill')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
+
     it('reconcileSkills adopts a skill authored directly in the managed library', async () => {
       vi.mocked(parseSkillMetadata).mockResolvedValue(
         skillMeta('new-skill', { name: 'New Skill', description: 'freshly authored', version: '3.0.0' })

@@ -31,5 +31,9 @@ export type CompareCliStreamEvent =
   | { requestId: string; cliId: CompareCliId; type: 'error'; code: CompareCliErrorCode }
   | { requestId: string; cliId: CompareCliId; type: 'cancelled' }
 
-export type CompareCliEventSchemas = { 'compare_cli.stream': CompareCliStreamEvent }
+export type CompareFocusShortcutEvent = { key: string; ctrlKey: boolean }
+export type CompareCliEventSchemas = {
+  'compare_cli.stream': CompareCliStreamEvent
+  'compare.focus_shortcut': CompareFocusShortcutEvent
+}
 export type CompareCliAvailabilityResponse = CompareCliAvailability[]

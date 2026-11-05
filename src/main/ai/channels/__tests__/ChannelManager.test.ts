@@ -155,6 +155,7 @@ describe('ChannelManager', () => {
     if (manager && !manager.isStopped) await manager._doStop()
     BaseService.resetInstances()
     ServiceContainer.reset()
+    vi.useRealTimers()
   })
 
   it('connects only when both channel intent and Agent lifecycle are active', async () => {
@@ -170,7 +171,11 @@ describe('ChannelManager', () => {
 
   it('forwards system resume to active adapters and unregisters on stop', async () => {
     rows = [makeChannel()]
+    vi.useFakeTimers()
     await manager._doInit()
+    expect(adapters).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(30_000)
+    vi.useRealTimers()
     await vi.waitFor(() => expect(adapters).toHaveLength(1))
 
     expect(mocks.resumeListeners.size).toBe(1)
@@ -183,7 +188,11 @@ describe('ChannelManager', () => {
 
   it('treats archive and restore events as hints and preserves channel intent', async () => {
     rows = [makeChannel()]
+    vi.useFakeTimers()
     await manager._doInit()
+    expect(adapters).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(30_000)
+    vi.useRealTimers()
     await vi.waitFor(() => expect(adapters).toHaveLength(1))
 
     mocks.getLifecycleState.mockReturnValue('trashed')
@@ -203,7 +212,11 @@ describe('ChannelManager', () => {
 
   it('disconnects after purge even though the Agent foreign key was already cleared', async () => {
     rows = [makeChannel()]
+    vi.useFakeTimers()
     await manager._doInit()
+    expect(adapters).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(30_000)
+    vi.useRealTimers()
     await vi.waitFor(() => expect(adapters).toHaveLength(1))
 
     rows[0] = makeChannel({ agentId: null })

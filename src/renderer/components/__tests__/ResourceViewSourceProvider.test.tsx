@@ -139,6 +139,7 @@ function SourceProbe() {
       <span data-testid="topic-ids">{topicsSource.topics.map((topic) => topic.id).join(',')}</span>
       <span data-testid="renderer-topic-ids">{topicsSource.rendererTopics.map((topic) => topic.id).join(',')}</span>
       <span data-testid="topics-loading">{String(topicsSource.isLoadingAll)}</span>
+      <span data-testid="topics-fully-loaded">{String(topicsSource.isFullyLoaded)}</span>
       <span data-testid="topics-refreshing">{String(topicsSource.isRefreshing)}</span>
       <span data-testid="topics-error">{String(Boolean(topicsSource.error))}</span>
       <span data-testid="topics-refresh-error">{String(Boolean(topicsSource.refreshError))}</span>
@@ -197,6 +198,19 @@ describe('ResourceViewSourceProvider', () => {
     rerender(createProviderTree())
 
     await waitFor(() => expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-3'))
+  })
+
+  it('settles the assistant topic source when the current route does not use it', () => {
+    sourceMocks.tabs = [createTab('compare', '/app/compare')]
+    sourceMocks.activeTabId = 'compare'
+    sourceMocks.assistantSource = createAssistantSource(['partial'], { complete: false })
+
+    render(createProviderTree())
+
+    expect(sourceMocks.assistantEnabled.at(-1)).toBe(false)
+    expect(screen.getByTestId('topics-fully-loaded')).toHaveTextContent('true')
+    expect(screen.getByTestId('topics-loading')).toHaveTextContent('false')
+    expect(screen.getByTestId('topic-ids')).toBeEmptyDOMElement()
   })
 
   it('publishes progressive agent sessions on cold start and keeps the complete snapshot during refresh', async () => {

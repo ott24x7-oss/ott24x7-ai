@@ -35,7 +35,7 @@
     "build:unpack": "dotenv pnpm run build && electron-builder --dir",
     "build:unpack:cn": "pnpm run build:cn && electron-builder --config electron-builder.cn.config.cjs --dir",
     "build:utility-process": "electron-vite build --config electron.vite.entries.config.ts",
-    "build:win": "pnpm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64",
+    "build:win": "pnpm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64 --publish never",
     "build:win:arm64": "dotenv pnpm run build && electron-builder --win --arm64",
     "build:win:arm64:cn": "pnpm run build:cn && electron-builder --config electron-builder.cn.config.cjs --win --arm64",
     "build:win:cn": "pnpm run build:cn && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.cn.config.cjs --win --x64",

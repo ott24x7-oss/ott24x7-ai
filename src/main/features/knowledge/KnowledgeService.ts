@@ -85,9 +85,14 @@ export class KnowledgeService extends BaseService {
     )
   }
 
-  protected async onAllReady(): Promise<void> {
-    this.ingestionService.recoverDeletingItems()
-    this.ingestionService.recoverInterruptedItems()
+  protected override onAllReady(): void {
+    // Keep handlers registered in onInit for JobManager's startup-recovery ordering;
+    // the filesystem recovery sweep can wait until Compare has rendered.
+    const timer = setTimeout(() => {
+      this.ingestionService.recoverDeletingItems()
+      this.ingestionService.recoverInterruptedItems()
+    }, 30_000)
+    this.registerDisposable(() => clearTimeout(timer))
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {

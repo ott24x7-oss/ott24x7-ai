@@ -854,8 +854,8 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     setBlobPreview({ blob, url })
     return () => URL.revokeObjectURL(url)
   }, [blob])
-  const zipPath = !readOnly && file?.ext.toLowerCase() === '.zip' ? file.path : undefined
-  const zipFileSize = !readOnly && file?.ext.toLowerCase() === '.zip' ? file.size : undefined
+  const zipPath = !readOnly && file?.ext?.toLowerCase() === '.zip' ? file.path : undefined
+  const zipFileSize = !readOnly && file?.ext?.toLowerCase() === '.zip' ? file.size : undefined
   useEffect(() => {
     if (!zipPath || (zipFileSize !== undefined && zipFileSize > ZIP_ARCHIVE_LIMITS.maxArchiveBytes)) {
       setZipFileCount(undefined)

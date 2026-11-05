@@ -78,7 +78,9 @@ function useCommittedAssistantTopicsSource(enabled: boolean, retainDerivedView: 
       topics,
       ...topicsView,
       isLoadingAll: isColdLoading && rawSource.isLoadingAll,
-      isFullyLoaded: snapshot !== null,
+      // A dormant route does not fetch topics. Treat that source as settled so consumers
+      // such as the Compare conversation never show a loading skeleton for an inactive pane.
+      isFullyLoaded: !enabled || snapshot !== null,
       isRefreshing: isBackgroundRefreshing,
       error: snapshot ? undefined : rawSource.error,
       refreshError: snapshot ? rawSource.error : undefined,
@@ -96,7 +98,8 @@ function useCommittedAssistantTopicsSource(enabled: boolean, retainDerivedView: 
       rawSource.refetch,
       topics,
       topicsView,
-      snapshot
+      snapshot,
+      enabled
     ]
   )
 }

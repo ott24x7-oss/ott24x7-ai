@@ -179,6 +179,8 @@ export interface ChatComposerProps {
   chatTarget?: ComposerChatTarget
   sendDisabled?: boolean
   placeholder?: string
+  /** Compare: web panels and signed-in CLIs answer without a chat model, so sending never requires one. */
+  modelOptional?: boolean
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
@@ -271,6 +273,7 @@ const ChatComposerRoot = ({
   chatTarget,
   sendDisabled,
   placeholder,
+  modelOptional,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -332,6 +335,7 @@ const ChatComposerRoot = ({
             chatTarget={chatTarget}
             sendDisabled={sendDisabled}
             placeholder={placeholder}
+            modelOptional={modelOptional}
             compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -374,6 +378,7 @@ const ChatComposerInner = ({
   chatTarget,
   sendDisabled = false,
   placeholder: placeholderOverride,
+  modelOptional = false,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -889,16 +894,24 @@ const ChatComposerInner = ({
     return () => onConversationControlsChange(null)
   }, [onConversationControlsChange])
   const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
-  const missingAssistantMessage = hasMissingPersistedAssistant ? selectAssistantMessage : undefined
+  const missingAssistantMessage = !modelOptional && hasMissingPersistedAssistant ? selectAssistantMessage : undefined
   const missingModelMessage =
-    assistant && isModelMissing && !selectedModelForMissingAssistantDefault && !isMentionedModelSelectorLocked
+    !modelOptional &&
+    assistant &&
+    isModelMissing &&
+    !selectedModelForMissingAssistantDefault &&
+    !isMentionedModelSelectorLocked
       ? t('code.model_required')
       : undefined
   const missingSelectedModelMessage =
-    useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
+    !modelOptional &&
+    useMentionedModelSelector &&
+    !isMentionedModelSelectorLocked &&
+    mentionedModelSelectorValue.length === 0
       ? t('code.model_required')
       : undefined
   const isModelUnavailable =
+    !modelOptional &&
     !missingAssistantMessage &&
     !runtimeModelPending &&
     !runtimeModel &&
@@ -1667,7 +1680,12 @@ const ChatComposerInner = ({
         return
       }
 
-      if (!runtimeModel && !selectedModelForMissingAssistantDefault && !selectedModelForUnlinkedHome) {
+      if (
+        !modelOptional &&
+        !runtimeModel &&
+        !selectedModelForMissingAssistantDefault &&
+        !selectedModelForUnlinkedHome
+      ) {
         toast.error(t('code.model_required'))
         return
       }
@@ -1678,7 +1696,7 @@ const ChatComposerInner = ({
       }
 
       if (sendDisabled) return
-      if (runtimeModelPending) return
+      if (runtimeModelPending && !modelOptional) return
       // While streaming, only block if we can't steer (e.g. paused for tool approval).
       if (loading && !canSteer) return
 
@@ -1717,6 +1735,7 @@ const ChatComposerInner = ({
       handleModelSelect,
       loading,
       missingAssistantMessage,
+      modelOptional,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
@@ -1841,7 +1860,7 @@ const ChatComposerInner = ({
             isDirectSending ||
             sendDisabled ||
             searching ||
-            runtimeModelPending ||
+            (runtimeModelPending && !modelOptional) ||
             hasPendingReference ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||

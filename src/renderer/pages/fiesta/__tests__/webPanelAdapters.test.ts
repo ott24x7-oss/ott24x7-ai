@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   getWebPanelAdapter,
   buildReadLastAnswerScript,
+  buildInsertPromptScript,
+  mapWebPanelSendStatus,
   readVisibleLastAnswer,
   sendPromptToWebPanels,
   sendPromptToWebPanel,
@@ -35,12 +37,12 @@ describe('web panel send adapters', () => {
   it('inserts prompt text with a user initiated send key when no send button is available', async () => {
     const webview = {
       focus: vi.fn(),
-      executeJavaScript: vi.fn().mockResolvedValue({ inserted: true, clicked: false }),
+      executeJavaScript: vi.fn().mockResolvedValue({ status: 'sent', clicked: false }),
       sendInputEvent: vi.fn()
     }
     const sent = await sendPromptToWebPanel(webview, 'gemini', 'Summarize this')
 
-    expect(sent).toBe(true)
+    expect(sent).toBe('sent')
     expect(webview.executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('Summarize this'), true)
     expect(webview.focus).toHaveBeenCalledOnce()
     expect(webview.sendInputEvent).toHaveBeenCalledTimes(2)
@@ -61,12 +63,12 @@ describe('web panel send adapters', () => {
   it('copies the prompt once when any visible web panel cannot accept it', async () => {
     const ok = {
       focus: vi.fn(),
-      executeJavaScript: vi.fn().mockResolvedValue({ inserted: true, clicked: true }),
+      executeJavaScript: vi.fn().mockResolvedValue({ status: 'sent', clicked: true }),
       sendInputEvent: vi.fn()
     }
     const failed = {
       focus: vi.fn(),
-      executeJavaScript: vi.fn().mockResolvedValue({ inserted: false, clicked: false }),
+      executeJavaScript: vi.fn().mockResolvedValue({ status: 'input-not-found' }),
       sendInputEvent: vi.fn()
     }
     const copyPrompt = vi.fn().mockResolvedValue(undefined)
@@ -81,10 +83,26 @@ describe('web panel send adapters', () => {
     )
 
     expect(results).toEqual([
-      { appId: 'openai', sent: true },
-      { appId: 'gemini', sent: false }
+      { appId: 'openai', status: 'sent' },
+      { appId: 'gemini', status: 'input-not-found' }
     ])
     expect(copyPrompt).toHaveBeenCalledOnce()
     expect(copyPrompt).toHaveBeenCalledWith('Try this prompt')
+  })
+
+  it.each([
+    ['sent', 'sent'],
+    ['login-needed', 'login-needed'],
+    ['input-not-found', 'copied'],
+    ['failed', 'copied']
+  ] as const)('maps adapter result %s to delivery status %s', (adapterStatus, deliveryStatus) => {
+    expect(mapWebPanelSendStatus(adapterStatus)).toBe(deliveryStatus)
+  })
+
+  it('reports login and missing input separately from a successful injection', () => {
+    const script = buildInsertPromptScript(getWebPanelAdapter('chatgpt'), 'hello')
+    expect(script).toContain('login-needed')
+    expect(script).toContain('input-not-found')
+    expect(script).toContain('status: "sent"')
   })
 })

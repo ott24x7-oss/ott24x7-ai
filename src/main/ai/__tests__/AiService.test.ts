@@ -1158,6 +1158,10 @@ describe('AiService', () => {
 })
 
 describe('AiService.onInit', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockApplicationGet.mockImplementation((name: string) =>
@@ -1166,7 +1170,8 @@ describe('AiService.onInit', () => {
     mockReconcileSkills.mockResolvedValue(undefined)
   })
 
-  it('installs built-in skills before reconciling skills, without blocking init', async () => {
+  it('defers built-in skill install and reconciliation until after services are ready', async () => {
+    vi.useFakeTimers()
     const calls: string[] = []
     mockInstallBuiltinSkills.mockImplementation(async () => {
       calls.push('installBuiltinSkills')
@@ -1176,18 +1181,25 @@ describe('AiService.onInit', () => {
     })
     const service = createService()
 
-    // Fire-and-forget: _doInit resolves without waiting on this chain.
     await service._doInit()
-    await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
+    expect(mockInstallBuiltinSkills).not.toHaveBeenCalled()
+
+    await service._doAllReady()
+    expect(mockInstallBuiltinSkills).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(30_000)
 
     expect(calls).toEqual(['installBuiltinSkills', 'reconcileSkills'])
   })
 
-  it('logs and continues to reconcile when installBuiltinSkills rejects', async () => {
+  it('continues to reconcile when a deferred built-in skill install rejects', async () => {
+    vi.useFakeTimers()
     mockInstallBuiltinSkills.mockRejectedValue(new Error('disk full'))
     const service = createService()
 
     await expect(service._doInit()).resolves.toBeUndefined()
+    await service._doAllReady()
+    expect(mockReconcileSkills).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(30_000)
     await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
   })
 })

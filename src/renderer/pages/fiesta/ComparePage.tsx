@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
+import { loggerService } from '@logger'
 import { ComparePromoFooter } from '@renderer/components/app/PromoCard'
 import { getModelDisplayTags } from '@renderer/components/tags/Model'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -19,12 +20,14 @@ import type {
   CompareColumnId,
   CompareCliOutput,
   CompareFinalAnswer,
+  CompareDeliveryResult,
   CompareJudgeId,
   CompareLayout,
-  CompareModelStatus,
   ComparePageConfig,
   CompareWebAnswer
 } from '@renderer/types/compare'
+import { formatCompareColumnErrorMessage } from '@renderer/utils/compareErrorMessage'
+import { getMySubscriptionColumnIds } from '@renderer/utils/compareSubscriptions'
 import type {
   CacheCompareFinalAnswer,
   CacheCompareModelSelection,
@@ -33,32 +36,36 @@ import type {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { CompareCliStreamEvent } from '@shared/ipc/schemas/compareCli'
 import type { CompareCliAvailability, CompareCliId } from '@shared/types/compareCli'
-import { isAgentOnlyProvider } from '@shared/utils/provider'
 
 // eslint-disable-next-line import-x/no-restricted-paths -- Reuse the normal topic and chat-engine lifecycle for Compare.
 import HomePage from '../home/HomePage'
 import { buildCompareCliPrompt, type CompareCliTurn } from './cliConversation'
-import {
-  canCombine,
-  getCombineSignature,
-  getWebJudgePriority,
-  shouldAutoCombine,
-  type CombineResponseStatus
-} from './combineState'
+import { canCombine, getCombineSignature, shouldAutoCombine, type CombineResponseStatus } from './combineState'
 import { getLatestApiAnswer, getLatestPrompt } from './compareAnswers'
 import {
+  addCompareColumn,
+  buildCompareDefaultSets,
   DEFAULT_COMPARE_CLI_ORDER,
-  getDefaultCompareJudgeId,
+  getCompareKeyboardAction,
+  getCompareSendableColumnIds,
   getCompareSendModelIds,
   getCompareSetSelection,
-  getFirstRunCompareDefaults,
-  removeCompareModel
+  isCompareChatModel,
+  limitCompareSelection,
+  MAX_COMPARE_COLUMNS,
+  removeCompareModel,
+  reconcileCompareSelections,
+  resolveCompareSavedSetId,
+  resolveCompareJudge,
+  reorderCompareModels,
+  setCompareModelEnabled
 } from './compareState'
 import { CompareToolbar } from './CompareToolbar'
 import { CompareWelcomeCard } from './CompareWelcomeCard'
 import { buildSynthesisPrompt, type SynthesisAnswer } from './synthesisPrompt'
 import {
   getWebPanelAdapter,
+  mapWebPanelSendStatus,
   readVisibleLastAnswer,
   sendPromptToWebPanel,
   sendPromptToWebPanels,
@@ -104,9 +111,11 @@ interface ActiveWebWait {
 }
 
 const CLI_NAMES: Record<CompareCliId, string> = { claude: 'Claude', agy: 'Gemini', codex: 'ChatGPT' }
+const compareLogger = loggerService.withContext('ComparePage')
 
 function ComparePage() {
   const { t } = useTranslation()
+  const firstPaintLoggedRef = useRef(false)
   const [selection, setSelection] = usePersistCache('ui.compare.model_selection')
   const [savedSets, setSavedSets] = usePersistCache('ui.compare.saved_sets')
   const [defaultsSeeded, setDefaultsSeeded] = usePersistCache('ui.compare.defaults_seeded')
@@ -117,16 +126,19 @@ function ComparePage() {
   const [finalAnswers, setFinalAnswers] = usePersistCache('ui.compare.final_answers')
   const [activeSetId, setActiveSetId] = useState('custom')
   const [focusedModelId, setFocusedModelId] = useState<CompareColumnId | null>(null)
-  const [onlyFocusedModel, setOnlyFocusedModel] = useState(false)
+  const [onlyFocusedModel] = useState(false)
   const [layout, setLayout] = useState<CompareLayout>({ kind: 'columns', columns: 2 })
+  const [apiPickerOpen, setApiPickerOpen] = useState(false)
   const [activeTopicId, setActiveTopicId] = useState<string>()
   const [cliOutputs, setCliOutputs] = useState<Record<string, CompareCliOutput>>({})
   const [webAnswers, setWebAnswers] = useState<Record<string, CompareWebAnswer>>({})
   const [webWarnings, setWebWarnings] = useState<Record<string, boolean>>({})
+  const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, CompareDeliveryResult>>({})
   const [cliHistory, setCliHistory] = useState<Record<string, CompareCliTurn[]>>({})
   const [combineOutputs, setCombineOutputs] = useState<Record<string, CompareFinalAnswer>>({})
   const [activeTurn, setActiveTurn] = useState<ActiveCompareTurn>()
   const [cliAvailability, setCliAvailability] = useState<CompareCliAvailability[]>([])
+  const [isCheckingClis, setIsCheckingClis] = useState(false)
   const { openTab } = useTabs()
   const webviewRefs = useRef(new Map<string, WebviewTag>())
   const activeCliRequests = useRef(new Map<string, ActiveCliRequest>())
@@ -136,18 +148,25 @@ function ComparePage() {
   const lastAutoCombineSignature = useRef<string | undefined>(undefined)
   const cliAvailabilityRef = useRef<CompareCliAvailability[] | null>(null)
   const cliAvailabilityRequest = useRef<Promise<CompareCliAvailability[]> | null>(null)
+
+  useEffect(() => {
+    if (firstPaintLoggedRef.current) return
+    firstPaintLoggedRef.current = true
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const durationMs = Math.round(performance.now())
+        compareLogger.info(`Compare first paint in ${durationMs}ms`, { durationMs, logToMain: true })
+      })
+    })
+  }, [])
   const { models, isLoading: modelsLoading } = useModels()
-  const { allApps, isLoading: miniAppsLoading } = useMiniApps()
+  const { allApps, isLoading: miniAppsLoading, updateAppStatus } = useMiniApps()
   const { providers, isLoading: providersLoading } = useProviders()
   const judgeId = judgeIdValue as CompareJudgeId
   const setJudgeId = useCallback((next: CompareJudgeId) => setJudgeIdValue(next), [setJudgeIdValue])
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
   const availableModels = useMemo(
-    () =>
-      models.filter((model) => {
-        const provider = providerById.get(model.providerId)
-        return model.isEnabled && provider?.isEnabled && !isAgentOnlyProvider(provider)
-      }),
+    () => models.filter((model) => isCompareChatModel(model, providerById.get(model.providerId))),
     [models, providerById]
   )
   const availableModelsById = useMemo(
@@ -170,17 +189,21 @@ function ComparePage() {
             name: app.name,
             url: app.url,
             miniAppKind: app.kind,
-            canReadAnswer: Boolean(getWebPanelAdapter(appId).lastAnswerSelector)
+            logo: app.logo,
+            logoSrc: app.logoSrc,
+            background: app.background,
+            canReadAnswer: Boolean(getWebPanelAdapter(appId).lastAnswerSelector),
+            enabled: item.enabled
           }
         ]
       }
       if (item.id.startsWith('cli::')) {
         const cliId = item.id.slice('cli::'.length) as CompareCliId
         if (!(cliId in CLI_NAMES)) return []
-        return [{ id: item.id as `cli::${string}`, kind: 'cli', cliId, name: CLI_NAMES[cliId] }]
+        return [{ id: item.id as `cli::${string}`, kind: 'cli', cliId, name: CLI_NAMES[cliId], enabled: item.enabled }]
       }
       const model = availableModelsById.get(item.id)
-      return model ? [{ id: model.id, kind: 'api', model }] : []
+      return model ? [{ id: model.id, kind: 'api', model, enabled: item.enabled }] : []
     })
   }, [allApps, availableModelsById, selection])
   const visibleWebJudgeColumns = useMemo(
@@ -188,14 +211,22 @@ function ComparePage() {
       columns.filter(
         (column): column is Extract<CompareColumn, { kind: 'web' }> =>
           column.kind === 'web' &&
+          column.enabled &&
           (!focusedModelId || focusedModelId === column.id) &&
           Boolean(getWebPanelAdapter(column.appId).lastAnswerSelector)
       ),
     [columns, focusedModelId]
   )
-  const sendColumnIds = useMemo(
+  const requestedSendColumnIds = useMemo(
     () => getCompareSendModelIds(selection, focusedModelId, onlyFocusedModel),
     [focusedModelId, onlyFocusedModel, selection]
+  )
+  const sendColumnIds = useMemo(
+    () =>
+      getCompareSendableColumnIds(requestedSendColumnIds, columns).filter(
+        (id) => !id.startsWith('webapp::') || !focusedModelId || id === focusedModelId
+      ),
+    [columns, focusedModelId, requestedSendColumnIds]
   )
   const sendModels = useMemo(
     () =>
@@ -204,38 +235,34 @@ function ComparePage() {
       ),
     [availableModelsById, sendColumnIds]
   )
-  const freeModelIds = useMemo(
+  const freeModels = useMemo(
     () =>
-      availableModels.flatMap((model) => {
+      availableModels.filter((model) => {
         const provider = providerById.get(model.providerId)
-        return getModelDisplayTags(model, undefined, provider).includes('free') ? [model.id] : []
+        return getModelDisplayTags(model, undefined, provider).includes('free')
       }),
     [availableModels, providerById]
   )
+  const subscriptionColumnIds = useMemo(
+    () => getMySubscriptionColumnIds(allApps.filter((app) => app.kind === 'site').map((app) => app.appId)),
+    [allApps]
+  )
   const defaultSets = useMemo<CacheCompareSavedSet[]>(
-    () => [
-      {
-        id: 'free',
-        name: t('compare.saved_sets.free_models'),
-        selection: freeModelIds.map((id) => ({ id, enabled: true }))
-      },
-      {
-        id: 'all-enabled',
-        name: t('compare.saved_sets.all_enabled'),
-        selection: availableModels.map((model) => ({ id: model.id, enabled: true }))
-      }
-    ],
-    [availableModels, freeModelIds, t]
+    () =>
+      buildCompareDefaultSets({
+        freeModels,
+        subscriptionIds: subscriptionColumnIds,
+        freeSetName: t('compare.saved_sets.free_models'),
+        subscriptionsSetName: t('compare.saved_sets.my_subscriptions')
+      }),
+    [freeModels, subscriptionColumnIds, t]
   )
   const { uiMessages } = useTopicMessages(activeTopicId ?? '', { enabled: Boolean(activeTopicId) })
-  const statusByModelId = useMemo(() => getModelStatuses(uiMessages), [uiMessages])
   const latestPrompt = useMemo(() => getLatestPrompt(uiMessages), [uiMessages])
   const currentQuestion =
     activeTurn && activeTurn.topicId === activeTopicId ? activeTurn.question : (latestPrompt?.question ?? '')
   const currentPrompt = latestPrompt?.question === currentQuestion ? latestPrompt : null
   const initializedSelectionRef = useRef(false)
-  const initializedFirstRunJudgeRef = useRef(false)
-  const seededThisSessionRef = useRef(false)
 
   const loadCliAvailability = useCallback(() => {
     if (cliAvailabilityRef.current) return Promise.resolve(cliAvailabilityRef.current)
@@ -251,14 +278,34 @@ function ComparePage() {
       })
       .finally(() => {
         cliAvailabilityRequest.current = null
+        setIsCheckingClis(false)
       })
+    setIsCheckingClis(true)
     cliAvailabilityRequest.current = request
     return request
   }, [])
 
+  const autoJudgeId = useMemo(
+    () =>
+      resolveCompareJudge({
+        savedJudgeId: 'auto',
+        availableCliIds: cliAvailability.filter((item) => item.available).map((item) => item.id),
+        visibleWebAppIds: visibleWebJudgeColumns.map((column) => column.appId),
+        chatModelIds: availableModels.map((model) => model.id)
+      }),
+    [availableModels, cliAvailability, visibleWebJudgeColumns]
+  )
   const judgeOptions = useMemo(
     () => [
-      { id: 'auto' as const, label: t('compare.judge.auto') },
+      {
+        id: 'auto' as const,
+        label:
+          autoJudgeId === 'auto'
+            ? t('compare.judge.auto')
+            : t('compare.judge.auto_resolved', {
+                name: getJudgeName(autoJudgeId, columns, availableModelsById, t)
+              })
+      },
       ...availableModels.map((model) => ({ id: model.id as CompareJudgeId, label: model.name })),
       ...DEFAULT_COMPARE_CLI_ORDER.filter((id) => cliAvailability.some((item) => item.id === id && item.available)).map(
         (id) => ({
@@ -271,60 +318,36 @@ function ComparePage() {
         label: t('compare.judge.web_app', { name: column.name })
       }))
     ],
-    [availableModels, cliAvailability, t, visibleWebJudgeColumns]
+    [availableModels, availableModelsById, autoJudgeId, cliAvailability, columns, t, visibleWebJudgeColumns]
   )
 
   const resolveJudge = useCallback(async (): Promise<CompareJudgeId> => {
     const availability = await loadCliAvailability()
-    const availableCliIds = new Set(availability.filter((item) => item.available).map((item) => item.id))
-    const selectedCliId = judgeId.startsWith('cli::') ? judgeId.slice('cli::'.length) : undefined
-    if (selectedCliId && availableCliIds.has(selectedCliId as CompareCliId)) return judgeId
-
-    if (judgeId !== 'auto' && isApiColumnId(judgeId) && availableModelsById.has(judgeId)) return judgeId
-
-    const selectedWebJudge = visibleWebJudgeColumns.find((column) => column.id === judgeId)
-    if (selectedWebJudge) return judgeId
-
-    const preferredJudgeId = getDefaultCompareJudgeId(
-      [...availableCliIds],
-      visibleWebJudgeColumns.map((column) => column.appId)
-    )
-    if (preferredJudgeId !== 'auto') {
-      const nextJudgeId = preferredJudgeId as CompareJudgeId
-      setJudgeId(nextJudgeId)
-      return nextJudgeId
-    }
-
-    // Reuse a mounted visible web column as judge instead of opening another mini-app session.
-    const defaultWebJudge = visibleWebJudgeColumns.toSorted(
-      (left, right) => getWebJudgePriority(left.appId) - getWebJudgePriority(right.appId)
-    )[0]
-    const nextJudgeId = (defaultWebJudge?.id ?? 'auto') as CompareJudgeId
-    if (nextJudgeId !== 'auto') {
-      setJudgeId(nextJudgeId)
-      return nextJudgeId
-    }
-
-    const nativeProviderModel = availableModels.find((model) => model.providerId === 'openai-codex')
-    if (nativeProviderModel) {
-      setJudgeId(nativeProviderModel.id)
-      return nativeProviderModel.id
-    }
-
-    setJudgeId(nextJudgeId)
+    const nextJudgeId = resolveCompareJudge({
+      savedJudgeId: judgeId,
+      availableCliIds: availability.filter((item) => item.available).map((item) => item.id),
+      visibleWebAppIds: visibleWebJudgeColumns.map((column) => column.appId),
+      chatModelIds: availableModels.map((model) => model.id)
+    })
     return nextJudgeId
-  }, [availableModels, availableModelsById, judgeId, loadCliAvailability, setJudgeId, visibleWebJudgeColumns])
+  }, [availableModels, judgeId, loadCliAvailability, visibleWebJudgeColumns])
 
   const handleJudgePickerOpen = useCallback(() => {
     void loadCliAvailability()
   }, [loadCliAvailability])
-  const handleJudgeChange = useCallback((nextJudgeId: CompareJudgeId) => setJudgeId(nextJudgeId), [setJudgeId])
+  const handleJudgeChange = useCallback(
+    (nextJudgeId: CompareJudgeId) => {
+      setJudgeId(nextJudgeId)
+    },
+    [setJudgeId]
+  )
 
   const answerSources = useMemo<CompareAnswerSource[]>(() => {
     if (!currentQuestion) return []
 
     const sources: CompareAnswerSource[] = []
     for (const column of columns) {
+      if (!column.enabled) continue
       if (column.kind === 'api') {
         const answer = getLatestApiAnswer(uiMessages, currentPrompt, column.id)
         if (answer?.content)
@@ -509,7 +532,7 @@ function ComparePage() {
       const previousText = await readVisibleLastAnswer(webview, webColumn.appId)
       if (controller.signal.aborted) return
       const sent = await sendPromptToWebPanel(webview, webColumn.appId, synthesisPrompt)
-      if (!sent) {
+      if (sent !== 'sent') {
         setCombineError(topicId, question, resolvedJudgeId, judgeName)
         return
       }
@@ -626,25 +649,64 @@ function ComparePage() {
           ...current,
           [active.cliId]: { content: active.content, status: 'error', error: message, prompt: active.userPrompt }
         }))
+        const failedColumn = columns.find(
+          (column): column is Extract<CompareColumn, { kind: 'cli' }> =>
+            column.kind === 'cli' && column.cliId === active.cliId
+        )
+        if (failedColumn) {
+          const reason = formatCompareColumnErrorMessage(
+            failedColumn.name,
+            message,
+            t('compare.api.chat_model_required')
+          )
+          setDeliveryStatuses((current) => ({
+            ...current,
+            [failedColumn.id]: { columnId: failedColumn.id, status: 'error', reason }
+          }))
+          setCliOutputs((current) => ({
+            ...current,
+            [active.cliId]: { content: active.content, status: 'error', error: reason, prompt: active.userPrompt }
+          }))
+        }
       }
       activeCliRequests.current.delete(event.requestId)
     },
-    [completeCombine, setCombineError, t]
+    [columns, completeCombine, setCombineError, t]
   )
   useIpcOn('compare_cli.stream', handleCliEvent)
+  const handleFocusShortcut = useCallback(
+    ({ key, ctrlKey }: { key: string; ctrlKey: boolean }) => {
+      const action = getCompareKeyboardAction(
+        key,
+        ctrlKey,
+        focusedModelId,
+        columns.map((column) => column.id)
+      )
+      if (action?.type === 'focus-model') setFocusedModelId(action.modelId)
+      else if (action?.type === 'exit-focus') setFocusedModelId(null)
+    },
+    [columns, focusedModelId]
+  )
+  useIpcOn('compare.focus_shortcut', handleFocusShortcut)
 
   const handleSendText = useCallback(
-    async (text: string) => {
+    async (text: string, targetOverride?: readonly CompareColumnId[]) => {
+      const requestedIds = new Set(targetOverride ?? sendColumnIds)
+      const selectedForSend = new Set(
+        [...requestedIds].filter((id) => {
+          const column = columns.find((candidate) => candidate.id === id)
+          return column?.enabled && (!id.startsWith('webapp::') || !focusedModelId || focusedModelId === id)
+        })
+      )
+      const targetIds = [...selectedForSend]
+      if (targetIds.length === 0) return []
+
       for (const wait of webWaitControllers.current.values()) wait.controller.abort()
       webWaitControllers.current.clear()
 
-      const selectedForSend = new Set(sendColumnIds)
       const visibleWebColumns = columns.filter(
         (column): column is Extract<CompareColumn, { kind: 'web' }> =>
-          column.kind === 'web' && selectedForSend.has(column.id) && (!focusedModelId || focusedModelId === column.id)
-      )
-      const targetIds = sendColumnIds.filter(
-        (id) => !id.startsWith('webapp::') || visibleWebColumns.some((column) => column.id === id)
+          column.kind === 'web' && column.enabled && selectedForSend.has(column.id)
       )
       const turn: ActiveCompareTurn = {
         id: crypto.randomUUID(),
@@ -698,25 +760,33 @@ function ComparePage() {
       }
       const webResults = await sendPromptToWebPanels(webTargets, text, copyPrompt)
       if (missingWebColumns.length > 0) {
-        if (webResults.every((result) => result.sent)) await copyPrompt(text)
-        webResults.push(...missingWebColumns.map((column) => ({ appId: column.appId, sent: false })))
+        if (webResults.every((result) => result.status === 'sent')) await copyPrompt(text)
+        webResults.push(
+          ...missingWebColumns.map((column) => ({ appId: column.appId, status: 'input-not-found' as const }))
+        )
       }
       setWebWarnings((current) => ({
         ...current,
-        ...Object.fromEntries(webResults.map((result) => [result.appId, !result.sent]))
+        ...Object.fromEntries(webResults.map((result) => [result.appId, result.status !== 'sent']))
       }))
 
       for (const result of webResults) {
         const column = visibleWebColumns.find((candidate) => candidate.appId === result.appId)
         if (!column) continue
+        const delivery: CompareDeliveryResult = {
+          columnId: column.id,
+          status: mapWebPanelSendStatus(result.status),
+          reason: result.status === 'input-not-found' ? t('compare.delivery.input_not_found') : undefined
+        }
+        setDeliveryStatuses((current) => ({ ...current, [column.id]: delivery }))
         const canRead = readWebAnswers && Boolean(getWebPanelAdapter(column.appId).lastAnswerSelector)
-        if (!result.sent || !canRead) {
+        if (result.status !== 'sent' || !canRead) {
           setWebAnswers((current) => ({
             ...current,
             [column.appId]: {
               question: text,
               content: '',
-              status: result.sent ? 'skipped' : 'error'
+              status: result.status === 'sent' ? 'skipped' : 'error'
             }
           }))
           continue
@@ -764,34 +834,71 @@ function ComparePage() {
           .finally(() => webWaitControllers.current.delete(waitKey))
       }
 
-      for (const column of columns) {
-        if (column.kind !== 'cli' || !selectedForSend.has(column.id)) continue
-        const existing = cliOutputs[column.cliId]
-        if (existing?.requestId) {
-          void ipcApi.request('compare_cli.cancel', { requestId: existing.requestId }).catch(() => {})
-          activeCliRequests.current.delete(existing.requestId)
-        }
-        const requestId = crypto.randomUUID()
-        const prompt = buildCompareCliPrompt(cliHistory[column.cliId] ?? [], text)
-        activeCliRequests.current.set(requestId, { cliId: column.cliId, userPrompt: text, content: '' })
-        setCliOutputs((current) => ({
-          ...current,
-          [column.cliId]: { content: '', status: 'streaming', requestId, prompt: text }
-        }))
-        void ipcApi.request('compare_cli.run', { id: column.cliId, requestId, prompt }).catch(() => {
-          activeCliRequests.current.delete(requestId)
+      const cliDeliveryResults = await Promise.all(
+        targetIds.flatMap((id) => {
+          const column = columns.find(
+            (candidate): candidate is Extract<CompareColumn, { kind: 'cli' }> =>
+              candidate.kind === 'cli' && candidate.id === id
+          )
+          if (!column) return []
+          const existing = cliOutputs[column.cliId]
+          if (existing?.requestId) {
+            void ipcApi.request('compare_cli.cancel', { requestId: existing.requestId }).catch(() => {})
+            activeCliRequests.current.delete(existing.requestId)
+          }
+          const requestId = crypto.randomUUID()
+          const prompt = buildCompareCliPrompt(cliHistory[column.cliId] ?? [], text)
+          activeCliRequests.current.set(requestId, { cliId: column.cliId, userPrompt: text, content: '' })
           setCliOutputs((current) => ({
             ...current,
-            [column.cliId]: {
-              content: current[column.cliId]?.content ?? '',
-              status: 'error',
-              error: t('compare.cli.start_failed'),
-              prompt: text
-            }
+            [column.cliId]: { content: '', status: 'streaming', requestId, prompt: text }
           }))
+          return [
+            ipcApi
+              .request('compare_cli.run', { id: column.cliId, requestId, prompt })
+              .then<CompareDeliveryResult, CompareDeliveryResult>(
+                () => ({ columnId: column.id, status: 'sent' }),
+                () => {
+                  activeCliRequests.current.delete(requestId)
+                  const reason = formatCompareColumnErrorMessage(
+                    column.name,
+                    t('compare.cli.start_failed'),
+                    t('compare.api.chat_model_required')
+                  )
+                  setCliOutputs((current) => ({
+                    ...current,
+                    [column.cliId]: {
+                      content: current[column.cliId]?.content ?? '',
+                      status: 'error',
+                      error: reason,
+                      prompt: text
+                    }
+                  }))
+                  return { columnId: column.id, status: 'error', reason }
+                }
+              )
+          ]
         })
-      }
+      )
+      const webDeliveryResults = webResults.flatMap((result) => {
+        const column = visibleWebColumns.find((candidate) => candidate.appId === result.appId)
+        return column
+          ? [
+              {
+                columnId: column.id,
+                status: mapWebPanelSendStatus(result.status),
+                reason: result.status === 'input-not-found' ? t('compare.delivery.input_not_found') : undefined
+              } satisfies CompareDeliveryResult
+            ]
+          : []
+      })
+      const deliveryResults = [...webDeliveryResults, ...cliDeliveryResults]
+      setDeliveryStatuses((current) => ({
+        ...current,
+        ...Object.fromEntries(deliveryResults.map((result) => [result.columnId, result]))
+      }))
       void resolveJudge()
+      return deliveryResults
     },
     [activeTopicId, cliHistory, cliOutputs, columns, focusedModelId, readWebAnswers, resolveJudge, sendColumnIds, t]
   )
@@ -837,7 +944,7 @@ function ComparePage() {
   )
   const handleSelectionChange = useCallback(
     (next: CacheCompareModelSelection[]) => {
-      setSelection(next)
+      setSelection(limitCompareSelection(next))
       setActiveSetId('custom')
     },
     [setSelection]
@@ -846,22 +953,81 @@ function ComparePage() {
     (modelId: CompareColumnId) => handleSelectionChange(removeCompareModel(selection, modelId)),
     [handleSelectionChange, selection]
   )
+  const handleToggleModel = useCallback(
+    (modelId: CompareColumnId) => {
+      const current = selection.find((item) => item.id === modelId)
+      if (current) handleSelectionChange(setCompareModelEnabled(selection, modelId, !current.enabled))
+    },
+    [handleSelectionChange, selection]
+  )
+  const handleReorderModels = useCallback(
+    (sourceId: CompareColumnId, targetId: CompareColumnId) =>
+      handleSelectionChange(reorderCompareModels(selection, sourceId, targetId)),
+    [handleSelectionChange, selection]
+  )
+  const handleAddColumn = useCallback(
+    (id: CompareColumnId) => handleSelectionChange(addCompareColumn(selection, id)),
+    [handleSelectionChange, selection]
+  )
+  const handleUseSubscriptions = useCallback(
+    async (ids: CompareColumnId[], nextActiveSetId = 'custom') => {
+      const appsById = new Map(allApps.map((app) => [app.appId, app]))
+      const appsToEnable = ids.flatMap((id) => {
+        const appId = decodeWebAppColumnId(id)
+        const app = appId ? appsById.get(appId) : undefined
+        return app?.status === 'disabled' ? [app] : []
+      })
+      try {
+        await Promise.all(appsToEnable.map((app) => updateAppStatus(app.appId, 'enabled')))
+        setSelection(limitCompareSelection(ids.map((id) => ({ id, enabled: true }))))
+        setActiveSetId(nextActiveSetId)
+      } catch {
+        toast.error(t('common.error'))
+      }
+    },
+    [allApps, setSelection, t, updateAppStatus]
+  )
+  const handleDeliveryResults = useCallback((results: readonly CompareDeliveryResult[]) => {
+    setDeliveryStatuses((current) => ({
+      ...current,
+      ...Object.fromEntries(results.map((result) => [result.columnId, result]))
+    }))
+  }, [])
+  const handleOpenHistory = useCallback(() => {
+    void EventEmitter.emit(EVENT_NAMES.COMPARE_OPEN_HISTORY)
+  }, [])
+  const handleOpenModelPicker = useCallback(() => setApiPickerOpen(true), [])
+  const handleApiPickerOpenChange = useCallback(
+    (open: boolean) => {
+      setApiPickerOpen(open)
+      if (open) void loadCliAvailability()
+    },
+    [loadCliAvailability]
+  )
   const handleWebviewRef = useCallback((appId: string, webview: WebviewTag | null) => {
     if (webview) webviewRefs.current.set(appId, webview)
     else webviewRefs.current.delete(appId)
   }, [])
   const handleSelectSet = useCallback(
     (setId: string) => {
-      const selectedSet = [...defaultSets, ...savedSets].find((set) => set.id === setId)
+      const resolvedSetId = resolveCompareSavedSetId(setId)
+      const selectedSet = [...defaultSets, ...savedSets].find((set) => set.id === resolvedSetId)
       if (!selectedSet) {
         setActiveSetId('custom')
         return
       }
-      setSelection(getCompareSetSelection(selectedSet))
-      setActiveSetId(setId)
+      if (resolvedSetId === 'my-subscriptions') {
+        void handleUseSubscriptions(
+          selectedSet.selection.map((item) => item.id),
+          resolvedSetId
+        )
+      } else {
+        setSelection(getCompareSetSelection(selectedSet))
+        setActiveSetId(resolvedSetId)
+      }
       setFocusedModelId(null)
     },
-    [defaultSets, savedSets, setSelection]
+    [defaultSets, handleUseSubscriptions, savedSets, setSelection]
   )
   const handleSaveSet = useCallback(
     (name: string) => {
@@ -878,39 +1044,61 @@ function ComparePage() {
 
   useEffect(() => {
     if (modelsLoading || providersLoading || miniAppsLoading || initializedSelectionRef.current) return
-    initializedSelectionRef.current = true
-    const enabledSiteAppIds = allApps
-      .filter((app) => app.kind === 'site' && (app.status === 'enabled' || app.status === 'pinned'))
-      .map((app) => app.appId)
-    const firstRunDefaults = getFirstRunCompareDefaults({
-      // Other windows can create the persist cache first, so seed whenever Compare is still empty.
-      isFreshProfile: true,
-      defaultsSeeded,
-      selection,
-      savedSets,
-      judgeId,
-      enabledSiteAppIds,
-      savedSetName: t('compare.saved_sets.my_subscriptions')
-    })
-
-    if (firstRunDefaults) {
-      seededThisSessionRef.current = true
-      setSelection(firstRunDefaults.selection)
-      setSavedSets([firstRunDefaults.savedSet])
-      setDefaultsSeeded(true)
-      setWelcomeDismissed(false)
-      setActiveSetId(firstRunDefaults.savedSet.id)
-    } else if (
-      !cacheService.hadPersistCacheAtStartup &&
-      !defaultsSeeded &&
-      (selection.length > 0 || savedSets.length > 0)
-    ) {
-      setDefaultsSeeded(true)
+    let cancelled = false
+    const initializeSelection = async () => {
+      const hasCliSelections = [...selection, ...savedSets.flatMap((set) => set.selection)].some((item) =>
+        item.id.startsWith('cli::')
+      )
+      const availability = hasCliSelections ? await loadCliAvailability() : []
+      if (cancelled) return
+      const reconciled = reconcileCompareSelections({
+        // Other windows can create the persist cache first, so seed whenever Compare is still empty.
+        isFreshProfile: true,
+        defaultsSeeded,
+        selection,
+        savedSets,
+        chatModelIds: availableModels.map((model) => model.id),
+        webAppIds: allApps.map((app) => app.appId),
+        cliIds: availability.filter((item) => item.available).map((item) => item.id),
+        subscriptionAppIds: allApps
+          .filter((app) => app.kind === 'site' && (app.status === 'enabled' || app.status === 'pinned'))
+          .map((app) => app.appId),
+        judgeId,
+        savedSetName: t('compare.saved_sets.my_subscriptions')
+      })
+      initializedSelectionRef.current = true
+      if (reconciled.overflowTotal) {
+        toast.info(
+          t('compare.selection_limit_notice', {
+            shown: MAX_COMPARE_COLUMNS,
+            total: reconciled.overflowTotal
+          })
+        )
+      }
+      if (JSON.stringify(reconciled.selection) !== JSON.stringify(selection)) setSelection(reconciled.selection)
+      if (JSON.stringify(reconciled.savedSets) !== JSON.stringify(savedSets)) setSavedSets(reconciled.savedSets)
+      if (reconciled.seeded) {
+        setDefaultsSeeded(true)
+        setWelcomeDismissed(false)
+        setActiveSetId('my-subscriptions')
+      } else if (
+        !cacheService.hadPersistCacheAtStartup &&
+        !defaultsSeeded &&
+        (selection.length > 0 || savedSets.length > 0)
+      ) {
+        setDefaultsSeeded(true)
+      }
+    }
+    void initializeSelection()
+    return () => {
+      cancelled = true
     }
   }, [
     allApps,
+    availableModels,
     defaultsSeeded,
     judgeId,
+    loadCliAvailability,
     miniAppsLoading,
     modelsLoading,
     providersLoading,
@@ -922,23 +1110,6 @@ function ComparePage() {
     setWelcomeDismissed,
     t
   ])
-
-  useEffect(() => {
-    if (
-      !seededThisSessionRef.current ||
-      !defaultsSeeded ||
-      initializedFirstRunJudgeRef.current ||
-      columns.length === 0
-    ) {
-      return
-    }
-    if (judgeId !== 'auto') {
-      initializedFirstRunJudgeRef.current = true
-      return
-    }
-    initializedFirstRunJudgeRef.current = true
-    void resolveJudge()
-  }, [columns.length, defaultsSeeded, judgeId, resolveJudge])
 
   useEffect(() => {
     if (focusedModelId && !columns.some((column) => column.id === focusedModelId)) setFocusedModelId(null)
@@ -1041,39 +1212,41 @@ function ComparePage() {
         onSelectionChange={handleSelectionChange}
         onSelectSet={handleSelectSet}
         onSaveSet={handleSaveSet}
-        focusedModelId={focusedModelId}
-        onFocusModel={setFocusedModelId}
         layout={layout}
         onLayoutChange={setLayout}
-        onlyFocusedModel={onlyFocusedModel}
-        onOnlyFocusedModelChange={setOnlyFocusedModel}
-        statusByModelId={statusByModelId}
-        judgeId={judgeId}
+        judgeId={judgeOptions.some((option) => option.id === judgeId) ? judgeId : 'auto'}
         judgeOptions={judgeOptions}
         onJudgeChange={handleJudgeChange}
         onJudgePickerOpen={handleJudgePickerOpen}
         canCombine={canCombineAnswers}
         onCombine={() => void handleCombine()}
+        onOpenHistory={handleOpenHistory}
+        apiPickerOpen={apiPickerOpen}
+        onApiPickerOpenChange={handleApiPickerOpenChange}
+        cliAvailability={cliAvailability}
+        isCheckingClis={isCheckingClis}
       />
     ),
     [
       activeSetId,
       availableModels,
       canCombineAnswers,
-      focusedModelId,
       handleCombine,
+      handleOpenHistory,
+      handleApiPickerOpenChange,
       handleJudgeChange,
       handleJudgePickerOpen,
       handleSaveSet,
       handleSelectSet,
       handleSelectionChange,
+      apiPickerOpen,
+      cliAvailability,
+      isCheckingClis,
       judgeId,
       judgeOptions,
       layout,
-      onlyFocusedModel,
       savedSets,
-      selection,
-      statusByModelId
+      selection
     ]
   )
   const handleDismissWelcome = useCallback(() => setWelcomeDismissed(true), [setWelcomeDismissed])
@@ -1106,28 +1279,40 @@ function ComparePage() {
       welcomeCard,
       selectedModelIds: selection.map((item) => item.id),
       columns,
+      runtimeOwnerId: columns.find((column) => column.kind === 'api')?.id,
+      currentQuestion,
       sendModels,
       focusedModelId,
       layout,
       sendDisabled: columns.filter((column) => sendColumnIds.includes(column.id)).length === 0,
+      subscriptionColumnIds,
+      deliveryStatuses,
       onSendText: handleSendText,
+      onDeliveryResults: handleDeliveryResults,
       onFocusModel: setFocusedModelId,
+      onToggleModel: handleToggleModel,
       onRemoveModel: handleRemoveModel,
+      onReorderModels: handleReorderModels,
       onTopicIdChange: setActiveTopicId,
       onWebviewRef: handleWebviewRef,
       webWarnings,
       webAnswers,
       cliOutputs,
       onCancelCli: handleCancelCli,
-      judgeId,
+      cliAvailability,
+      judgeId: judgeOptions.some((option) => option.id === judgeId) ? judgeId : 'auto',
       judgeOptions,
       onJudgeChange: handleJudgeChange,
       onJudgePickerOpen: handleJudgePickerOpen,
+      onOpenHistory: handleOpenHistory,
+      onOpenModelPicker: handleOpenModelPicker,
+      onAddColumn: handleAddColumn,
+      onUseSubscriptions: handleUseSubscriptions,
       canCombine: canCombineAnswers,
       onCombine: () => void handleCombine(),
       finalAnswer,
       onCopyFinalAnswer: handleCopyFinalAnswer,
-      onUseWebAnswer: (appId) => void handleUseWebAnswer(appId)
+      onUseWebAnswer: handleUseWebAnswer
     }),
     [
       canCombineAnswers,
@@ -1136,19 +1321,30 @@ function ComparePage() {
       finalAnswer,
       focusedModelId,
       handleCancelCli,
+      deliveryStatuses,
+      cliAvailability,
       handleCombine,
       handleCopyFinalAnswer,
+      handleOpenHistory,
+      handleOpenModelPicker,
+      handleAddColumn,
       handleJudgeChange,
       handleJudgePickerOpen,
       handleRemoveModel,
+      handleReorderModels,
       handleSendText,
+      handleDeliveryResults,
+      handleToggleModel,
+      handleUseSubscriptions,
       handleUseWebAnswer,
       handleWebviewRef,
       judgeId,
       judgeOptions,
+      currentQuestion,
       layout,
       sendColumnIds,
       sendModels,
+      subscriptionColumnIds,
       selection,
       toolbar,
       webAnswers,
@@ -1203,21 +1399,6 @@ function decodeWebAppColumnId(id: string): string {
   } catch {
     return ''
   }
-}
-
-function getModelStatuses(messages: ReturnType<typeof useTopicMessages>['uiMessages']) {
-  const statuses = new Map<UniqueModelId, CompareModelStatus>()
-  for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    const modelId = message.metadata?.modelId
-    if (typeof modelId !== 'string' || !modelId.includes('::')) continue
-    const status = message.metadata?.status
-    statuses.set(
-      modelId as UniqueModelId,
-      status === 'pending' ? 'streaming' : status === 'error' ? 'error' : status === 'success' ? 'done' : 'waiting'
-    )
-  }
-  return statuses
 }
 
 export default ComparePage

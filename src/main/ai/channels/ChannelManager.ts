@@ -30,7 +30,9 @@ export class ChannelManager extends BaseService {
 
   protected async onReady(): Promise<void> {
     this.registerDisposable(application.get('PowerService').onResume(() => this.handleSystemResume()))
-    await this.start()
+    // Channel adapters do not participate in Compare's first render.
+    const timer = setTimeout(() => void this.start(), 30_000)
+    this.registerDisposable(() => clearTimeout(timer))
   }
 
   protected async onStop(): Promise<void> {

@@ -1,5 +1,7 @@
 import type { WebviewTag } from 'electron'
 
+import type { CompareDeliveryStatus } from '@renderer/types/compare'
+
 export interface WebPanelAdapter {
   appIds: readonly string[]
   inputSelectors: readonly string[]
@@ -103,26 +105,37 @@ export function getWebPanelAdapter(appId: string): WebPanelAdapter {
 
 export interface WebSendResult {
   appId: string
-  sent: boolean
+  status: WebPanelSendStatus
 }
 
-type InjectionResult = { inserted: boolean; clicked: boolean }
+export type WebPanelSendStatus = 'sent' | 'login-needed' | 'input-not-found' | 'failed'
+
+interface InjectionResult {
+  status: Exclude<WebPanelSendStatus, 'failed'>
+  clicked?: boolean
+}
+
+export function mapWebPanelSendStatus(status: WebPanelSendStatus): CompareDeliveryStatus {
+  if (status === 'sent') return 'sent'
+  if (status === 'login-needed') return 'login-needed'
+  return 'copied'
+}
 
 export async function sendPromptToWebPanel(
   webview: Pick<WebviewTag, 'focus' | 'executeJavaScript' | 'sendInputEvent'>,
   appId: string,
   prompt: string
-): Promise<boolean> {
+): Promise<WebPanelSendStatus> {
   const adapter = getWebPanelAdapter(appId)
   const result = (await webview.executeJavaScript(buildInsertPromptScript(adapter, prompt), true)) as InjectionResult
-  if (!result?.inserted) return false
-  if (result.clicked) return true
-  if (!adapter.enterToSend) return false
+  if (result?.status !== 'sent') return result?.status ?? 'input-not-found'
+  if (result.clicked) return 'sent'
+  if (!adapter.enterToSend) return 'input-not-found'
 
   webview.focus()
   await webview.sendInputEvent({ type: 'keyDown', keyCode: 'ENTER' })
   await webview.sendInputEvent({ type: 'keyUp', keyCode: 'ENTER' })
-  return true
+  return 'sent'
 }
 
 export async function sendPromptToWebPanels(
@@ -133,13 +146,13 @@ export async function sendPromptToWebPanels(
   const results = await Promise.all(
     targets.map(async ({ appId, webview }): Promise<WebSendResult> => {
       try {
-        return { appId, sent: await sendPromptToWebPanel(webview, appId, prompt) }
+        return { appId, status: await sendPromptToWebPanel(webview, appId, prompt) }
       } catch {
-        return { appId, sent: false }
+        return { appId, status: 'failed' }
       }
     })
   )
-  if (results.some((result) => !result.sent)) await copyPrompt(prompt)
+  if (results.some((result) => result.status !== 'sent')) await copyPrompt(prompt)
   return results
 }
 
@@ -267,13 +280,17 @@ export function buildInsertPromptScript(adapter: WebPanelAdapter, prompt: string
       }
       return null;
     };
-    if (!readySelectors.some((selector) => queryDeep(document, selector))) return { inserted: false, clicked: false };
+    const loginPage = /(?:^|\\/)(?:login|log-in|signin|sign-in|auth)(?:\\/|$)/i.test(location.pathname) ||
+      Boolean(document.querySelector('input[type="password"], input[autocomplete="current-password"]'));
+    if (!readySelectors.some((selector) => queryDeep(document, selector))) {
+      return { status: loginPage ? "login-needed" : "input-not-found" };
+    }
     let input = null;
     for (const selector of inputSelectors) {
       input = queryDeep(document, selector);
       if (input) break;
     }
-    if (!input || !(input instanceof HTMLElement)) return { inserted: false, clicked: false };
+    if (!input || !(input instanceof HTMLElement)) return { status: loginPage ? "login-needed" : "input-not-found" };
     input.focus();
     if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
       const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set;
@@ -296,8 +313,8 @@ export function buildInsertPromptScript(adapter: WebPanelAdapter, prompt: string
     }
     if (button instanceof HTMLButtonElement && !button.disabled) {
       button.click();
-      return { inserted: true, clicked: true };
+      return { status: "sent", clicked: true };
     }
-    return { inserted: true, clicked: false };
+    return { status: "sent", clicked: false };
   })()`
 }

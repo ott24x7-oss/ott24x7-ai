@@ -72,7 +72,7 @@ export async function buildFilePartsForAttachments(
   })
   const partsByAttachment = await Promise.all(
     attachments.map(async (attachment, index) => {
-      const isZip = options?.includeZipContext && attachment.ext.toLowerCase() === '.zip'
+      const isZip = options?.includeZipContext && attachment.ext?.toLowerCase() === '.zip'
       const zipContext = isZip ? await getZipContext(attachment, options.includeZipImages === true) : undefined
       const entry = attachment.blob
         ? await window.api.file.createInternalEntry({

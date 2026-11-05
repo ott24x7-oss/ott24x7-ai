@@ -1,28 +1,26 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { CacheCompareModelSelection } from '@shared/data/cache/cacheValueTypes'
+import type { Model } from '@shared/data/types/model'
 
+import { MAX_COMPARE_COLUMNS } from '../compareState'
 import { CompareToolbar, type CompareLayout } from '../CompareToolbar'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'en' },
     t: (key: string, options?: { model?: string; count?: number }) => {
-      if (key === 'compare.focus_model') return `Focus ${options?.model ?? ''}`
       if (key === 'compare.layout.columns') return `${options?.count} columns`
       return key
     }
   })
 }))
-vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
-}))
-vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
 vi.mock('@renderer/hooks/useMiniApps', () => ({ useMiniApps: () => ({ allApps: [] }) }))
-vi.mock('@renderer/utils/model', () => ({ getModelLogoRef: () => undefined }))
-vi.mock('@cherrystudio/ui/icons', () => ({ useIcon: () => undefined }))
+vi.mock('@renderer/components/chat/panes/Shell', () => ({
+  RightPanelShortcut: ({ label }: { label: string }) => <button type="button">{label}</button>
+}))
 
 const model = {
   id: 'openai-codex::gpt-5',
@@ -34,47 +32,63 @@ const model = {
   isHidden: false
 } as Model
 
-function FocusToolbarHarness() {
-  const [focusedModelId, setFocusedModelId] = useState<UniqueModelId | null>(null)
-  const [onlyFocusedModel, setOnlyFocusedModel] = useState(false)
+function CompareToolbarHarness({
+  selection = [{ id: model.id, enabled: true }]
+}: {
+  selection?: CacheCompareModelSelection[]
+}) {
   const [layout, setLayout] = useState<CompareLayout>({ kind: 'columns', columns: 2 })
 
   return (
     <CompareToolbar
-      selection={[{ id: model.id, enabled: true }]}
+      selection={selection}
       models={[model]}
       savedSets={[]}
       activeSetId="custom"
       onSelectionChange={vi.fn()}
       onSelectSet={vi.fn()}
       onSaveSet={vi.fn()}
-      focusedModelId={focusedModelId}
-      onFocusModel={setFocusedModelId}
       layout={layout}
       onLayoutChange={setLayout}
-      onlyFocusedModel={onlyFocusedModel}
-      onOnlyFocusedModelChange={setOnlyFocusedModel}
-      statusByModelId={new Map()}
       judgeId="auto"
       judgeOptions={[{ id: 'auto', label: 'Automatic judge' }]}
       onJudgeChange={vi.fn()}
       onJudgePickerOpen={vi.fn()}
-      canCombine={false}
+      canCombine
       onCombine={vi.fn()}
+      onOpenHistory={vi.fn()}
+      apiPickerOpen={false}
+      onApiPickerOpenChange={vi.fn()}
+      cliAvailability={[]}
+      isCheckingClis={false}
     />
   )
 }
 
-describe('CompareToolbar focus mode', () => {
-  it('enters focus from a model chip and exits with Escape', () => {
-    render(<FocusToolbarHarness />)
+describe('CompareToolbar', () => {
+  it('keeps the main Compare controls in one row and changes the column layout', () => {
+    render(<CompareToolbarHarness />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Focus GPT-5' }))
-    expect(screen.getByRole('listitem', { name: 'GPT-5' })).toHaveAttribute('aria-current', 'true')
-    expect(screen.getByText('compare.focus_mode')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'compare.add_model' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'history.records.shortTitle' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'compare.combine' })).toBeInTheDocument()
 
-    fireEvent.keyDown(window, { key: 'Escape' })
-    expect(screen.getByRole('button', { name: 'GPT-5: compare.status.waiting' })).toBeInTheDocument()
-    expect(screen.queryByText('compare.focus_mode')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '3 columns' }))
+    expect(screen.getByRole('button', { name: '3 columns' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('disables Add model at eight columns, shows the limit tooltip, and offers My subscriptions', () => {
+    const selection: CacheCompareModelSelection[] = Array.from({ length: MAX_COMPARE_COLUMNS }, (_, index) => ({
+      id: `provider::model-${index}` as const,
+      enabled: true
+    }))
+    render(<CompareToolbarHarness selection={selection} />)
+
+    const addModelButton = screen.getByRole('button', { name: 'compare.add_model' })
+    expect(addModelButton).toBeDisabled()
+    expect(screen.getByText('compare.add_model_limit_tooltip')).toBeInTheDocument()
+
+    expect(screen.getByRole('button', { name: 'compare.saved_sets.my_subscriptions' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'compare.saved_sets.all_enabled' })).not.toBeInTheDocument()
   })
 })

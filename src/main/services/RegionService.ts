@@ -93,7 +93,7 @@ class RegionService {
 
   private async detectAndCache(proxyKey: string | null, signal?: AbortSignal): Promise<string> {
     try {
-      const country = await this.fetchCountry(signal)
+      const country = await this.fetchCountry()
       if (application.get('ProxyService').appliedProxyKey === proxyKey) {
         application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
       }
@@ -106,7 +106,7 @@ class RegionService {
   }
 
   // OTT24x7 AI makes no third-party IP lookups; the region comes from the OS locale instead.
-  private async fetchCountry(_signal?: AbortSignal): Promise<string> {
+  private async fetchCountry(): Promise<string> {
     const region = app.getLocaleCountryCode()
     return region || 'US'
   }

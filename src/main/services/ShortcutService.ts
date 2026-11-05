@@ -131,6 +131,17 @@ export class ShortcutService extends BaseService {
 
       const onBeforeInput = (event: Electron.Event, input: Electron.Input) => {
         if (input.type !== 'keyDown' || input.isComposing) return
+        if (input.control && !input.meta && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
+          event.preventDefault()
+          const windowId = application.get('WindowManager').getWindowIdByWebContents(window.webContents)
+          if (windowId) {
+            application.get('IpcApiService').send(windowId, 'compare.focus_shortcut', {
+              key: input.key,
+              ctrlKey: true
+            })
+          }
+          return
+        }
 
         const preferenceService = application.get('PreferenceService')
         const context: ContextReader = (key) => {

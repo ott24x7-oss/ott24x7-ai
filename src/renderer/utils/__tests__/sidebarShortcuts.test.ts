@@ -96,3 +96,13 @@ describe('sidebar shortcut storage transforms', () => {
     expect(getSidebarDefaultLandingUrl([shortcut('core.app', 'compare')], 'openai')).toBe('/app/compare')
   })
 })
+
+describe('lite build sidebar', () => {
+  it('hides the Agents app, whose runtime is not shipped, from saved sidebars', () => {
+    const items = [shortcut('core.app', 'compare'), shortcut('core.app', 'agents'), shortcut('core.app', 'notes')]
+    expect(getVisibleSidebarShortcutItems(items).map((item) => item.target.locator.resourceId)).toEqual([
+      'compare',
+      'notes'
+    ])
+  })
+})

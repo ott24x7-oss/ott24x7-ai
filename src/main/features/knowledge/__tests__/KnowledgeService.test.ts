@@ -490,6 +490,13 @@ describe('KnowledgeService', () => {
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
   })
 
+  async function advanceDeferredRecovery(service: InstanceType<typeof KnowledgeService>) {
+    vi.useFakeTimers()
+    const onAllReady = (service as unknown as { onAllReady: () => void }).onAllReady
+    onAllReady.call(service)
+    await vi.advanceTimersByTimeAsync(30_000)
+  }
+
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
     expect(getPhase(KnowledgeService)).toBe(Phase.WhenReady)
     expect(getDependencies(KnowledgeService)).toEqual([
@@ -533,7 +540,12 @@ describe('KnowledgeService', () => {
       { baseId: 'kb-2', rootItemIds: ['dir-1', 'note-2'] }
     ])
 
-    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+    vi.useFakeTimers()
+    const onAllReady = (service as unknown as { onAllReady: () => void }).onAllReady
+    onAllReady.call(service)
+    expect(knowledgeItemGetDeletingRootGroupsMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.waitFor(() => expect(enqueueMock).toHaveBeenCalledTimes(2))
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.delete-subtree',
@@ -558,7 +570,8 @@ describe('KnowledgeService', () => {
     const rootItemIds = Array.from({ length: 501 }, (_, index) => `note-${index + 1}`)
     knowledgeItemGetDeletingRootGroupsMock.mockReturnValueOnce([{ baseId: 'kb-1', rootItemIds }])
 
-    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+    await advanceDeferredRecovery(service)
+    await vi.waitFor(() => expect(enqueueMock).toHaveBeenCalledTimes(2))
 
     expect(enqueueMock).toHaveBeenCalledTimes(2)
     expect(enqueueMock).toHaveBeenNthCalledWith(
@@ -597,7 +610,8 @@ describe('KnowledgeService', () => {
         finished: Promise.resolve({})
       })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    await advanceDeferredRecovery(service)
+    await vi.waitFor(() => expect(enqueueMock).toHaveBeenCalledTimes(2))
 
     expect(enqueueMock).toHaveBeenCalledTimes(2)
   })
@@ -608,7 +622,8 @@ describe('KnowledgeService', () => {
       throw new Error('scan failed')
     })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    await advanceDeferredRecovery(service)
+    await vi.waitFor(() => expect(knowledgeItemGetDeletingRootGroupsMock).toHaveBeenCalledOnce())
 
     expect(enqueueMock).not.toHaveBeenCalled()
   })
@@ -617,7 +632,7 @@ describe('KnowledgeService', () => {
     const service = new KnowledgeService()
     knowledgeItemFailInterruptedItemsMock.mockReturnValueOnce(3)
 
-    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+    await advanceDeferredRecovery(service)
 
     expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
   })
@@ -628,7 +643,7 @@ describe('KnowledgeService', () => {
       throw new Error('mark failed')
     })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    await advanceDeferredRecovery(service)
 
     expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
   })

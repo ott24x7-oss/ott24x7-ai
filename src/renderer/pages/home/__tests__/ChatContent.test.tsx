@@ -48,7 +48,7 @@ let capturedOnSend:
   | ((
       text: string,
       options?: { userMessageParts?: CherryMessagePart[]; chatTarget?: ComposerChatTarget }
-    ) => Promise<void> | void)
+    ) => Promise<void | boolean> | void | boolean)
   | undefined
 
 vi.mock('@renderer/hooks/useChatWithHistory', () => ({
@@ -64,6 +64,10 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
 
 vi.mock('@renderer/hooks/useTopicMessages', () => ({
   useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
+}))
+
+vi.mock('@renderer/hooks/useMiniApps', () => ({
+  useMiniApps: () => ({ allApps: [], updateAppStatus: vi.fn() })
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -154,7 +158,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     onSend: (
       text: string,
       options?: { userMessageParts?: CherryMessagePart[]; chatTarget?: ComposerChatTarget }
-    ) => Promise<void> | void
+    ) => Promise<void | boolean> | void | boolean
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
     contextUsage?: { contextTokens: number; modelId: string } | null
@@ -369,6 +373,66 @@ describe('ChatContent', () => {
         })
       )
     })
+    expect(sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('blocks Compare sends when no column can receive the prompt', async () => {
+    const sendMessage = vi.fn().mockResolvedValue(true)
+    const onSendText = vi.fn().mockResolvedValue([])
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage,
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+    const compare = {
+      header: null,
+      selectedModelIds: [],
+      columns: [],
+      currentQuestion: '',
+      sendModels: [],
+      focusedModelId: null,
+      layout: { kind: 'columns', columns: 2 },
+      sendDisabled: true,
+      subscriptionColumnIds: [],
+      deliveryStatuses: {},
+      onSendText,
+      onDeliveryResults: vi.fn(),
+      onFocusModel: vi.fn(),
+      onToggleModel: vi.fn(),
+      onRemoveModel: vi.fn(),
+      onReorderModels: vi.fn(),
+      onTopicIdChange: vi.fn(),
+      onWebviewRef: vi.fn(),
+      webWarnings: {},
+      webAnswers: {},
+      cliOutputs: {},
+      cliAvailability: [],
+      onCancelCli: vi.fn(),
+      judgeId: 'auto',
+      judgeOptions: [],
+      onJudgeChange: vi.fn(),
+      onJudgePickerOpen: vi.fn(),
+      onOpenHistory: vi.fn(),
+      onOpenModelPicker: vi.fn(),
+      onAddColumn: vi.fn(),
+      onUseSubscriptions: vi.fn(),
+      canCombine: false,
+      onCombine: vi.fn(),
+      onCopyFinalAnswer: vi.fn(),
+      onUseWebAnswer: vi.fn()
+    } as any
+
+    render(<ChatContent topic={topic} compare={compare} />)
+
+    await act(async () => {
+      await capturedOnSend?.('blocked prompt')
+    })
+
+    expect(onSendText).not.toHaveBeenCalled()
     expect(sendMessage).not.toHaveBeenCalled()
   })
 

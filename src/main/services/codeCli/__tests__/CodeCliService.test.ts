@@ -194,26 +194,43 @@ describe('CodeCliService', () => {
     expect(codeCliService).toBeInstanceOf(BaseService)
   })
 
-  it('should have onInit that preloads terminals', async () => {
+  it('defers terminal preloading until after every service is ready', async () => {
+    vi.useFakeTimers()
     const { codeCliService } = await loadModules()
-    await expect(codeCliService._doInit()).resolves.toBeUndefined()
-    expect(codeCliService.isReady).toBe(true)
+    try {
+      await expect(codeCliService._doInit()).resolves.toBeUndefined()
+      expect(codeCliService.isReady).toBe(true)
+      expect(loggerMock.info).not.toHaveBeenCalledWith('Preloading available terminals...')
+
+      await codeCliService._doAllReady()
+      expect(loggerMock.info).not.toHaveBeenCalledWith('Preloading available terminals...')
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(loggerMock.info).toHaveBeenCalledWith('Preloading available terminals...')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reconciles available CLI skills only after every service is ready', async () => {
+    vi.useFakeTimers()
     const { codeCliService } = await loadModules()
+    try {
+      await codeCliService._doInit()
+      expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
 
-    await codeCliService._doInit()
-    expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
-
-    await codeCliService._doAllReady()
-    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(CODE_CLI_TOOL_PRESETS.length)
-    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
-      'code-mate-codex',
-      path.join('/mock/binary-data', 'code-mate-codex'),
-      '2.0.9',
-      'code-cli:openai-codex'
-    )
+      await codeCliService._doAllReady()
+      expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.waitFor(() => expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(CODE_CLI_TOOL_PRESETS.length))
+      expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
+        'code-mate-codex',
+        path.join('/mock/binary-data', 'code-mate-codex'),
+        '2.0.9',
+        'code-cli:openai-codex'
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('should clean up timers on stop', async () => {

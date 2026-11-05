@@ -608,6 +608,7 @@ vi.mock('@shared/utils/model', () => ({
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
   isReasoningModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
+  isVisionModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ?? false,
   isWebSearchModel: () => false
 }))
 
@@ -2228,6 +2229,23 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('sends from Compare without a chat model, because web panels and CLIs answer on their own', async () => {
+    mocks.assistant = {
+      ...mocks.assistant,
+      modelId: null
+    }
+    mocks.model = undefined
+    const onSend = vi.fn().mockResolvedValue(true)
+
+    render(<ChatComposer topic={topic} onSend={onSend} modelOptional />)
+
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith('hello', expect.anything())
+    expect(toast.error).not.toHaveBeenCalledWith('code.model_required')
   })
 
   it('queues a follow-up while the topic is streaming (does not send directly)', async () => {

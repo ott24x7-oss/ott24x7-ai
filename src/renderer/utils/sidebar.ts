@@ -278,8 +278,18 @@ export function normalizeSidebarShortcutItems(values: readonly unknown[] | undef
   return items
 }
 
+// The lite build ships without bun, which the Agents runtime needs.
+const HIDDEN_SIDEBAR_APP_IDS: ReadonlySet<string> = new Set(['agents'])
+
 export function getVisibleSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarShortcutItem[] {
-  return normalizeSidebarShortcutItems(values).filter(isSidebarShortcutItem)
+  return normalizeSidebarShortcutItems(values).filter(
+    (item): item is SidebarShortcutItem =>
+      isSidebarShortcutItem(item) &&
+      !(
+        item.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.APP &&
+        HIDDEN_SIDEBAR_APP_IDS.has(item.target.locator.resourceId)
+      )
+  )
 }
 
 function isBuiltInAppShortcutTarget(target: SidebarShortcutTarget): target is SidebarShortcutTarget & {

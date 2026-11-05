@@ -37,6 +37,7 @@ interface ChatComposerSlotBaseProps {
   onConversationControlsChange?: ChatConversationControlsChangeHandler
   placeholder?: string
   sendDisabled?: boolean
+  modelOptional?: boolean
 }
 
 type ChatComposerSlotProps = ChatComposerSlotBaseProps & { placement: 'home' | 'docked' }
@@ -51,6 +52,7 @@ function ChatComposerSlot({
   onCreateEmptyTopic,
   sendDisabled,
   placeholder,
+  modelOptional,
   composerContext,
   assistantContext,
   providers,
@@ -68,6 +70,7 @@ function ChatComposerSlot({
         onSend={onSend}
         placeholder={placeholder}
         sendDisabled={sendDisabled}
+        modelOptional={modelOptional}
         chatTarget={chatTarget}
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
@@ -90,6 +93,7 @@ function ChatComposerSlot({
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
         sendDisabled={sendDisabled}
+        modelOptional={modelOptional}
         resolvedContext={assistantContext}
         resolvedProviders={providers}
         externalContextControls

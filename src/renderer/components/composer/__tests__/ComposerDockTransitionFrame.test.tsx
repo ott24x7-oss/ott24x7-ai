@@ -224,6 +224,31 @@ describe('ComposerDockTransitionFrame', () => {
     })
   })
 
+  it('keeps the composer full width when the only message lists are inside Compare columns', async () => {
+    const { container } = render(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={
+          <>
+            <InsetProbe />
+            <div id="compare-panels">
+              <div data-message-virtual-list-scroller="" />
+            </div>
+          </>
+        }
+        composer={<div data-composer-inputbar="" />}
+        mainVisible
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-bottom-padding')).not.toHaveTextContent('')
+    })
+    const dockLayer = container.querySelector<HTMLElement>('[data-composer-dock-layer]')
+    expect(dockLayer).not.toHaveStyle({ paddingInlineStart: '8px' })
+    expect(dockLayer).not.toHaveStyle({ paddingInlineEnd: '24px' })
+  })
+
   it('lifts the composer dock layer above a full-area overlay only when elevated', () => {
     const baseProps = {
       placement: 'docked' as const,

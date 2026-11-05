@@ -585,6 +585,10 @@ const HomePage: FC<{ compare?: ComparePageConfig }> = ({ compare }) => {
   const openHistoryRecords = useCallback(() => {
     toggleHistoryRecords()
   }, [toggleHistoryRecords])
+  useEffect(() => {
+    if (!compare) return
+    return EventEmitter.on(EVENT_NAMES.COMPARE_OPEN_HISTORY, openHistoryRecords)
+  }, [compare, openHistoryRecords])
   const handleHistoryRecordsTopicSelect = useCallback(
     (topic: Topic) => {
       closeHistoryRecords()
@@ -747,7 +751,7 @@ const HomePage: FC<{ compare?: ComparePageConfig }> = ({ compare }) => {
   // provider owns the RightPanel for both views so the rail and the right panel share its open/maximize
   // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
   const resourcePane: ResourcePaneConfig | null =
-    isClassicTopicLayout && topicListPosition === 'right'
+    !compare && isClassicTopicLayout && topicListPosition === 'right'
       ? {
           label: t('chat.topics.title'),
           node: (
@@ -808,17 +812,17 @@ const HomePage: FC<{ compare?: ComparePageConfig }> = ({ compare }) => {
             activeTopic={visibleTopic}
             topicPending={isActiveTopicLoading}
             centerSurface={centerSurface}
-            pane={pane}
-            paneOpen={shellPaneOpen}
+            pane={compare ? undefined : pane}
+            paneOpen={compare ? false : shellPaneOpen}
             panePosition="left"
             onPaneCollapse={() => setShellPaneOpenManually(false)}
             onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
             paneManualToggle={paneManualToggle}
             onNewTopic={handleCreateEmptyTopic}
             onCreateEmptyTopic={handleCreateEmptyTopic}
-            showResourceListControls
-            sidebarOpen={shellPaneOpen}
-            onSidebarToggle={toggleShellPane}
+            showResourceListControls={!compare}
+            sidebarOpen={!compare && shellPaneOpen}
+            onSidebarToggle={compare ? undefined : toggleShellPane}
             locateMessageId={locateMessageId}
             onLocateMessageHandled={handleLocateMessageHandled}
             resourcePaneCount={topicResourcePaneCount}

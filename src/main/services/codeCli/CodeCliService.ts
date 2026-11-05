@@ -92,16 +92,15 @@ export class CodeCliService extends BaseService {
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
   private loginQuery: { controller: AbortController; promise: Promise<boolean>; users: number } | null = null
 
-  protected async onInit(): Promise<void> {
-    if (isMac || isWin) {
-      void this.preloadTerminals()
-    }
-  }
-
-  protected override async onAllReady(): Promise<void> {
-    await this.reconcileCliSkills().catch((error) => {
-      logger.error('Failed to reconcile Code CLI skills', error as Error)
-    })
+  protected override onAllReady(): void {
+    // Terminal discovery and CLI skill projection are not needed to paint Compare.
+    const timer = setTimeout(() => {
+      if (isMac || isWin) void this.preloadTerminals()
+      void this.reconcileCliSkills().catch((error) => {
+        logger.error('Failed to reconcile Code CLI skills', error as Error)
+      })
+    }, 30_000)
+    this.registerDisposable(() => clearTimeout(timer))
   }
 
   async installCli(request: BinaryInstallByNameRequest): Promise<void> {

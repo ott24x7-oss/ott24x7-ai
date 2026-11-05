@@ -23,7 +23,8 @@ const {
   selectionServiceMock,
   quickAssistantServiceMock,
   commandServiceMock,
-  globalShortcutMock
+  globalShortcutMock,
+  ipcApiServiceMock
 } = vi.hoisted(() => ({
   windowServiceMock: {
     onMainWindowCreated: vi.fn(),
@@ -32,7 +33,8 @@ const {
   },
   windowManagerMock: {
     open: vi.fn(),
-    broadcastToType: vi.fn()
+    broadcastToType: vi.fn(),
+    getWindowIdByWebContents: vi.fn(() => 'main-window')
   },
   selectionServiceMock: {
     toggleEnabled: vi.fn(),
@@ -47,7 +49,8 @@ const {
   globalShortcutMock: {
     register: vi.fn(),
     unregister: vi.fn()
-  }
+  },
+  ipcApiServiceMock: { send: vi.fn() }
 }))
 
 vi.mock('@application', async () => {
@@ -57,7 +60,8 @@ vi.mock('@application', async () => {
     WindowManager: windowManagerMock,
     SelectionService: selectionServiceMock,
     QuickAssistantService: quickAssistantServiceMock,
-    CommandService: commandServiceMock
+    CommandService: commandServiceMock,
+    IpcApiService: ipcApiServiceMock
   } as any)
 })
 
@@ -248,6 +252,31 @@ describe('ShortcutService', () => {
 
     expect(event.preventDefault).toHaveBeenCalledOnce()
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', mainWindow)
+  })
+
+  it('routes Ctrl+1..9 from an attached webview to the owning window', async () => {
+    await (service as any).onInit()
+
+    const guest = new MockBrowserWindow()
+    mainWindow.emitWebContents('did-attach-webview', {}, guest.webContents)
+    const event = { preventDefault: vi.fn() }
+    guest.emitWebContents('before-input-event', event, {
+      type: 'keyDown',
+      key: '2',
+      code: 'Digit2',
+      control: true,
+      meta: false,
+      alt: false,
+      shift: false,
+      isComposing: false
+    })
+
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(windowManagerMock.getWindowIdByWebContents).toHaveBeenCalledWith(mainWindow.webContents)
+    expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-window', 'compare.focus_shortcut', {
+      key: '2',
+      ctrlKey: true
+    })
   })
 
   it('releases an attached webview guest registration when the guest is destroyed', async () => {

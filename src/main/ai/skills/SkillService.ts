@@ -646,6 +646,7 @@ export class SkillService {
     try {
       await this.setExportEnabled(folderName, skill.mirrorEnabled)
     } catch (error) {
+      if (!options.throwOnError && isExternalSkillExportConflict(error)) return false
       logger.warn('Failed to synchronize external skill export', { folderName, error })
       if (options.throwOnError) throw error
       return false
@@ -1561,6 +1562,10 @@ export class SkillService {
     agentGlobalSkillService.deleteById(skill.id)
     logger.info('Skill uninstalled', { skillId: skill.id, folderName: skill.folderName })
   }
+}
+
+function isExternalSkillExportConflict(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Skill export conflicts with an existing user entry:')
 }
 
 export const skillService = new SkillService()

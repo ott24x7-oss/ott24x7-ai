@@ -2,6 +2,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
@@ -17,7 +18,8 @@ import type {
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
-import type { ComparePageConfig } from '@renderer/types/compare'
+import { toast } from '@renderer/services/toast'
+import type { CompareColumnId, ComparePageConfig } from '@renderer/types/compare'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -203,18 +205,48 @@ const ChatContentInner: FC<InnerProps> = ({
   const handleSend = useCallback(
     async (text: string, options?: Parameters<ChatComposerProps['onSend']>[1]) => {
       if (!compare) return sendMessage(text, options)
-      const webAndCliSend = compare.onSendText(text)
-      if (compare.sendModels.length > 0) {
-        const [, sent] = await Promise.all([
-          webAndCliSend,
-          sendMessage(text, { ...options, mentionedModels: compare.sendModels.map((model) => model.id) })
-        ])
-        return sent
-      }
-      await webAndCliSend
+      if (compare.sendDisabled) return false
+      const [webAndCliResults, apiSent] = await Promise.all([
+        compare.onSendText(text),
+        compare.sendModels.length > 0
+          ? sendMessage(text, { ...options, mentionedModels: compare.sendModels.map((model) => model.id) })
+          : Promise.resolve(true)
+      ])
+      const apiResults = compare.sendModels.map((model) => ({
+        columnId: model.id,
+        status: apiSent ? ('sent' as const) : ('error' as const),
+        reason: apiSent ? undefined : t('compare.send.api_failed')
+      }))
+      const results = [...webAndCliResults, ...apiResults]
+      compare.onDeliveryResults(results)
+      const sentCount = results.filter((result) => result.status === 'sent').length
+      const signInCount = results.filter((result) => result.status === 'login-needed').length
+      const summary = signInCount
+        ? signInCount === 1
+          ? t('compare.send.summary_sign_in_one', { sent: sentCount, total: results.length })
+          : t('compare.send.summary_sign_in_other', { sent: sentCount, total: results.length, count: signInCount })
+        : t('compare.send.summary', { sent: sentCount, total: results.length })
+      if (results.some((result) => result.status !== 'sent')) toast.warning(summary)
+      else toast.success(summary)
       return true
     },
-    [compare, sendMessage]
+    [compare, sendMessage, t]
+  )
+  const compareCurrentQuestion = compare?.currentQuestion
+  const compareColumns = compare?.columns
+  const sendCompareText = compare?.onSendText
+  const handleRegenerateCompareModel = useCallback(
+    (modelId: CompareColumnId) => {
+      if (!compareCurrentQuestion || !compareColumns || !sendCompareText) return
+      const column = compareColumns.find((candidate) => candidate.id === modelId)
+      if (!column) return
+      if (column.kind === 'api') {
+        void sendMessage(compareCurrentQuestion, { mentionedModels: [column.id] })
+      } else {
+        void sendCompareText(compareCurrentQuestion, [modelId])
+      }
+    },
+    [compareColumns, compareCurrentQuestion, sendCompareText, sendMessage]
   )
   const locateRuntimeMessage = runtime.locateMessage
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
@@ -284,16 +316,18 @@ const ChatContentInner: FC<InnerProps> = ({
         openCitationsPanel={onOpenCitationsPanel}
         onStartBranchDraft={reserveBranch}
         compare={compare}
+        onRegenerateModel={handleRegenerateCompareModel}
       />
     </div>
   )
-  const composer = runtime.shouldRenderHomeComposer ? (
+  const composerSlot = runtime.shouldRenderHomeComposer ? (
     <ChatComposerSlot
       placement="home"
       topic={topic}
       contextUsage={contextUsage}
       onSend={handleSend}
       placeholder={compare ? t('compare.prompt.placeholder') : undefined}
+      modelOptional={Boolean(compare)}
       sendDisabled={compare?.sendDisabled}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
@@ -309,6 +343,7 @@ const ChatContentInner: FC<InnerProps> = ({
       contextUsage={contextUsage}
       onSend={handleSend}
       placeholder={compare ? t('compare.prompt.placeholder') : undefined}
+      modelOptional={Boolean(compare)}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}
@@ -318,6 +353,28 @@ const ChatContentInner: FC<InnerProps> = ({
       providers={providers}
       onConversationControlsChange={onConversationControlsChange}
     />
+  )
+  const composer = compare ? (
+    <div className="mx-auto w-full max-w-[860px] px-4 pb-4">
+      {compare.sendDisabled && (
+        <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+          <span className="text-muted-foreground">{t('compare.send.blocked_hint')}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={compare.subscriptionColumnIds.length === 0}
+            onClick={() => {
+              void Promise.resolve(compare.onUseSubscriptions(compare.subscriptionColumnIds))
+            }}>
+            {t('compare.empty.use_subscriptions')}
+          </Button>
+        </div>
+      )}
+      {composerSlot}
+    </div>
+  ) : (
+    composerSlot
   )
   const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'
 

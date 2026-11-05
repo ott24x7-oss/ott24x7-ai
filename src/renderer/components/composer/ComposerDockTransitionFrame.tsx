@@ -106,7 +106,10 @@ export default function ComposerDockTransitionFrame({
       if (insetTargetRect.width === 0 && insetTargetRect.height === 0) return
       const composerRect = node.getBoundingClientRect()
       const rootRect = root.getBoundingClientRect()
-      const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
+      // Compare columns hold their own message lists; only the main chat list sets the composer's width.
+      const scroller = root.querySelector<HTMLElement>(
+        '[data-message-virtual-list-scroller]:not(#compare-panels [data-message-virtual-list-scroller])'
+      )
       const scrollerRect = scroller?.getBoundingClientRect()
       const scrollerClientWidth = scroller?.clientWidth ?? 0
       const nextBottomOverlayInsets = {
