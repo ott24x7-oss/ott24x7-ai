@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56">
+  <defs>
+    <linearGradient id="compare" x1="8" y1="8" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="10" width="16" height="36" rx="5" fill="url(#compare)"/>
+  <rect x="32" y="10" width="16" height="36" rx="5" fill="url(#compare)" opacity=".72"/>
+</svg>

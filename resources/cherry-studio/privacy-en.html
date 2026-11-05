@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: transparent;
+            margin: 0 auto;
+        }
+
+        body.dark {
+            background: transparent;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+        }
+
+        body.dark h1 {
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: #2c2c2c;
+        }
+
+        body.dark h2 {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            color: #2c2c2c;
+        }
+
+        body.dark h3 {
+            color: rgba(255, 255, 255, 0.88);
+        }
+
+        p {
+            margin: 12px 0;
+            line-height: 1.8;
+        }
+
+        body.dark p {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        ul {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        li {
+            margin: 6px 0;
+            line-height: 1.6;
+        }
+
+        body.dark li {
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        body.dark a {
+            color: #4da6ff;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 13px;
+            color: #666;
+        }
+
+        body.dark .footer {
+            border-top-color: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .content-wrapper {
+            padding-right: 10px;
+            background: transparent;
+        }
+
+        /* Scrollbar styles - Light mode */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        /* Scrollbar styles - Dark mode */
+        body.dark ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        body.dark ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        body.dark ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+    <script>
+        // Detect theme
+        document.addEventListener('DOMContentLoaded', function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const theme = urlParams.get('theme');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.body.classList.add('dark');
+            }
+        });
+    </script>
+</head>
+
+<body>
+    <div class="content-wrapper">
+        <h1>OTT24x7 AI Privacy Information</h1>
+        <p><strong>Updated:</strong> November 5, 2026</p>
+
+        <p>OTT24x7 AI is a desktop application. You can open and use the app without creating an OTT24x7 AI account or configuring an API key. Signing in to a web panel is optional and happens on the selected third-party site.</p>
+
+        <h2>Data stored on your device</h2>
+        <p>App settings, conversations, provider configuration, and credentials you choose to save are stored in the app's local data directory. The app does not provide an OTT24x7 AI account or cloud sync service.</p>
+        <p>Web panels may store their own cookies and session data so that you can stay signed in. This information is handled by the selected website and your browser session settings.</p>
+
+        <h2>Network requests and third-party services</h2>
+        <p>This build does not send product analytics or crash reports and does not check an OTT24x7 AI server for app updates. Network requests are made when you choose to use a feature that needs an external service.</p>
+        <p>When you use a web panel, your browser session connects to that website. When you use an AI provider, search service, storage connection, or another integration, the information needed for that feature is sent to the service you selected. That service's own privacy policy and terms govern its handling of your data.</p>
+        <p>Review the provider or website's privacy settings before signing in or sending it content. The app cannot control how third-party services collect, store, or use information.</p>
+
+        <h2>Changes</h2>
+        <p>This information may be updated when the app's data practices change. The date above identifies the latest revision included with this build.</p>
+        <div class="footer">Updated: November 5, 2026</div>
+    </div>
+</body>
+
+</html>

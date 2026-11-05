@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFB21A"/><stop offset="1" stop-color="#FF6A00"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1C1C22"/><stop offset="1" stop-color="#050507"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFE766"/><stop offset="1" stop-color="#FFA800"/>
+    </linearGradient>
+    <linearGradient id="ai" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#A78BFF"/><stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <rect x="104" y="104" width="816" height="816" rx="176" fill="url(#card)"/>
+  <rect x="104" y="104" width="816" height="816" rx="176" fill="none" stroke="#FFC23D" stroke-opacity=".35" stroke-width="6"/>
+  <!-- speed lines -->
+  <g stroke="#FFC233" stroke-linecap="round">
+    <line x1="210" y1="300" x2="330" y2="300" stroke-width="22"/>
+    <line x1="180" y1="356" x2="320" y2="356" stroke-width="22"/>
+    <line x1="220" y1="412" x2="318" y2="412" stroke-width="22"/>
+    <line x1="196" y1="468" x2="330" y2="468" stroke-width="22"/>
+  </g>
+  <!-- play disc -->
+  <circle cx="520" cy="384" r="172" fill="url(#gold)" filter="url(#glow)"/>
+  <path d="M482 300 Q470 293 470 307 L470 461 Q470 475 482 468 L612 392 Q624 384 612 376 Z" fill="#0B0B0F" stroke="#0B0B0F" stroke-width="18" stroke-linejoin="round"/>
+  <!-- AI sparkle -->
+  <path d="M722 196 C730 236 744 250 784 258 C744 266 730 280 722 320 C714 280 700 266 660 258 C700 250 714 236 722 196 Z" fill="#FFFFFF"/>
+  <path d="M790 316 C794 334 800 340 818 344 C800 348 794 354 790 372 C786 354 780 348 762 344 C780 340 786 334 790 316 Z" fill="#FFE766"/>
+  <!-- wordmark -->
+  <text x="512" y="704" text-anchor="middle" font-family="Arial Black, Segoe UI Black, Arial, sans-serif" font-weight="900" font-size="150" letter-spacing="-4">
+    <tspan fill="#FFFFFF">OTT</tspan><tspan fill="url(#gold)">24x7</tspan>
+  </text>
+  <rect x="402" y="742" width="220" height="104" rx="52" fill="url(#ai)"/>
+  <text x="512" y="824" text-anchor="middle" font-family="Arial Black, Segoe UI Black, Arial, sans-serif" font-weight="900" font-size="84" fill="#FFFFFF">AI</text>
+</svg>
