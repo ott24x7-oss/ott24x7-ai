@@ -10,6 +10,7 @@ import { usePaintingGenerationGuard } from './usePaintingGenerationGuard'
 
 /** Resolves the composer's draft attachments into the entries a request consumes. */
 export type MaterializeInputs = () => Promise<{ entries: FileEntry[]; complete: boolean }>
+export type PaintingGenerationStarted = (paintingId: string) => void
 
 interface UsePaintingGenerationSubmitInput {
   painting: PaintingData
@@ -68,7 +69,7 @@ export function usePaintingGenerationSubmit({
   const [preparing, setPreparing] = useState(false)
 
   const submit = useCallback(
-    async (materialize: MaterializeInputs) => {
+    async (materialize: MaterializeInputs, onGenerationStarted?: PaintingGenerationStarted) => {
       if (generating || submittingRef.current) return
       submittingRef.current = true
       setSubmitting(true)
@@ -84,7 +85,10 @@ export function usePaintingGenerationSubmit({
         // dropped the failed chip and told the user; generating anyway would spend
         // the request on a silently smaller input set.
         if (!complete) return
-        await generate(entries, () => setPreparing(false))
+        await generate(entries, (paintingId) => {
+          setPreparing(false)
+          onGenerationStarted?.(paintingId)
+        })
       } finally {
         submittingRef.current = false
         setSubmitting(false)

@@ -56,7 +56,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
   )
 
   const generate = useCallback(
-    async (inputFiles: FileEntry[], onPrepared: () => void) => {
+    async (inputFiles: FileEntry[], onPrepared: (paintingId: string) => void) => {
       // The in-memory draft is the source of truth for this whole flow.
       // DB writes are bookkeeping for the frozen receipt (prompt + file ids);
       // they're not consulted again to rebuild the live painting. That keeps
@@ -106,7 +106,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       onPaintingChange({ ...targetPainting, ...generationState })
       registerPaintingAbortController(targetPainting.id, controller)
       pushGenerationState(generationState)
-      onPrepared()
+      onPrepared(targetPainting.id)
 
       try {
         const generatedFiles = await paintingGenerate({

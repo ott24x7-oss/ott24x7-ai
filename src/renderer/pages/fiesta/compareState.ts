@@ -314,6 +314,45 @@ export function getCompareSetSelection(set: CacheCompareSavedSet): CacheCompareM
   return limitCompareSelection(set.selection)
 }
 
+export interface CompareSelectionState {
+  selection: CacheCompareModelSelection[]
+  customSelection: CacheCompareModelSelection[] | null
+  activeSetId: string
+}
+
+export function selectCompareSet(
+  state: CompareSelectionState,
+  setId: string,
+  sets: readonly CacheCompareSavedSet[]
+): CompareSelectionState {
+  if (setId === 'custom') {
+    return {
+      ...state,
+      selection: limitCompareSelection(state.customSelection ?? state.selection),
+      activeSetId: 'custom'
+    }
+  }
+
+  const resolvedSetId = resolveCompareSavedSetId(setId)
+  const selectedSet = sets.find((set) => set.id === resolvedSetId)
+  if (!selectedSet) return { ...state, activeSetId: 'custom' }
+
+  return {
+    ...state,
+    selection: getCompareSetSelection(selectedSet),
+    activeSetId: resolvedSetId
+  }
+}
+
+export function editCompareSelection(selection: readonly CacheCompareModelSelection[]): CompareSelectionState {
+  const editedSelection = limitCompareSelection(selection)
+  return {
+    selection: editedSelection,
+    customSelection: editedSelection,
+    activeSetId: 'custom'
+  }
+}
+
 export function getCompareSendModelIds(
   selection: CacheCompareModelSelection[],
   focusedModelId: CompareColumnId | null,

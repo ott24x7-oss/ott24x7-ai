@@ -149,6 +149,7 @@ export const SIDEBAR_FAVORITES = [
   'knowledge',
   'notes',
   'files',
+  'guide',
   'paintings',
   'translate',
   'openclaw'

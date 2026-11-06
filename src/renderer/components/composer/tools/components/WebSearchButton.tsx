@@ -15,10 +15,12 @@ import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useGuideChecklist } from '@renderer/hooks/useGuideChecklist'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { GUIDE_AUTO_CHECKLIST_ITEMS } from '@renderer/utils/guide'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
@@ -67,6 +69,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const [compareWebSearchEnabled, setCompareWebSearchEnabled] = usePersistCache('ui.compare.web_search_enabled')
+  const { markDone: markGuideDone } = useGuideChecklist()
   // Compare sends with each column's model, so the assistant's own model must not gate the toggle.
   const modelOptional = useComposerModelOptional()
   const { provider: modelProvider } = useProviderById(model?.providerId)
@@ -126,7 +129,10 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     async (restoreFocus?: () => void) => {
       if (modelOptional) {
         if (enableWebSearch) setCompareWebSearchEnabled(false)
-        else if (clientSearchAvailable) setCompareWebSearchEnabled(true)
+        else if (clientSearchAvailable) {
+          setCompareWebSearchEnabled(true)
+          markGuideDone(GUIDE_AUTO_CHECKLIST_ITEMS.webSearchEnabled)
+        }
         return
       }
 
@@ -169,6 +175,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       }
 
       void updateAssistant({ settings: { enableWebSearch: true } })
+      markGuideDone(GUIDE_AUTO_CHECKLIST_ITEMS.webSearchEnabled)
     },
     [
       assistant,
@@ -181,7 +188,8 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       modelOptional,
       searchUnavailableReason,
       clientSearchAvailable,
-      setCompareWebSearchEnabled
+      setCompareWebSearchEnabled,
+      markGuideDone
     ]
   )
 

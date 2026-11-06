@@ -452,6 +452,7 @@ export type RendererPersistCacheSchema = {
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
   'ui.compare.model_selection': CacheValueTypes.CacheCompareModelSelection[]
+  'ui.compare.custom_selection': CacheValueTypes.CacheCompareModelSelection[] | null
   'ui.compare.saved_sets': CacheValueTypes.CacheCompareSavedSet[]
   'ui.compare.defaults_seeded': boolean
   'ui.compare.welcome_dismissed': boolean
@@ -461,6 +462,9 @@ export type RendererPersistCacheSchema = {
   'ui.compare.web_search_enabled': boolean
   'ui.compare.final_answers': Record<string, CacheValueTypes.CacheCompareFinalAnswer>
   'ui.compare.topic_ids': string[]
+  'ui.guide.checklist': boolean[]
+  'ui.guide.banner_dismissed': boolean
+  'ui.guide.sidebar_added': boolean
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
   // default; booleans preserve an explicit user choice across page re-entry.
   'ui.chat.right_pane_open_override': boolean | null
@@ -531,6 +535,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
   'ui.compare.model_selection': [],
+  'ui.compare.custom_selection': null,
   'ui.compare.saved_sets': [],
   'ui.compare.defaults_seeded': false,
   'ui.compare.welcome_dismissed': true,
@@ -540,6 +545,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.compare.web_search_enabled': false,
   'ui.compare.final_answers': {},
   'ui.compare.topic_ids': [],
+  'ui.guide.checklist': Array.from({ length: 8 }, () => false),
+  'ui.guide.banner_dismissed': false,
+  'ui.guide.sidebar_added': false,
   'ui.chat.right_pane_open_override': null,
   'ui.assistant.entity_rail.expansion': [],
   'ui.topic.expansion.time': [],

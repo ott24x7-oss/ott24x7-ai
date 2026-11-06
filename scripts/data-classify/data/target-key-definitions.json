@@ -443,6 +443,17 @@
             }
           },
           "type": "shortcut"
+        },
+        {
+          "id": "sidebar-shortcut:core.app:guide",
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "guide"
+            }
+          },
+          "type": "shortcut"
         }
       ],
       "status": "classified",

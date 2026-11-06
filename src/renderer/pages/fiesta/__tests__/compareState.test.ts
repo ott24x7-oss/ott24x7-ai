@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { CacheCompareModelSelection } from '@shared/data/cache/cacheValueTypes'
+import type { CacheCompareModelSelection, CacheCompareSavedSet } from '@shared/data/cache/cacheValueTypes'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -21,7 +21,9 @@ import {
   removeCompareModel,
   resolveCompareJudge,
   resolveCompareSavedSetId,
+  selectCompareSet,
   reorderCompareModels,
+  editCompareSelection,
   setCompareModelEnabled,
   syncCompareModelSelection
 } from '../compareState'
@@ -359,6 +361,38 @@ describe('compare state', () => {
       { id: 'gemini::flash', enabled: false },
       { id: 'deepseek::chat', enabled: true }
     ])
+  })
+
+  it('restores the previous custom columns after a built-in set and records edits made there', () => {
+    const customSelection = [
+      { id: 'provider::one', enabled: true },
+      { id: 'provider::two', enabled: true },
+      { id: 'provider::three', enabled: false },
+      { id: 'provider::four', enabled: true }
+    ] as const
+    const sets: CacheCompareSavedSet[] = [
+      {
+        id: 'my-subscriptions',
+        name: 'My subscriptions',
+        selection: [{ id: 'webapp::openai', enabled: true }]
+      }
+    ]
+    const initial = {
+      selection: [...customSelection],
+      customSelection: [...customSelection],
+      activeSetId: 'custom'
+    }
+
+    const subscriptions = selectCompareSet(initial, 'my-subscriptions', sets)
+    expect(subscriptions.selection).toEqual(sets[0].selection)
+    expect(subscriptions.customSelection).toEqual(customSelection)
+
+    const restored = selectCompareSet(subscriptions, 'custom', sets)
+    expect(restored.selection).toEqual(customSelection)
+
+    const edited = editCompareSelection([{ id: 'provider::edited', enabled: true }])
+    const restoredEdit = selectCompareSet(edited, 'custom', sets)
+    expect(restoredEdit.selection).toEqual([{ id: 'provider::edited', enabled: true }])
   })
 
   it('removes a model from future display and sends', () => {

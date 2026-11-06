@@ -1,6 +1,9 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+import { useGuideChecklist } from '@renderer/hooks/useGuideChecklist'
+import { GUIDE_AUTO_CHECKLIST_ITEMS } from '@renderer/utils/guide'
 import type * as ImageUtils from '@renderer/utils/image'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
@@ -53,9 +56,13 @@ function makeParams(overrides = {}) {
 
 const provider = { id: 'openai', name: 'OpenAI' } as any
 const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+vi.unmock('@data/CacheService')
+vi.unmock('@data/hooks/useCache')
+
 describe('useProviderEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cacheService.deletePersist('ui.guide.checklist')
     createProviderMock.mockResolvedValue({ id: 'new-provider-id', name: 'My Provider' })
     updateProviderByIdMock.mockResolvedValue(undefined)
     ipcRequestMock.mockResolvedValue(undefined)
@@ -137,6 +144,17 @@ describe('useProviderEditor', () => {
   })
 
   describe('submit — create path', () => {
+    it('auto-checks the custom-provider item after adding a custom provider', async () => {
+      const { result } = renderHook(() => ({ editor: useProviderEditor(makeParams()), guide: useGuideChecklist() }))
+
+      act(() => result.current.editor.startAdd())
+      await act(async () => {
+        await result.current.editor.submit({ mode: 'create', name: 'My Provider', defaultChatEndpoint: endpoint })
+      })
+
+      expect(result.current.guide.done[GUIDE_AUTO_CHECKLIST_ITEMS.customProviderAdded]).toBe(true)
+    })
+
     it('calls createProvider with a new uuid, then onProviderCreated and closes', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 

@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { sidebarShortcutService } from '@renderer/services/SidebarShortcutService'
 import {
+  createSidebarShortcutTarget,
   getVisibleSidebarShortcutItems,
   isSidebarShortcutPinned,
   normalizeSidebarShortcutItems
@@ -30,6 +32,16 @@ export function useSidebarShortcuts() {
   useEffect(() => {
     if (needsNormalization) runMutation(sidebarShortcutService.normalize())
   }, [needsNormalization, runMutation])
+
+  // Saved sidebars predate the Guide; pin it once so existing users can find it, and respect a later unpin.
+  const [guideSidebarAdded, setGuideSidebarAdded] = usePersistCache('ui.guide.sidebar_added')
+  useEffect(() => {
+    if (guideSidebarAdded || stored === undefined) return
+    setGuideSidebarAdded(true)
+    const guideTarget = createSidebarShortcutTarget('core.app', 'guide')
+    if (!isSidebarShortcutPinned(shortcuts, guideTarget))
+      runMutation(sidebarShortcutService.setPinned(guideTarget, true))
+  }, [guideSidebarAdded, runMutation, setGuideSidebarAdded, shortcuts, stored])
 
   const isPinned = useCallback(
     (target: SidebarShortcutTarget) => isSidebarShortcutPinned(shortcuts, target),

@@ -7,10 +7,12 @@ import {
   createSidebarShortcutTarget,
   getSidebarDefaultLandingUrl,
   getSidebarShortcutResourceIds,
+  getSidebarMenuPath,
   getVisibleSidebarShortcutItems,
   normalizeSidebarShortcutItems,
   removeSidebarShortcut,
-  reorderSidebarShortcuts
+  reorderSidebarShortcuts,
+  SIDEBAR_FAVORITE_ORDER
 } from '../sidebar'
 
 const shortcut = (providerId: string, resourceId: string, activationId?: string): SidebarShortcutItem => {
@@ -104,5 +106,16 @@ describe('lite build sidebar', () => {
       'compare',
       'notes'
     ])
+  })
+
+  it('keeps Guide visible after Files in the lite build', () => {
+    const items = [shortcut('core.app', 'files'), shortcut('core.app', 'guide')]
+
+    expect(getVisibleSidebarShortcutItems(items).map((item) => item.target.locator.resourceId)).toEqual([
+      'files',
+      'guide'
+    ])
+    expect(SIDEBAR_FAVORITE_ORDER.indexOf('guide')).toBe(SIDEBAR_FAVORITE_ORDER.indexOf('files') + 1)
+    expect(getSidebarMenuPath('guide', '')).toBe('/guide')
   })
 })

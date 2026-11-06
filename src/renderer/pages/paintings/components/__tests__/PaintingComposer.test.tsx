@@ -322,9 +322,36 @@ describe('PaintingComposer', () => {
     const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     fireEvent.click(screen.getByLabelText('send'))
     await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1))
-    expect(onGenerate).toHaveBeenCalledWith(mockMaterializeInputs)
+    expect(onGenerate).toHaveBeenCalledWith(mockMaterializeInputs, expect.any(Function))
     // Nothing is materialized by the act of pressing send.
     expect(mockMaterializeInputs).not.toHaveBeenCalled()
+  })
+
+  it('clears only the composer draft after generation starts and keeps the painting prompt', () => {
+    const prompt = 'a detailed promotional poster with a mountain lake at sunrise'
+    const painting = makePainting({ prompt })
+    const onGenerate = vi.fn((_materialize, onGenerationStarted) => onGenerationStarted('generated-painting'))
+    const { onPromptChange, rerenderPainting } = renderComposer({ painting, onGenerate })
+
+    fireEvent.click(screen.getByLabelText('send'))
+
+    expect(screen.getByLabelText('prompt')).toHaveValue('')
+    expect(painting.prompt).toBe(prompt)
+    expect(onPromptChange).not.toHaveBeenCalledWith('')
+
+    rerenderPainting(makePainting({ id: 'generated-painting', prompt, generationStatus: 'running' }))
+    expect(screen.getByLabelText('prompt')).toHaveValue('')
+  })
+
+  it('keeps the prompt draft when submission fails before generation starts', () => {
+    const prompt = 'a detailed promotional poster with a mountain lake at sunrise'
+    const onGenerate = vi.fn()
+    renderComposer({ painting: makePainting({ prompt }), onGenerate })
+
+    fireEvent.click(screen.getByLabelText('send'))
+
+    expect(onGenerate).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText('prompt')).toHaveValue(prompt)
   })
 
   it('disables send while a request it started is in flight', () => {

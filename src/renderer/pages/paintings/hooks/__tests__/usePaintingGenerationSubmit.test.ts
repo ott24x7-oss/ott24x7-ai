@@ -66,6 +66,19 @@ describe('usePaintingGenerationSubmit', () => {
     expect(mockPresentGuardFeedback).toHaveBeenCalledWith('model_missing', undefined, 'openai')
   })
 
+  it('does not signal a generation start when validation refuses the request', async () => {
+    const materialize = vi.fn().mockResolvedValue({ entries: [], complete: true })
+    const onGenerationStarted = vi.fn()
+    mockValidateBeforeGenerate.mockResolvedValue({ ok: false, reason: 'model_missing' })
+
+    const { result } = renderSubmit()
+    await act(async () => {
+      await result.current.submit(materialize, onGenerationStarted)
+    })
+
+    expect(onGenerationStarted).not.toHaveBeenCalled()
+  })
+
   it('materializes after the guard passes and generates with the resolved entries', async () => {
     const entries = [{ id: 'fe-1' }] as unknown as FileEntry[]
     const materialize = vi.fn().mockResolvedValue({ entries, complete: true })
@@ -77,6 +90,19 @@ describe('usePaintingGenerationSubmit', () => {
 
     expect(materialize).toHaveBeenCalledTimes(1)
     expect(mockGenerate).toHaveBeenCalledWith(entries, expect.any(Function))
+  })
+
+  it('signals the new painting id after its generation has started', async () => {
+    const materialize = vi.fn().mockResolvedValue({ entries: [], complete: true })
+    const onGenerationStarted = vi.fn()
+    mockGenerate.mockImplementationOnce(async (_entries, onPrepared) => onPrepared('generated-painting'))
+
+    const { result } = renderSubmit()
+    await act(async () => {
+      await result.current.submit(materialize, onGenerationStarted)
+    })
+
+    expect(onGenerationStarted).toHaveBeenCalledWith('generated-painting')
   })
 
   it('aborts without generating when the input set is incomplete', async () => {

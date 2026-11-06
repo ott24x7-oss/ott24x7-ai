@@ -11,6 +11,7 @@ import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.sv
 import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
 import compareIcon from '@renderer/assets/images/apps/launchpad-compare.svg'
 import filesIcon from '@renderer/assets/images/apps/launchpad-files.svg'
+import guideIcon from '@renderer/assets/images/apps/launchpad-guide.svg'
 import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
 import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
 import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
@@ -50,6 +51,7 @@ const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
   mini_app: miniAppIcon,
   knowledge: knowledgeIcon,
   files: filesIcon,
+  guide: guideIcon,
   code_tools: codeToolsIcon,
   notes: notesIcon
 }

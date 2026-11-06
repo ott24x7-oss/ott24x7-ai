@@ -145,7 +145,10 @@ export interface PaintingComposerProps {
    * but does not orchestrate the request — materialization is the request's first
    * step, run by its owner only once the preconditions pass.
    */
-  onGenerate: (materialize: MaterializeInputs) => void | Promise<void>
+  onGenerate: (
+    materialize: MaterializeInputs,
+    onGenerationStarted: (paintingId: string) => void
+  ) => void | Promise<void>
   onCancel: () => void
   onModelSelect: (selection: { providerId: string; modelId: string }) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
@@ -203,6 +206,7 @@ const PaintingParamsButton: FC<{
 interface PaintingComposerInnerProps extends PaintingComposerProps {
   model?: Model
   couldAddImageFile: boolean
+  initialPromptDraft: string
 }
 
 const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
@@ -216,11 +220,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   onConfigChange,
   onGenerateRandomSeed,
   model,
-  couldAddImageFile
+  couldAddImageFile,
+  initialPromptDraft
 }) => {
   const { t } = useTranslation()
   const { files, isExpanded } = useComposerToolState()
   const [presetsOpen, setPresetsOpen] = useState(false)
+  const [promptDraft, setPromptDraft] = useState(initialPromptDraft)
+  const observedPaintingPrompt = useRef(painting.prompt ?? '')
   const presetInputAdapter = useRef<QuickPanelInputAdapter | undefined>(undefined)
   const surfaceActions = useRef<ComposerSurfaceActions | null>(null)
   const restorePresetFocus = useRef(false)
@@ -242,7 +249,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
-  const text = painting.prompt ?? ''
+  const text = promptDraft
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
@@ -284,6 +291,13 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     providerId: painting.providerId
   })
 
+  useEffect(() => {
+    const prompt = painting.prompt ?? ''
+    if (observedPaintingPrompt.current === prompt) return
+    observedPaintingPrompt.current = prompt
+    setPromptDraft(prompt)
+  }, [painting.prompt])
+
   // Edit-image models: images live in the top reference-image tray (reads `files` from
   // context), so emit no file pills and manage no tokens — `files` stays authoritative.
   const tokens = useMemo(
@@ -292,13 +306,22 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   )
   const handleTokensChange = useComposerTokenReconcile({ scope: PAINTING_SCOPE, model })
 
-  const handleTextChange = useCallback((value: string) => onPromptChange(value), [onPromptChange])
+  const handleTextChange = useCallback(
+    (value: string) => {
+      setPromptDraft(value)
+      onPromptChange(value)
+    },
+    [onPromptChange]
+  )
 
   // The request is orchestrated by its owner (usePaintingGenerationSubmit), which
   // holds the re-entrancy guard and runs materialization only after the preconditions
   // pass. This composer reports intent and hands over the resolver; it deliberately
   // keeps no send state of its own.
-  const handleSendDraft = useCallback(() => onGenerate(materializeInputs), [materializeInputs, onGenerate])
+  const handleSendDraft = useCallback(
+    () => onGenerate(materializeInputs, () => setPromptDraft('')),
+    [materializeInputs, onGenerate]
+  )
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
@@ -394,7 +417,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
             adapter.insertText(content)
             adapter.focus()
           } else {
-            onPromptChange(`${painting.prompt ?? ''}${content}`)
+            onPromptChange(`${promptDraft}${content}`)
           }
         }}
       />
@@ -408,7 +431,22 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
  * through the composer attachment pipeline, bridged to the page's `FileEntry[]`.
  */
 const PaintingComposer: FC<PaintingComposerProps> = (props) => {
-  const { painting } = props
+  const { painting, onGenerate } = props
+  const generationDraftClearedId = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (generationDraftClearedId.current && generationDraftClearedId.current !== painting.id) {
+      generationDraftClearedId.current = undefined
+    }
+  }, [painting.id])
+  const handleGenerate = useCallback<PaintingComposerProps['onGenerate']>(
+    (materialize, onGenerationStarted) =>
+      onGenerate(materialize, (paintingId) => {
+        generationDraftClearedId.current = paintingId
+        onGenerationStarted(paintingId)
+      }),
+    [onGenerate]
+  )
+  const initialPromptDraft = generationDraftClearedId.current === painting.id ? '' : (painting.prompt ?? '')
   const { models } = useModels(painting.providerId ? { providerId: painting.providerId } : undefined)
   const model = useMemo(
     () =>
@@ -430,7 +468,13 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
       key={painting.id}
       initialState={{ files: [], couldAddImageFile, extensions: PAINTING_IMAGE_EXTS }}
       actions={{ addNewTopic: () => {}, onTextChange: () => {} }}>
-      <PaintingComposerInner {...props} model={model} couldAddImageFile={couldAddImageFile} />
+      <PaintingComposerInner
+        {...props}
+        onGenerate={handleGenerate}
+        model={model}
+        couldAddImageFile={couldAddImageFile}
+        initialPromptDraft={initialPromptDraft}
+      />
     </ComposerToolRuntimeProvider>
   )
 }

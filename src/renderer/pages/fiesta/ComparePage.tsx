@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { GuideBanner } from '@renderer/components/app/GuideBanner'
 import { ComparePromoFooter } from '@renderer/components/app/PromoCard'
 import { getModelDisplayTags } from '@renderer/components/tags/Model'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useTabs } from '@renderer/hooks/tab'
+import { useGuideChecklist } from '@renderer/hooks/useGuideChecklist'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -28,6 +30,7 @@ import type {
 } from '@renderer/types/compare'
 import { formatCompareColumnErrorMessage } from '@renderer/utils/compareErrorMessage'
 import { getMySubscriptionColumnIds } from '@renderer/utils/compareSubscriptions'
+import { GUIDE_AUTO_CHECKLIST_ITEMS, markGuideChecklistOnCompareSend } from '@renderer/utils/guide'
 import type {
   CacheCompareFinalAnswer,
   CacheCompareModelSelection,
@@ -46,16 +49,17 @@ import {
   addCompareColumn,
   buildCompareDefaultSets,
   DEFAULT_COMPARE_CLI_ORDER,
+  editCompareSelection,
   getCompareKeyboardAction,
   getCompareSendableColumnIds,
   getCompareSendModelIds,
-  getCompareSetSelection,
   isCompareChatModel,
   limitCompareSelection,
   MAX_COMPARE_COLUMNS,
   removeCompareModel,
   reconcileCompareSelections,
   resolveCompareSavedSetId,
+  selectCompareSet,
   resolveCompareJudge,
   reorderCompareModels,
   setCompareModelEnabled
@@ -117,6 +121,7 @@ function ComparePage() {
   const { t } = useTranslation()
   const firstPaintLoggedRef = useRef(false)
   const [selection, setSelection] = usePersistCache('ui.compare.model_selection')
+  const [customSelection, setCustomSelection] = usePersistCache('ui.compare.custom_selection')
   const [savedSets, setSavedSets] = usePersistCache('ui.compare.saved_sets')
   const [defaultsSeeded, setDefaultsSeeded] = usePersistCache('ui.compare.defaults_seeded')
   const [welcomeDismissed, setWelcomeDismissed] = usePersistCache('ui.compare.welcome_dismissed')
@@ -124,6 +129,11 @@ function ComparePage() {
   const [autoCombine] = usePersistCache('ui.compare.auto_combine')
   const [readWebAnswers] = usePersistCache('ui.compare.read_web_answers')
   const [webSearchEnabled] = usePersistCache('ui.compare.web_search_enabled')
+  const {
+    markDone: markGuideDone,
+    showBanner: showGuideBanner,
+    dismissBanner: dismissGuideBanner
+  } = useGuideChecklist()
   const [finalAnswers, setFinalAnswers] = usePersistCache('ui.compare.final_answers')
   const [activeSetId, setActiveSetId] = useState('custom')
   const [focusedModelId, setFocusedModelId] = useState<CompareColumnId | null>(null)
@@ -474,6 +484,7 @@ function ComparePage() {
       setCombineError(topicId, question, resolvedJudgeId, '')
       return
     }
+    markGuideDone(GUIDE_AUTO_CHECKLIST_ITEMS.firstCombine)
 
     const judgeName = getJudgeName(resolvedJudgeId, columns, availableModelsById, t)
     const synthesisPrompt = buildSynthesisPrompt(question, answerSources)
@@ -591,6 +602,7 @@ function ComparePage() {
     currentQuestion,
     focusedModelId,
     finalAnswer,
+    markGuideDone,
     resolveJudge,
     setCombineError,
     t
@@ -727,6 +739,7 @@ function ComparePage() {
       )
       const targetIds = [...selectedForSend]
       if (targetIds.length === 0) return []
+      markGuideChecklistOnCompareSend(targetIds, markGuideDone)
 
       for (const wait of webWaitControllers.current.values()) wait.controller.abort()
       webWaitControllers.current.clear()
@@ -927,7 +940,18 @@ function ComparePage() {
       void resolveJudge()
       return deliveryResults
     },
-    [activeTopicId, cliHistory, cliOutputs, columns, focusedModelId, readWebAnswers, resolveJudge, sendColumnIds, t]
+    [
+      activeTopicId,
+      cliHistory,
+      cliOutputs,
+      columns,
+      focusedModelId,
+      markGuideDone,
+      readWebAnswers,
+      resolveJudge,
+      sendColumnIds,
+      t
+    ]
   )
 
   const handleUseWebAnswer = useCallback(
@@ -971,10 +995,12 @@ function ComparePage() {
   )
   const handleSelectionChange = useCallback(
     (next: CacheCompareModelSelection[]) => {
-      setSelection(limitCompareSelection(next))
-      setActiveSetId('custom')
+      const nextState = editCompareSelection(next)
+      setSelection(nextState.selection)
+      setCustomSelection(nextState.customSelection)
+      setActiveSetId(nextState.activeSetId)
     },
-    [setSelection]
+    [setCustomSelection, setSelection]
   )
   const handleRemoveModel = useCallback(
     (modelId: CompareColumnId) => handleSelectionChange(removeCompareModel(selection, modelId)),
@@ -1006,13 +1032,15 @@ function ComparePage() {
       })
       try {
         await Promise.all(appsToEnable.map((app) => updateAppStatus(app.appId, 'enabled')))
-        setSelection(limitCompareSelection(ids.map((id) => ({ id, enabled: true }))))
+        const nextSelection = limitCompareSelection(ids.map((id) => ({ id, enabled: true })))
+        setSelection(nextSelection)
+        if (nextActiveSetId === 'custom') setCustomSelection(nextSelection)
         setActiveSetId(nextActiveSetId)
       } catch {
         toast.error(t('common.error'))
       }
     },
-    [allApps, setSelection, t, updateAppStatus]
+    [allApps, setCustomSelection, setSelection, t, updateAppStatus]
   )
   const handleDeliveryResults = useCallback((results: readonly CompareDeliveryResult[]) => {
     setDeliveryStatuses((current) => ({
@@ -1038,7 +1066,16 @@ function ComparePage() {
   const handleSelectSet = useCallback(
     (setId: string) => {
       const resolvedSetId = resolveCompareSavedSetId(setId)
-      const selectedSet = [...defaultSets, ...savedSets].find((set) => set.id === resolvedSetId)
+      const sets = [...defaultSets, ...savedSets]
+      const state = { selection, customSelection, activeSetId }
+      if (resolvedSetId === 'custom') {
+        const nextState = selectCompareSet(state, 'custom', sets)
+        setSelection(nextState.selection)
+        setActiveSetId(nextState.activeSetId)
+        setFocusedModelId(null)
+        return
+      }
+      const selectedSet = sets.find((set) => set.id === resolvedSetId)
       if (!selectedSet) {
         setActiveSetId('custom')
         return
@@ -1049,12 +1086,13 @@ function ComparePage() {
           resolvedSetId
         )
       } else {
-        setSelection(getCompareSetSelection(selectedSet))
-        setActiveSetId(resolvedSetId)
+        const nextState = selectCompareSet(state, resolvedSetId, sets)
+        setSelection(nextState.selection)
+        setActiveSetId(nextState.activeSetId)
       }
       setFocusedModelId(null)
     },
-    [defaultSets, handleUseSubscriptions, savedSets, setSelection]
+    [activeSetId, customSelection, defaultSets, handleUseSubscriptions, savedSets, selection, setSelection]
   )
   const handleSaveSet = useCallback(
     (name: string) => {
@@ -1094,6 +1132,7 @@ function ComparePage() {
         savedSetName: t('compare.saved_sets.my_subscriptions')
       })
       initializedSelectionRef.current = true
+      if (customSelection === null) setCustomSelection(reconciled.seeded ? [] : reconciled.selection)
       if (reconciled.overflowTotal) {
         toast.info(
           t('compare.selection_limit_notice', {
@@ -1124,6 +1163,7 @@ function ComparePage() {
     allApps,
     availableModels,
     defaultsSeeded,
+    customSelection,
     judgeId,
     loadCliAvailability,
     miniAppsLoading,
@@ -1134,6 +1174,7 @@ function ComparePage() {
     setDefaultsSeeded,
     setSavedSets,
     setSelection,
+    setCustomSelection,
     setWelcomeDismissed,
     t
   ])
@@ -1289,18 +1330,29 @@ function ComparePage() {
       void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
     }
   }, [activeTopicId])
-  const welcomeCard = useMemo(
-    () =>
-      welcomeDismissed ? null : (
-        <CompareWelcomeCard
-          onDismiss={handleDismissWelcome}
-          onGoToPanels={handleGoToPanels}
-          onOpenProviders={handleOpenProviders}
-          onFocusPrompt={handleFocusPrompt}
-        />
-      ),
-    [handleDismissWelcome, handleFocusPrompt, handleGoToPanels, handleOpenProviders, welcomeDismissed]
-  )
+  const welcomeCard = useMemo(() => {
+    if (showGuideBanner) {
+      return <GuideBanner onDismiss={dismissGuideBanner} onOpenGuide={() => openTab('/guide')} />
+    }
+    if (welcomeDismissed) return null
+    return (
+      <CompareWelcomeCard
+        onDismiss={handleDismissWelcome}
+        onGoToPanels={handleGoToPanels}
+        onOpenProviders={handleOpenProviders}
+        onFocusPrompt={handleFocusPrompt}
+      />
+    )
+  }, [
+    dismissGuideBanner,
+    showGuideBanner,
+    handleDismissWelcome,
+    handleFocusPrompt,
+    handleGoToPanels,
+    handleOpenProviders,
+    openTab,
+    welcomeDismissed
+  ])
   const compareConfig = useMemo<ComparePageConfig>(
     () => ({
       header: toolbar,

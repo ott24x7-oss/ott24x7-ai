@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as GuideRouteImport } from './routes/guide'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
 import { Route as AppBrowserRouteImport } from './routes/app/browser'
@@ -78,6 +79,11 @@ import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settin
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideRoute = GuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -408,6 +414,7 @@ const SettingsMcpSettingsServerIdRoute =
 
 export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
+  '/guide': typeof GuideRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
   '/app/browser': typeof AppBrowserRoute
@@ -475,6 +482,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/app': typeof AppRouteWithChildren
+  '/guide': typeof GuideRoute
   '/app/agents': typeof AppAgentsRoute
   '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
@@ -539,6 +547,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/app': typeof AppRouteWithChildren
+  '/guide': typeof GuideRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
   '/app/browser': typeof AppBrowserRoute
@@ -608,6 +617,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/app'
+    | '/guide'
     | '/settings'
     | '/app/agents'
     | '/app/browser'
@@ -675,6 +685,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/app'
+    | '/guide'
     | '/app/agents'
     | '/app/browser'
     | '/app/chat'
@@ -738,6 +749,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/app'
+    | '/guide'
     | '/settings'
     | '/app/agents'
     | '/app/browser'
@@ -806,6 +818,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  GuideRoute: typeof GuideRoute
   SettingsRoute: typeof SettingsRouteWithChildren
 }
 
@@ -816,6 +829,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide': {
+      id: '/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof GuideRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -1447,6 +1467,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  GuideRoute: GuideRoute,
   SettingsRoute: SettingsRouteWithChildren,
 }
 export const routeTree = rootRouteImport

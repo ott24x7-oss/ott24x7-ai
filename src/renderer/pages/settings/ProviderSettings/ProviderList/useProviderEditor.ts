@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next'
 
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useGuideChecklist } from '@renderer/hooks/useGuideChecklist'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { GUIDE_AUTO_CHECKLIST_ITEMS } from '@renderer/utils/guide'
 import { prepareEntityImageBytes } from '@renderer/utils/image'
 import { uuid } from '@renderer/utils/uuid'
 import type { EndpointType } from '@shared/data/types/model'
@@ -61,6 +63,7 @@ export type SubmitProviderEditorParams =
 export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams) {
   const { t } = useTranslation()
   const { createProvider } = useProviders()
+  const { markDone: markGuideDone } = useGuideChecklist()
   const { updateProviderById } = useProviderActions()
   const invalidate = useInvalidateCache()
   const [mode, setMode] = useState<ProviderEditorMode | null>(null)
@@ -163,6 +166,9 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         submitTokenRef.current === submitToken &&
         (creationMode === 'create-custom' || creationMode === 'duplicate')
       ) {
+        if (creationMode === 'create-custom') {
+          markGuideDone(GUIDE_AUTO_CHECKLIST_ITEMS.customProviderAdded)
+        }
         onProviderCreated(
           provider.id,
           creationMode === 'create-custom'
@@ -175,7 +181,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         cancel()
       }
     },
-    [applyLogo, cancel, createProvider, editingProvider, onProviderCreated, updateProviderById]
+    [applyLogo, cancel, createProvider, editingProvider, markGuideDone, onProviderCreated, updateProviderById]
   )
 
   return {

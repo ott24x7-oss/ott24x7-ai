@@ -1,6 +1,7 @@
 import type { LucideProps } from 'lucide-react'
 import {
   BotMessageSquare,
+  BookOpen,
   Columns2,
   Code,
   Database,
@@ -43,7 +44,8 @@ export const SIDEBAR_ICON_COMPONENTS = {
   translate: Languages,
   knowledge: FileSearch,
   notes: NotepadText,
-  files: Folder
+  files: Folder,
+  guide: BookOpen
 } satisfies Record<SidebarAppId, SidebarIconComponent>
 
 const RESOURCE_ICON_COMPONENTS = {
