@@ -24,7 +24,14 @@ import com.ott24x7.ai.data.WebPanelScripts
 import com.ott24x7.ai.data.WebSendStatus
 import com.ott24x7.ai.data.SecureSettings
 import com.ott24x7.ai.data.HistoryRepository
+import com.ott24x7.ai.data.UPDATE_MANIFEST_URL
 import com.ott24x7.ai.ui.FiestaApp
+import com.ott24x7.ai.ui.UpdateGate
+import android.content.pm.ApplicationInfo
+import android.provider.Settings
+import androidx.compose.foundation.layout.Box
+import androidx.core.content.FileProvider
+import java.io.File
 import java.net.URI
 import org.json.JSONObject
 
@@ -70,7 +77,12 @@ class MainActivity : ComponentActivity() {
             galleryPermissionCallback?.invoke(granted)
             galleryPermissionCallback = null
         }
-        setContent { FiestaApp(this) }
+        setContent {
+            Box {
+                FiestaApp(this@MainActivity)
+                UpdateGate(this@MainActivity)
+            }
+        }
     }
 
     fun launchAttachmentPicker(onPicked: (Uri?) -> Unit) {
@@ -109,6 +121,43 @@ class MainActivity : ComponentActivity() {
     }
 
     fun googleSignInUrl(panelId: String, fallback: String): String = googleSignInUrls[panelId] ?: fallback
+
+    fun installedVersionCode(): Int = runCatching {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else @Suppress("DEPRECATION") info.versionCode
+    }.getOrDefault(Int.MAX_VALUE)
+
+    /** Debug builds may point at a test manifest: adb shell am start ... --es update_manifest_url <url>. */
+    fun updateManifestUrl(): String {
+        val override = intent?.getStringExtra("update_manifest_url")
+        return if (isDebugBuild() && !override.isNullOrBlank()) override else UPDATE_MANIFEST_URL
+    }
+
+    fun isDebugBuild(): Boolean = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+
+    fun updateApkFile(): File = File(cacheDir, "updates/OTT24x7-AI.apk")
+
+    /** Opens the system installer; returns false if the downloaded file is not a newer build of this app. */
+    fun installApk(apk: File): Boolean {
+        val archive = if (Build.VERSION.SDK_INT >= 33) {
+            packageManager.getPackageArchiveInfo(apk.path, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION") packageManager.getPackageArchiveInfo(apk.path, 0)
+        } ?: return false
+        if (archive.packageName != packageName) return false
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            runCatching {
+                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            }
+            return true
+        }
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return runCatching { startActivity(intent) }.isSuccess
+    }
 
     fun openExternal(url: String) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }

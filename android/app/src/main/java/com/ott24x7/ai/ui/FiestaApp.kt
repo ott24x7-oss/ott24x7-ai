@@ -167,6 +167,7 @@ fun FiestaApp(activity: MainActivity) {
     var selectedIds by remember { mutableStateOf(settings.selectedPanels().filter { it in availablePanelIds }.take(8)) }
     var readWebAnswers by remember { mutableStateOf(settings.readWebAnswers()) }
     var exaKey by remember { mutableStateOf(settings.exaApiKey()) }
+    var openRouterKey by remember { mutableStateOf(settings.openRouterKey()) }
     var webSearchEnabled by remember { mutableStateOf(settings.defaultWebSearch()) }
     var onboardingSeen by remember { mutableStateOf(settings.onboardingSeen()) }
     var guideDone by remember { mutableStateOf(settings.guideChecklist()) }
@@ -189,6 +190,20 @@ fun FiestaApp(activity: MainActivity) {
     var combineSources by remember { mutableStateOf(emptyList<ExaSource>()) }
     var combineLoading by remember { mutableStateOf(false) }
     var judgeId by remember { mutableStateOf(settings.judgeModelId() ?: endpoints.firstOrNull()?.id) }
+    val applyEndpoints: (List<ApiEndpoint>) -> Unit = { updated ->
+        val updatedIds = updated.map(ApiEndpoint::id)
+        val addedIds = updatedIds - endpoints.map(ApiEndpoint::id).toSet()
+        settings.saveEndpoints(updated)
+        selectedIds = (selectedIds.filter { id -> !id.startsWith("api:") || id.removePrefix("api:") in updatedIds } +
+            addedIds.map { "api:$it" }).distinct().take(8)
+        settings.saveSelectedPanels(selectedIds)
+        if (judgeId !in updatedIds) {
+            judgeId = updated.firstOrNull()?.id
+            judgeId?.let(settings::saveJudgeModelId)
+        }
+        if (addedIds.isNotEmpty()) { guideDone = GuideChecklist.autoCheck(guideDone, "endpoint_added"); settings.saveGuideChecklist(guideDone) }
+        endpoints = updated
+    }
     var googleSignInPanel by remember { mutableStateOf<String?>(null) }
     var activeTurn by remember { mutableIntStateOf(0) }
     val answers = remember { mutableStateMapOf<String, PanelAnswer>() }
@@ -570,7 +585,16 @@ fun FiestaApp(activity: MainActivity) {
                                     },
                                     onJudge = { judgeId = it; settings.saveJudgeModelId(it); guideDone = GuideChecklist.complete(guideDone, 4); settings.saveGuideChecklist(guideDone) },
                                     onClearLogins = { PanelCatalog.webPanels.forEach(activity::clearPanelLogin) },
-                                    onOpenUrl = activity::openExternal
+                                    onOpenUrl = activity::openExternal,
+                                    openRouter = {
+                                        OpenRouterSection(
+                                            apiKey = openRouterKey,
+                                            endpoints = endpoints,
+                                            onApiKey = { openRouterKey = it; settings.saveOpenRouterKey(it) },
+                                            onEndpointsChanged = applyEndpoints,
+                                            onOpenUrl = activity::openExternal
+                                        )
+                                    }
                                 )
                                 MainTab.HISTORY -> HistoryScreenV2(historyTurns, onDelete = { turn -> historyTurns.remove(turn); persistHistoryTurns() }, onOpen = { selectedHistoryTurn = it })
                             } }
@@ -644,18 +668,7 @@ fun FiestaApp(activity: MainActivity) {
             readWebAnswers = readWebAnswers,
             onThemeMode = { themeMode = it; settings.saveThemeMode(it) },
             onReadWebAnswers = { readWebAnswers = it; settings.saveReadWebAnswers(it) },
-            onEndpointsChanged = { updated ->
-                val addedEndpoint = updated.size > endpoints.size
-                settings.saveEndpoints(updated)
-                selectedIds = selectedIds.filter { id -> !id.startsWith("api:") || id.removePrefix("api:") in updated.map(ApiEndpoint::id) }
-                settings.saveSelectedPanels(selectedIds)
-                if (judgeId !in updated.map(ApiEndpoint::id)) {
-                    judgeId = updated.firstOrNull()?.id
-                    judgeId?.let(settings::saveJudgeModelId)
-                }
-                if (addedEndpoint) { guideDone = GuideChecklist.autoCheck(guideDone, "endpoint_added"); settings.saveGuideChecklist(guideDone) }
-                endpoints = updated
-            },
+            onEndpointsChanged = applyEndpoints,
             onClearLogin = activity::clearPanelLogin,
             onOpenUrl = activity::openExternal,
             onDismiss = { showSettings = false }

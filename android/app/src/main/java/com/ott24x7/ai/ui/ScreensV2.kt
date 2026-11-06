@@ -415,7 +415,8 @@ fun SettingsScreenV2(
     onTestExa: (String) -> Unit,
     onJudge: (String) -> Unit,
     onClearLogins: () -> Unit,
-    onOpenUrl: (String) -> Unit
+    onOpenUrl: (String) -> Unit,
+    openRouter: @Composable () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     var judgeMenu by remember { mutableStateOf(false) }
@@ -440,6 +441,7 @@ fun SettingsScreenV2(
                 }
             }
         }
+        SettingsGroup(stringResource(R.string.openrouter_title)) { openRouter() }
         SettingsGroup(stringResource(R.string.settings_web)) {
             SettingsSwitchRow(stringResource(R.string.web_default), Icons.Default.Search, webDefault, onWebDefault)
             OutlinedTextField(exaKey, onExaKey, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp), label = { Text(stringResource(R.string.exa_key)) }, placeholder = { Text(stringResource(R.string.exa_key_hint)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))

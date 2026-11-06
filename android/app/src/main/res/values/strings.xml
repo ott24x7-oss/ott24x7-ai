@@ -249,4 +249,25 @@
     <string name="pick_ais">Pick your AIs</string>
     <string name="pick_ais_hint">You’ll sign in once inside each panel. Change this any time.</string>
     <string name="continue_count">Continue · %1$d AIs</string>
+    <string name="update_available_title">Update available · v%1$s</string>
+    <string name="update_default_notes">A new version of OTT24x7 AI is ready with fixes and improvements.</string>
+    <string name="update_now">Update now</string>
+    <string name="update_later">Later</string>
+    <string name="update_required_title">Update required</string>
+    <string name="update_required_body">Please update to OTT24x7 AI v%1$s to keep using the app.</string>
+    <string name="update_in_browser">Download in browser</string>
+    <string name="update_failed">The download didn’t finish. Check your connection and try again.</string>
+    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="openrouter_title">Free AI models (OpenRouter)</string>
+    <string name="openrouter_hint">Paste a free OpenRouter key. We fetch every free model and you tick the ones to add to Compare.</string>
+    <string name="openrouter_key">OpenRouter API key</string>
+    <string name="openrouter_fetch">Fetch free models</string>
+    <string name="openrouter_get_key">Get a free key</string>
+    <string name="openrouter_checking">Checking your key…</string>
+    <string name="openrouter_key_invalid">OpenRouter didn’t accept this key. Check it and try again.</string>
+    <string name="openrouter_fetch_failed">Couldn’t load the model list. Check your connection.</string>
+    <string name="openrouter_found">%1$d free models found. Tap to add them to Compare.</string>
+    <string name="openrouter_added">%1$d added</string>
+    <string name="openrouter_remove_all">Remove all</string>
+    <string name="openrouter_free">FREE</string>
 </resources>
