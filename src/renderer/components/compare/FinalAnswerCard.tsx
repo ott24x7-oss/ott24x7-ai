@@ -1,5 +1,4 @@
-import { ChevronDown, ChevronUp, Copy, RefreshCw, Send, Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import { Copy, RefreshCw, Send, Sparkles, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -18,28 +17,42 @@ interface FinalAnswerCardProps {
   onCombine: () => void
   onCopy: () => void
   onContinue: () => void
+  onClose: () => void
 }
 
-export function FinalAnswerCard({ answer, canCombine, onCombine, onCopy, onContinue }: FinalAnswerCardProps) {
+export function FinalAnswerCard({ answer, canCombine, onCombine, onCopy, onContinue, onClose }: FinalAnswerCardProps) {
   const { t } = useTranslation()
-  const [collapsed, setCollapsed] = useState(false)
-  const isStreaming = answer?.status === 'streaming'
+  const isStreaming = answer?.status === 'streaming' || (!answer && canCombine)
   const hasAnswer = Boolean(answer?.content)
+  const title = answer?.judgeName
+    ? `${t('compare.final_answer.title')} · ${answer.judgeName}`
+    : t('compare.final_answer.title')
 
   return (
-    <section className="shrink-0 overflow-hidden rounded-lg border border-border bg-card">
-      <header className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+    <section
+      aria-label={title}
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l border-border bg-background">
+      <header className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Sparkles className="size-4 shrink-0 text-primary" />
-          <h2 className="text-sm font-semibold">{t('compare.final_answer.title')}</h2>
-          {answer?.judgeName && <span className="truncate text-xs text-muted-foreground">{answer.judgeName}</span>}
+          <Sparkles className="size-4 shrink-0 text-primary" aria-hidden="true" />
+          <h2 className="truncate text-sm font-semibold">
+            {t('compare.final_answer.title')}
+            {answer?.judgeName && <span className="font-normal text-muted-foreground"> · {answer.judgeName}</span>}
+          </h2>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {canCombine && (
-            <Button type="button" size="sm" variant="outline" disabled={isStreaming} onClick={onCombine}>
-              {hasAnswer ? <RefreshCw className="size-3.5" /> : <Sparkles className="size-3.5" />}
-              {hasAnswer ? t('compare.final_answer.rerun') : t('compare.combine')}
-            </Button>
+          {(canCombine || hasAnswer) && (
+            <Tooltip content={hasAnswer ? t('compare.final_answer.rerun') : t('compare.combine')}>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label={hasAnswer ? t('compare.final_answer.rerun') : t('compare.combine')}
+                disabled={!canCombine || isStreaming}
+                onClick={onCombine}>
+                {hasAnswer ? <RefreshCw className="size-3.5" /> : <Sparkles className="size-3.5" />}
+              </Button>
+            </Tooltip>
           )}
           {hasAnswer && (
             <>
@@ -57,39 +70,40 @@ export function FinalAnswerCard({ answer, canCombine, onCombine, onCopy, onConti
                 <Tooltip content={t('compare.final_answer.continue')}>
                   <Button
                     type="button"
-                    size="icon-sm"
+                    size="sm"
                     variant="ghost"
                     aria-label={t('compare.final_answer.continue')}
+                    className="h-8 gap-1 px-2 text-xs text-muted-foreground"
                     onClick={onContinue}>
                     <Send className="size-3.5" />
+                    {t('compare.final_answer.continue')}
                   </Button>
                 </Tooltip>
               )}
             </>
           )}
-          {hasAnswer && (
-            <Tooltip content={collapsed ? t('compare.final_answer.expand') : t('compare.final_answer.collapse')}>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label={collapsed ? t('compare.final_answer.expand') : t('compare.final_answer.collapse')}
-                aria-expanded={!collapsed}
-                onClick={() => setCollapsed((value) => !value)}>
-                {collapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}
-              </Button>
-            </Tooltip>
-          )}
+          <Tooltip content={t('common.close')}>
+            <Button type="button" size="icon-sm" variant="ghost" aria-label={t('common.close')} onClick={onClose}>
+              <X className="size-3.5" />
+            </Button>
+          </Tooltip>
         </div>
       </header>
-      {!collapsed && (
-        <div className="min-h-20 p-4">
-          {answer?.error && (
-            <p role="alert" className="mb-2 text-sm text-error">
-              {answer.error}
-            </p>
-          )}
-          {hasAnswer ? (
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-3">
+        {answer?.error && (
+          <p role="alert" className="mb-2 text-sm text-error">
+            {answer.error}
+          </p>
+        )}
+        {isStreaming && (
+          <div role="status" className="mb-4 space-y-3" aria-label={t('compare.status.streaming')}>
+            <div className="h-3 w-4/5 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-full animate-pulse rounded bg-muted" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+          </div>
+        )}
+        {hasAnswer ? (
+          <div className="min-w-0 max-w-full overflow-x-auto">
             <ChatMarkdown
               block={{
                 id: 'compare-final-answer',
@@ -97,11 +111,11 @@ export function FinalAnswerCard({ answer, canCombine, onCombine, onCopy, onConti
                 status: answer?.status === 'streaming' ? 'streaming' : answer?.status === 'error' ? 'error' : 'success'
               }}
             />
-          ) : (
-            <p className="text-sm text-muted-foreground">{t('compare.final_answer.empty')}</p>
-          )}
-        </div>
-      )}
+          </div>
+        ) : !isStreaming ? (
+          <p className="text-sm text-muted-foreground">{t('compare.final_answer.empty')}</p>
+        ) : null}
+      </div>
     </section>
   )
 }

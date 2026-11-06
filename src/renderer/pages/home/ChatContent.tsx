@@ -328,6 +328,7 @@ const ChatContentInner: FC<InnerProps> = ({
       onSend={handleSend}
       placeholder={compare ? t('compare.prompt.placeholder') : undefined}
       modelOptional={Boolean(compare)}
+      selectedAiCount={compare?.columns.filter((column) => column.enabled).length}
       sendDisabled={compare?.sendDisabled}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
@@ -344,6 +345,7 @@ const ChatContentInner: FC<InnerProps> = ({
       onSend={handleSend}
       placeholder={compare ? t('compare.prompt.placeholder') : undefined}
       modelOptional={Boolean(compare)}
+      selectedAiCount={compare?.columns.filter((column) => column.enabled).length}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}

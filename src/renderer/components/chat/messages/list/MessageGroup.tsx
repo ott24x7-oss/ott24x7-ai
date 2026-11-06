@@ -1,9 +1,9 @@
-import { Focus, X } from 'lucide-react'
+import { LoaderCircle } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Popover, PopoverContent, PopoverTrigger, PortalContainerProvider, ScrollArea } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger, PortalContainerProvider, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useCurrentTabId } from '@renderer/hooks/tab'
@@ -12,7 +12,7 @@ import { scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 
 import MessageItem from '../frame/MessageFrame'
 import {
@@ -81,8 +81,6 @@ const MessageGroup = ({
   // Hooks
   const actions = useMessageListActions()
   const openBrowserUrl = actions.openBrowserUrl
-  const focusCompareModel = actions.focusCompareModel
-  const removeCompareModel = actions.removeCompareModel
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const { t } = useTranslation()
   const selection = useMessageListSelection()
@@ -330,19 +328,11 @@ const MessageGroup = ({
   const renderMessage = useCallback(
     (message: MessageListItem, index: number) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped && !compareMode
-      const compareStatusKey =
-        message.status === 'pending'
-          ? 'compare.status.streaming'
-          : message.status === 'success'
-            ? 'compare.status.done'
-            : message.status === 'error'
-              ? 'compare.status.error'
-              : 'compare.status.waiting'
       const messageProps = {
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
-        showModelIdentity: !isMultiModelGroup || multiModelMessageStyle !== 'fold',
+        showModelIdentity: !compareMode && (!isMultiModelGroup || multiModelMessageStyle !== 'fold'),
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
@@ -358,53 +348,23 @@ const MessageGroup = ({
           messageId={message.id}
           onElementChange={registerRenderedMessageElement}
           className={classNames([
-            compareMode && message.role === 'assistant' ? 'compare-panel' : undefined,
+            compareMode && message.role === 'assistant'
+              ? 'compare-answer min-h-0 max-h-none overflow-visible rounded-none border-0 bg-transparent p-0'
+              : undefined,
             !compareMode && message.role === 'assistant' && messages.length > 1 ? multiModelMessageStyle : undefined,
             { selected: message.id === selectedMessageId }
           ])}>
-          {compareMode && message.role === 'assistant' && (
-            <div className="mb-2 flex min-h-8 items-center justify-end gap-2 border-b border-border-subtle pb-2">
-              <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <span
-                  aria-hidden="true"
-                  className={classNames([
-                    'size-1.5 rounded-full bg-muted-foreground',
-                    message.status === 'pending' && 'animate-pulse bg-primary',
-                    message.status === 'success' && 'bg-success',
-                    message.status === 'error' && 'bg-error'
-                  ])}
-                />
-                {t(compareStatusKey)}
-              </span>
-              {message.modelId && (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-7"
-                    aria-label={t('compare.focus_model', { model: message.model?.name ?? message.modelId })}
-                    onClick={() => focusCompareModel?.(message.modelId as UniqueModelId)}>
-                    <Focus className="size-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-7"
-                    aria-label={t('chat.input.followup_queue.remove')}
-                    onClick={() => removeCompareModel?.(message.modelId as UniqueModelId)}>
-                    <X className="size-3.5" />
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
           <MessageItem
             onSelectContext={onSelectContext}
             isGroupContextMessage={isGrouped && message.id === groupContextMessageId}
             {...messageProps}
           />
+          {compareMode && message.role === 'assistant' && message.status === 'pending' && (
+            <div role="status" className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
+              {t('compare.status.streaming')}
+            </div>
+          )}
         </MessageWrapper>
       )
 
@@ -437,8 +397,6 @@ const MessageGroup = ({
     },
     [
       openBrowserUrl,
-      focusCompareModel,
-      removeCompareModel,
       t,
       isGrid,
       compareMode,
@@ -465,7 +423,8 @@ const MessageGroup = ({
       id={messages[0].parentId ? `message-group-${messages[0].parentId}` : undefined}
       className={classNames([
         multiModelMessageStyle,
-        compareMode && `compare-${compareLayout}`,
+        // The `grid` style name doubles as Tailwind's display:grid; keep its track at the column width.
+        compareMode && `compare-${compareLayout} grid-cols-[minmax(0,1fr)]`,
         { 'multi-select-mode': isMultiSelectMode }
       ])}>
       <GridContainer
@@ -548,16 +507,8 @@ const GridContainer = ({
       <div
         className={gridClassName}
         style={
-          $compareMode && $compareLayout === 'columns'
-            ? {
-                gridTemplateColumns,
-                gridTemplateRows: 'minmax(0, 1fr)',
-                gridAutoFlow: 'column',
-                gridAutoColumns: `minmax(0, calc((100% - ${16 * ($columns - 1)}px) / ${$columns}))`,
-                overflowX: 'auto',
-                overflowY: 'hidden',
-                ...style
-              }
+          $compareMode
+            ? { display: 'flex', flexDirection: 'column', gap: 12, overflow: 'visible', ...style }
             : { gridTemplateColumns, ...style }
         }
         {...props}
@@ -607,7 +558,7 @@ const MessageWrapper = ({
       ref={messageId ? setElementRef : undefined}
       data-ui="chat.message"
       className={classNames([
-        '[&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.compare-panel]:min-h-[360px] [&.compare-panel]:max-h-[calc(100vh-320px)] [&.compare-panel]:overflow-y-auto [&.compare-panel]:rounded-lg [&.compare-panel]:border [&.compare-panel]:border-border [&.compare-panel]:bg-card [&.compare-panel]:p-3 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
+        '[&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
         { 'p-2.5': isGridCard },
         className
       ])}

@@ -1,6 +1,16 @@
 import { arrayMove } from '@dnd-kit/sortable'
-import { CircleOff, LoaderCircle, Moon, PanelLeftClose, PanelLeftOpen, Settings, Sun, WifiOff } from 'lucide-react'
-import type { ReactElement, Ref } from 'react'
+import {
+  CircleOff,
+  LoaderCircle,
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  SquarePen,
+  Sun,
+  WifiOff
+} from 'lucide-react'
+import { type ReactElement, type Ref } from 'react'
 import {
   startTransition,
   useCallback,
@@ -15,9 +25,9 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
+import brandLogo from '@renderer/assets/images/logo.png'
 import { SidebarPromoCard } from '@renderer/components/app/PromoCard'
-import useAvatar from '@renderer/hooks/useAvatar'
+import { useTabs } from '@renderer/hooks/tab'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -69,7 +79,7 @@ export default function Sidebar({
 }) {
   const { t } = useTranslation()
   const showUserInFooter = isMac && !isFullscreen
-  const [userName] = usePreference('app.user.name')
+  const { openTab } = useTabs()
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
   const registry = useSidebarShortcutRegistry()
   const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
@@ -101,7 +111,6 @@ export default function Sidebar({
     }
   }, [layout])
 
-  const avatar = useAvatar()
   const handleUserMenuOpenChange = useCallback(
     (open: boolean) => {
       setUserMenuOpen(open)
@@ -122,11 +131,18 @@ export default function Sidebar({
 
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
-      name: userName || t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),
-      avatar: avatar || undefined,
+      name: 'OTT24x7 AI',
+      avatar: brandLogo,
+      displayName: (
+        <span className="font-semibold tracking-tight">
+          OTT24x7 <span className="text-primary">AI</span>
+        </span>
+      ),
+      buttonClassName: 'rounded-lg',
+      hideChevron: true,
       onClick: handleUserMenuToggle
     }),
-    [avatar, handleUserMenuToggle, t, userName]
+    [handleUserMenuToggle]
   )
   const renderSidebarUserTrigger = useCallback(
     (trigger: ReactElement) => (
@@ -274,11 +290,38 @@ export default function Sidebar({
     const iconClass = footerLayout === 'icon' ? 'size-4.5' : 'size-4'
     return (
       <>
-        {renderFooterButton(
-          footerLayout,
-          isDark ? t('sidebar.theme.to_light') : t('sidebar.theme.to_dark'),
-          isDark ? <Sun className={iconClass} strokeWidth={1.6} /> : <Moon className={iconClass} strokeWidth={1.6} />,
-          () => setTheme(isDark ? ThemeMode.light : ThemeMode.dark)
+        {footerLayout === 'full' ? (
+          <div className="grid w-full grid-cols-2 rounded-lg border border-sidebar-border bg-sidebar-accent/30 p-0.5">
+            <Button
+              type="button"
+              variant={isDark ? 'secondary' : 'ghost'}
+              size="sm"
+              aria-label={t('sidebar.theme.to_dark')}
+              aria-pressed={isDark}
+              onClick={() => setTheme(ThemeMode.dark)}
+              className="h-8 min-w-0 gap-1 rounded-md px-1.5 text-[11px]">
+              <Moon className="size-3.5 shrink-0" strokeWidth={1.6} />
+              <span className="truncate">{t('sidebar.theme.to_dark')}</span>
+            </Button>
+            <Button
+              type="button"
+              variant={!isDark ? 'secondary' : 'ghost'}
+              size="sm"
+              aria-label={t('sidebar.theme.to_light')}
+              aria-pressed={!isDark}
+              onClick={() => setTheme(ThemeMode.light)}
+              className="h-8 min-w-0 gap-1 rounded-md px-1.5 text-[11px]">
+              <Sun className="size-3.5 shrink-0" strokeWidth={1.6} />
+              <span className="truncate">{t('sidebar.theme.to_light')}</span>
+            </Button>
+          </div>
+        ) : (
+          renderFooterButton(
+            footerLayout,
+            isDark ? t('sidebar.theme.to_light') : t('sidebar.theme.to_dark'),
+            isDark ? <Sun className={iconClass} strokeWidth={1.6} /> : <Moon className={iconClass} strokeWidth={1.6} />,
+            () => setTheme(isDark ? ThemeMode.light : ThemeMode.dark)
+          )
         )}
         {renderFooterButton(
           footerLayout,
@@ -322,6 +365,41 @@ export default function Sidebar({
     entries,
     emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
+    topAction: (footerLayout: SidebarVisibleLayout, onDismiss?: () => void) => {
+      const startNewChat = () => {
+        openTab('/app/compare', { forceNew: true })
+        onDismiss?.()
+      }
+      const label = t('chat.conversation.new')
+
+      return footerLayout === 'full' ? (
+        <div className="px-2 pb-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={label}
+            onClick={startNewChat}
+            className="shell-navigation-item flex h-9 w-full justify-start gap-2.5 rounded-lg px-2.5 text-[13px]">
+            <SquarePen className="size-4" strokeWidth={1.6} />
+            {label}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex justify-center pb-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={label}
+            title={label}
+            onClick={startNewChat}
+            className="shell-navigation-item size-9 rounded-lg">
+            <SquarePen className="size-4.5" strokeWidth={1.6} />
+          </Button>
+        </div>
+      )
+    },
     userAction: (footerLayout: SidebarVisibleLayout) =>
       showUserInFooter && footerLayout === 'full' ? renderSettingsButton('icon') : null,
     renderUserTrigger: renderSidebarUserTrigger,

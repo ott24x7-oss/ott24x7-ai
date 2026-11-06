@@ -387,14 +387,7 @@ describe('MessageGroup', () => {
     expect(divider).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('renders compare panel status and per-model focus/remove actions', () => {
-    const focusCompareModel = vi.fn()
-    const removeCompareModel = vi.fn()
-    mocks.messageListActions.mockReturnValue({
-      ...mocks.messageListActions(),
-      focusCompareModel,
-      removeCompareModel
-    })
+  it('shows streaming progress without a completed status or per-answer focus/remove header', () => {
     mocks.settings.mockReturnValue({
       ...mocks.settings(),
       multiModelMessageStyle: 'grid',
@@ -409,13 +402,10 @@ describe('MessageGroup', () => {
     render(<MessageGroup messages={messages} />)
 
     expect(screen.getByText('compare.status.streaming')).toBeInTheDocument()
-    expect(screen.getByText('compare.status.done')).toBeInTheDocument()
-    const focusButtons = screen.getAllByRole('button', { name: 'compare.focus_model' })
-    expect(focusButtons).toHaveLength(2)
-    fireEvent.click(focusButtons[0])
-    expect(focusCompareModel).toHaveBeenCalledWith('openai-codex::gpt-5')
-    fireEvent.click(screen.getAllByRole('button', { name: 'chat.input.followup_queue.remove' })[0])
-    expect(removeCompareModel).toHaveBeenCalledWith('openai-codex::gpt-5')
+    expect(screen.queryByText('compare.status.done')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'compare.focus_model' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.input.followup_queue.remove' })).not.toBeInTheDocument()
+    expect(screen.getAllByText('Long message content')).toHaveLength(2)
   })
 
   it('passes updated parts when only the parts map changes', () => {

@@ -182,9 +182,10 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
 interface MessageListProps {
   enableSearch?: boolean
   scrollPositionKey?: string
+  scrollToBottomOnPrompt?: string
 }
 
-const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListProps) => {
+const MessageList = ({ enableSearch = false, scrollPositionKey, scrollToBottomOnPrompt }: MessageListProps) => {
   const data = useMessageListData()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
@@ -331,6 +332,13 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const scrollToBottom = useCallback(() => {
     messageListRef.current?.scrollToBottom()
   }, [])
+
+  const lastComparePromptRef = useRef(scrollToBottomOnPrompt)
+  useEffect(() => {
+    if (!scrollToBottomOnPrompt || lastComparePromptRef.current === scrollToBottomOnPrompt) return
+    lastComparePromptRef.current = scrollToBottomOnPrompt
+    scrollToBottom()
+  }, [scrollToBottom, scrollToBottomOnPrompt])
 
   // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
   // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.

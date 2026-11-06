@@ -1,5 +1,20 @@
 import type { WebviewTag } from 'electron'
-import { Ellipsis, ExternalLink, Focus, GripVertical, LogOut, RotateCw, Square, TerminalSquare, X } from 'lucide-react'
+import {
+  ArrowDown,
+  Check,
+  CircleAlert,
+  ClipboardCopy,
+  Ellipsis,
+  ExternalLink,
+  Focus,
+  LogIn,
+  LogOut,
+  RotateCw,
+  Sparkles,
+  Square,
+  TerminalSquare,
+  X
+} from 'lucide-react'
 import { memo, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,6 +55,7 @@ interface CompareColumnHeaderProps {
   onCancel?: () => void
   onRemove: () => void
   onReorder: (sourceId: CompareColumnId, targetId: CompareColumnId) => void
+  onUseInFinalAnswer?: () => void
   isStreaming?: boolean
   delivery?: CompareDeliveryResult
   onSignIn?: () => void
@@ -61,6 +77,7 @@ export const CompareColumnHeader = memo(function CompareColumnHeader({
   onCancel,
   onRemove,
   onReorder,
+  onUseInFinalAnswer,
   isStreaming,
   delivery,
   onSignIn
@@ -83,42 +100,27 @@ export const CompareColumnHeader = memo(function CompareColumnHeader({
         const sourceId = event.dataTransfer.getData('text/plain') as CompareColumnId
         if (sourceId) onReorder(sourceId, id)
       }}
-      className="flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b border-border px-2.5">
-      <div className="flex h-11 min-w-0 w-full items-center gap-2">
-        <GripVertical className="size-3.5 shrink-0 cursor-grab text-muted-foreground" aria-hidden="true" />
-        {icon}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium" title={name}>
+      className="flex shrink-0 flex-col gap-1.5 border-b border-border px-3 py-2">
+      <div className="flex h-8 min-w-0 w-full items-center gap-1.5">
+        {icon && (
+          <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-background">
+            {icon}
+          </span>
+        )}
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={name}>
           {name}
         </span>
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">{badge}</span>
+        <span className="shrink-0 rounded-full border border-border bg-background px-1.5 py-0.5 text-[9px] font-medium uppercase leading-none tracking-wide text-muted-foreground">
+          {badge}
+        </span>
         <Tooltip content={t('compare.column.toggle', { model: name })}>
           <Switch
             checked={enabled}
             onCheckedChange={onToggle}
             aria-label={t('compare.column.toggle', { model: name })}
-            className="shrink-0"
+            className="shrink-0 data-[state=checked]:bg-(--cs-theme-primary)"
           />
         </Tooltip>
-        {isStreaming && onCancel ? (
-          <Tooltip content={t('compare.cli.stop')}>
-            <Button type="button" size="icon-sm" variant="ghost" aria-label={t('compare.cli.stop')} onClick={onCancel}>
-              <Square className="size-3" />
-            </Button>
-          </Tooltip>
-        ) : null}
-        {onRegenerate || onReload ? (
-          <Tooltip content={t(onReload ? 'compare.web.reload' : 'compare.column.regenerate')}>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              aria-label={t(onReload ? 'compare.web.reload' : 'compare.column.regenerate')}
-              disabled={!enabled}
-              onClick={onReload ?? onRegenerate}>
-              <RotateCw className="size-3.5" />
-            </Button>
-          </Tooltip>
-        ) : null}
         <Tooltip content={t(focused ? 'compare.exit_focus' : 'compare.focus_model', { model: name })}>
           <Button
             type="button"
@@ -137,6 +139,24 @@ export const CompareColumnHeader = memo(function CompareColumnHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {isStreaming && onCancel && (
+              <DropdownMenuItem onSelect={onCancel}>
+                <Square className="mr-2 size-3" />
+                {t('compare.cli.stop')}
+              </DropdownMenuItem>
+            )}
+            {onReload && (
+              <DropdownMenuItem disabled={!enabled} onSelect={onReload}>
+                <RotateCw className="mr-2 size-3.5" />
+                {t('compare.web.reload')}
+              </DropdownMenuItem>
+            )}
+            {onRegenerate && (
+              <DropdownMenuItem disabled={!enabled} onSelect={onRegenerate}>
+                <RotateCw className="mr-2 size-3.5" />
+                {t('compare.column.regenerate')}
+              </DropdownMenuItem>
+            )}
             {onOpenExternal && (
               <DropdownMenuItem onClick={onOpenExternal}>
                 <ExternalLink className="mr-2 size-3.5" />
@@ -149,6 +169,12 @@ export const CompareColumnHeader = memo(function CompareColumnHeader({
                 {t('compare.web.sign_out')}
               </DropdownMenuItem>
             )}
+            {onUseInFinalAnswer && (
+              <DropdownMenuItem onSelect={onUseInFinalAnswer}>
+                <Sparkles className="mr-2 size-3.5" />
+                {t('compare.web.use_in_final')}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-error" onClick={onRemove}>
               <X className="mr-2 size-3.5" />
@@ -157,29 +183,61 @@ export const CompareColumnHeader = memo(function CompareColumnHeader({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {delivery && (
-        <div
-          className="flex min-h-7 w-full items-center gap-2 pb-1 text-xs"
-          role={delivery.status === 'error' ? 'alert' : undefined}>
-          <span className={delivery.status === 'error' ? 'text-error' : 'text-muted-foreground'}>
-            {delivery.status === 'sent'
-              ? t('compare.delivery.sent')
-              : delivery.status === 'login-needed'
-                ? t('compare.delivery.sign_in_needed')
-                : delivery.status === 'copied'
-                  ? t('compare.delivery.copied')
-                  : t('compare.delivery.error', { reason: delivery.reason ?? '' })}
-          </span>
-          {delivery.status === 'login-needed' && onSignIn && (
-            <Button type="button" size="sm" variant="outline" className="ml-auto h-6 px-2" onClick={onSignIn}>
-              {t('compare.delivery.sign_in')}
-            </Button>
-          )}
-        </div>
-      )}
+      <CompareDeliveryChip delivery={delivery} onSignIn={onSignIn} />
     </header>
   )
 })
+
+function CompareDeliveryChip({ delivery, onSignIn }: { delivery?: CompareDeliveryResult; onSignIn?: () => void }) {
+  const { t } = useTranslation()
+  if (!delivery) return null
+
+  const className =
+    delivery.status === 'sent'
+      ? 'border-success-border bg-success-subtle text-success-subtle-foreground'
+      : delivery.status === 'login-needed'
+        ? 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
+        : delivery.status === 'copied'
+          ? 'border-border-selected bg-primary/10 text-primary'
+          : 'border-error-border bg-error-subtle text-error-subtle-foreground'
+  const label =
+    delivery.status === 'sent'
+      ? t('compare.delivery.sent')
+      : delivery.status === 'login-needed'
+        ? t('compare.delivery.sign_in_needed')
+        : delivery.status === 'copied'
+          ? t('compare.delivery.copied')
+          : t('compare.delivery.error', { reason: delivery.reason ?? '' })
+  const Icon =
+    delivery.status === 'sent'
+      ? Check
+      : delivery.status === 'login-needed'
+        ? LogIn
+        : delivery.status === 'copied'
+          ? ClipboardCopy
+          : CircleAlert
+
+  return (
+    <div
+      role={delivery.status === 'error' ? 'alert' : undefined}
+      className={`flex min-h-6 items-center gap-1.5 text-[11px] ${delivery.status === 'error' ? 'text-error' : ''}`}>
+      <span className={`inline-flex min-h-6 items-center gap-1 rounded-full border px-2 py-0.5 ${className}`}>
+        <Icon className="size-3 shrink-0" aria-hidden="true" />
+        <span>{label}</span>
+        {delivery.status === 'login-needed' && onSignIn && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="ml-1 h-5 rounded-full border-warning-border bg-background px-2 py-0 text-[10px] font-medium text-warning-subtle-foreground hover:bg-warning-subtle"
+            onClick={onSignIn}>
+            {t('compare.delivery.sign_in')}
+          </Button>
+        )}
+      </span>
+    </div>
+  )
+}
 
 interface CompareWebColumnProps {
   column: Extract<CompareColumn, { kind: 'web' }>
@@ -306,6 +364,7 @@ export const CompareWebColumn = memo(function CompareWebColumn({
         onSignOut={column.miniAppKind === 'site' ? () => void signOut() : undefined}
         onRemove={onRemove}
         onReorder={onReorder}
+        onUseInFinalAnswer={column.canReadAnswer ? () => onUseInFinalAnswer(column.appId) : undefined}
         delivery={delivery}
         onSignIn={onSignIn}
       />
@@ -332,25 +391,14 @@ export const CompareWebColumn = memo(function CompareWebColumn({
           </div>
         )}
       </div>
-      <footer className="flex min-h-8 shrink-0 items-center gap-2 border-t border-border px-2 py-1 text-xs">
-        <span className="text-muted-foreground">{t('compare.web.attach_hint')}</span>
-        {column.canReadAnswer && (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="ml-auto h-7 px-2"
-            onClick={() => onUseInFinalAnswer(column.appId)}>
-            {t('compare.web.use_in_final')}
-          </Button>
-        )}
-        {warning && (
+      {warning && (
+        <footer className="flex min-h-7 shrink-0 items-center gap-2 border-t border-border px-2 py-1 text-xs">
           <span role="alert" className="text-warning">
             {t('compare.web.send_failed')}
           </span>
-        )}
-        {signingOut && <span className="sr-only">{t('common.loading')}</span>}
-      </footer>
+        </footer>
+      )}
+      {signingOut && <span className="sr-only">{t('common.loading')}</span>}
     </section>
   )
 })
@@ -383,6 +431,11 @@ export const CompareCliColumn = memo(function CompareCliColumn({
   delivery
 }: CompareCliColumnProps) {
   const { t } = useTranslation()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const outputTurnKey = output ? `${output.prompt ?? ''}:${output.requestId ?? ''}` : undefined
+  const lastPromptRef = useRef(outputTurnKey)
+  const shouldFollowRef = useRef(true)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const status = output?.status ?? 'waiting'
   const statusLabel =
     status === 'waiting'
@@ -396,6 +449,32 @@ export const CompareCliColumn = memo(function CompareCliColumn({
   const onToggle = useCallback(() => onToggleModel(column.id), [column.id, onToggleModel])
   const onRemove = useCallback(() => onRemoveModel(column.id), [column.id, onRemoveModel])
   const onRegenerate = useCallback(() => onRegenerateModel(column.id), [column.id, onRegenerateModel])
+  const syncScrollButton = useCallback(() => {
+    const element = scrollContainerRef.current
+    if (!element) return
+    const atBottom = element.scrollHeight - element.clientHeight - element.scrollTop <= 24
+    setShowScrollToBottom(!atBottom)
+    if (atBottom) shouldFollowRef.current = true
+  }, [])
+  const scrollToBottom = useCallback(() => {
+    const element = scrollContainerRef.current
+    if (!element) return
+    shouldFollowRef.current = true
+    element.scrollTop = element.scrollHeight
+    syncScrollButton()
+  }, [syncScrollButton])
+
+  useEffect(() => {
+    if (!visible || !column.enabled || !output?.prompt || lastPromptRef.current === outputTurnKey) return
+    lastPromptRef.current = outputTurnKey
+    scrollToBottom()
+  }, [column.enabled, output?.prompt, outputTurnKey, scrollToBottom, visible])
+
+  useEffect(() => {
+    if (!visible || !column.enabled || !shouldFollowRef.current) return
+    scrollToBottom()
+  }, [column.enabled, output?.content, scrollToBottom, visible])
+
   return (
     <section
       hidden={!visible}
@@ -416,23 +495,60 @@ export const CompareCliColumn = memo(function CompareCliColumn({
         isStreaming={status === 'streaming'}
         delivery={delivery}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {!column.enabled ? (
-          <p className="text-sm text-muted-foreground">{t('compare.column.disabled')}</p>
-        ) : output?.content ? (
-          <ChatMarkdown
-            block={{
-              id: `compare-cli-${column.cliId}`,
-              content: output.content,
-              status: status === 'streaming' ? 'streaming' : 'success'
-            }}
-          />
-        ) : output?.error ? (
-          <p role="alert" className="text-sm text-error">
-            {output.error}
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground">{statusLabel}</p>
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollContainerRef}
+          role="region"
+          aria-label={column.name}
+          className="h-full overflow-y-auto p-4"
+          onScroll={() => {
+            const element = scrollContainerRef.current
+            if (!element) return
+            const atBottom = element.scrollHeight - element.clientHeight - element.scrollTop <= 24
+            setShowScrollToBottom(!atBottom)
+            shouldFollowRef.current = atBottom
+          }}>
+          {!column.enabled ? (
+            <p className="text-sm text-muted-foreground">{t('compare.column.disabled')}</p>
+          ) : (
+            <>
+              {output?.prompt && (
+                <div className="mb-4 flex justify-end">
+                  <p className="max-w-[88%] whitespace-pre-wrap rounded-2xl bg-primary px-3 py-2 text-sm text-primary-foreground">
+                    {output.prompt}
+                  </p>
+                </div>
+              )}
+              {output?.content ? (
+                <ChatMarkdown
+                  block={{
+                    id: `compare-cli-${column.cliId}`,
+                    content: output.content,
+                    status: status === 'streaming' ? 'streaming' : 'success'
+                  }}
+                />
+              ) : output?.error ? (
+                <p role="alert" className="text-sm text-error">
+                  {output.error}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">{statusLabel}</p>
+              )}
+            </>
+          )}
+        </div>
+        {showScrollToBottom && (
+          <Tooltip content={t('chat.navigation.bottom')}>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="secondary"
+              aria-label={t('chat.navigation.bottom')}
+              className="absolute right-3 bottom-3 z-10 rounded-full shadow-sm"
+              onClick={scrollToBottom}>
+              <ArrowDown className="size-3.5" />
+            </Button>
+          </Tooltip>
         )}
       </div>
     </section>

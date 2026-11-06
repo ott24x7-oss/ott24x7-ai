@@ -33,9 +33,15 @@ const model = {
 } as Model
 
 function CompareToolbarHarness({
-  selection = [{ id: model.id, enabled: true }]
+  selection = [{ id: model.id, enabled: true }],
+  canCombine = true,
+  onCombine = vi.fn(),
+  onSelectSet = vi.fn()
 }: {
   selection?: CacheCompareModelSelection[]
+  canCombine?: boolean
+  onCombine?: () => void
+  onSelectSet?: (setId: string) => void
 }) {
   const [layout, setLayout] = useState<CompareLayout>({ kind: 'columns', columns: 2 })
 
@@ -46,7 +52,7 @@ function CompareToolbarHarness({
       savedSets={[]}
       activeSetId="custom"
       onSelectionChange={vi.fn()}
-      onSelectSet={vi.fn()}
+      onSelectSet={onSelectSet}
       onSaveSet={vi.fn()}
       layout={layout}
       onLayoutChange={setLayout}
@@ -54,8 +60,8 @@ function CompareToolbarHarness({
       judgeOptions={[{ id: 'auto', label: 'Automatic judge' }]}
       onJudgeChange={vi.fn()}
       onJudgePickerOpen={vi.fn()}
-      canCombine
-      onCombine={vi.fn()}
+      canCombine={canCombine}
+      onCombine={onCombine}
       onOpenHistory={vi.fn()}
       apiPickerOpen={false}
       onApiPickerOpenChange={vi.fn()}
@@ -70,6 +76,8 @@ describe('CompareToolbar', () => {
     render(<CompareToolbarHarness />)
 
     expect(screen.getByRole('button', { name: 'compare.add_model' })).toBeInTheDocument()
+    expect(screen.getByText('compare.saved_sets.prefix')).toBeInTheDocument()
+    expect(screen.getByText('compare.judge.prefix')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'history.records.shortTitle' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'compare.combine' })).toBeInTheDocument()
 
@@ -88,7 +96,14 @@ describe('CompareToolbar', () => {
     expect(addModelButton).toBeDisabled()
     expect(screen.getByText('compare.add_model_limit_tooltip')).toBeInTheDocument()
 
-    expect(screen.getByRole('button', { name: 'compare.saved_sets.my_subscriptions' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'compare.saved_sets.all_enabled' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /compare\.saved_sets\.label/ }))
+    expect(screen.getByText('compare.saved_sets.my_subscriptions')).toBeInTheDocument()
+    expect(screen.queryByText('compare.saved_sets.all_enabled')).not.toBeInTheDocument()
+  })
+
+  it('keeps Combine visible and disabled until results are ready', () => {
+    render(<CompareToolbarHarness canCombine={false} />)
+
+    expect(screen.getByRole('button', { name: 'compare.combine' })).toBeDisabled()
   })
 })

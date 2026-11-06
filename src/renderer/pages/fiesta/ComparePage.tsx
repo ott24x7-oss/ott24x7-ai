@@ -136,6 +136,7 @@ function ComparePage() {
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, CompareDeliveryResult>>({})
   const [cliHistory, setCliHistory] = useState<Record<string, CompareCliTurn[]>>({})
   const [combineOutputs, setCombineOutputs] = useState<Record<string, CompareFinalAnswer>>({})
+  const [finalAnswerPanelOpen, setFinalAnswerPanelOpen] = useState(false)
   const [activeTurn, setActiveTurn] = useState<ActiveCompareTurn>()
   const [cliAvailability, setCliAvailability] = useState<CompareCliAvailability[]>([])
   const [isCheckingClis, setIsCheckingClis] = useState(false)
@@ -146,6 +147,7 @@ function ComparePage() {
   const activeModelCombineRequests = useRef(new Map<string, ActiveModelCombineRequest>())
   const webWaitControllers = useRef(new Map<string, ActiveWebWait>())
   const lastAutoCombineSignature = useRef<string | undefined>(undefined)
+  const finalAnswerPanelDismissed = useRef(false)
   const cliAvailabilityRef = useRef<CompareCliAvailability[] | null>(null)
   const cliAvailabilityRequest = useRef<Promise<CompareCliAvailability[]> | null>(null)
 
@@ -407,6 +409,20 @@ function ComparePage() {
     return undefined
   }, [currentQuestion, liveFinalAnswer, savedFinalAnswer])
 
+  useEffect(() => {
+    finalAnswerPanelDismissed.current = false
+    setFinalAnswerPanelOpen(false)
+  }, [activeTopicId])
+
+  useEffect(() => {
+    if (finalAnswer && !finalAnswerPanelDismissed.current) setFinalAnswerPanelOpen(true)
+  }, [finalAnswer])
+
+  const handleCloseFinalAnswer = useCallback(() => {
+    finalAnswerPanelDismissed.current = true
+    setFinalAnswerPanelOpen(false)
+  }, [])
+
   const completeCombine = useCallback(
     (topicId: string, question: string, content: string, judgeId: CompareJudgeId, judgeName: string) => {
       const output: CompareFinalAnswer = { question, content, status: 'done', judgeId, judgeName }
@@ -435,7 +451,16 @@ function ComparePage() {
   )
 
   const handleCombine = useCallback(async () => {
-    if (!activeTopicId || !currentQuestion || !canCombine(answerSources.length)) return
+    if (!activeTopicId || !currentQuestion) return
+    if (!canCombine(answerSources.length)) {
+      if (finalAnswer) {
+        finalAnswerPanelDismissed.current = false
+        setFinalAnswerPanelOpen(true)
+      }
+      return
+    }
+    finalAnswerPanelDismissed.current = false
+    setFinalAnswerPanelOpen(true)
     const topicId = activeTopicId
     const question = currentQuestion
     const sourceIds =
@@ -564,6 +589,7 @@ function ComparePage() {
     completeCombine,
     currentQuestion,
     focusedModelId,
+    finalAnswer,
     resolveJudge,
     setCombineError,
     t
@@ -1218,7 +1244,7 @@ function ComparePage() {
         judgeOptions={judgeOptions}
         onJudgeChange={handleJudgeChange}
         onJudgePickerOpen={handleJudgePickerOpen}
-        canCombine={canCombineAnswers}
+        canCombine={canCombineAnswers || Boolean(finalAnswer)}
         onCombine={() => void handleCombine()}
         onOpenHistory={handleOpenHistory}
         apiPickerOpen={apiPickerOpen}
@@ -1231,6 +1257,7 @@ function ComparePage() {
       activeSetId,
       availableModels,
       canCombineAnswers,
+      finalAnswer,
       handleCombine,
       handleOpenHistory,
       handleApiPickerOpenChange,
@@ -1310,6 +1337,8 @@ function ComparePage() {
       onUseSubscriptions: handleUseSubscriptions,
       canCombine: canCombineAnswers,
       onCombine: () => void handleCombine(),
+      finalAnswerPanelOpen,
+      onCloseFinalAnswer: handleCloseFinalAnswer,
       finalAnswer,
       onCopyFinalAnswer: handleCopyFinalAnswer,
       onUseWebAnswer: handleUseWebAnswer
@@ -1319,8 +1348,10 @@ function ComparePage() {
       cliOutputs,
       columns,
       finalAnswer,
+      finalAnswerPanelOpen,
       focusedModelId,
       handleCancelCli,
+      handleCloseFinalAnswer,
       deliveryStatuses,
       cliAvailability,
       handleCombine,

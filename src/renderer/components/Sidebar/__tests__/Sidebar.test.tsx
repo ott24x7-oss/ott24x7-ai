@@ -296,6 +296,29 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
+  it('renders a branded account label with the supplied avatar', () => {
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        entries={entries}
+        user={{
+          name: 'OTT24x7 AI',
+          avatar: '/assets/logo.png',
+          displayName: (
+            <span>
+              OTT24x7 <span>AI</span>
+            </span>
+          ),
+          hideChevron: true
+        }}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'OTT24x7 AI' })).toBeInTheDocument()
+    expect(screen.getByText('AI')).toBeInTheDocument()
+  })
+
   it.each([
     { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
     { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },

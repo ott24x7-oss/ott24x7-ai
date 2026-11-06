@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   shortcuts: [] as any[],
   showUpdatePopup: vi.fn(),
   openSettingsTab: vi.fn(),
+  openTab: vi.fn(),
   setSidebarWidth: vi.fn(),
   theme: 'dark',
   setTheme: vi.fn()
@@ -44,6 +45,7 @@ vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.f
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: mocks.theme, setTheme: mocks.setTheme }) }))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettingsTab }))
+vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ openTab: mocks.openTab }) }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
 vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({ useOpenReleaseNotes: () => vi.fn() }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
@@ -89,6 +91,7 @@ vi.mock('../../Sidebar', async () => {
       onHoverChange,
       actions,
       renderUserTrigger,
+      topAction,
       user,
       userAction
     }: {
@@ -104,6 +107,7 @@ vi.mock('../../Sidebar', async () => {
       onEntriesReorder: (event: { oldIndex: number; newIndex: number }) => void
       onHoverChange?: (visible: boolean) => void
       actions?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
+      topAction?: (layout: 'full' | 'icon', onDismiss?: () => void) => ReactNode
       renderUserTrigger?: (trigger: ReactElement) => ReactElement
       user?: { name: string; avatar?: string; onClick?: () => void }
       userAction?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
@@ -125,6 +129,7 @@ vi.mock('../../Sidebar', async () => {
               renderUserTrigger={renderUserTrigger}
             />
           </div>
+          <div data-testid="sidebar-top-action">{topAction?.(footerLayout, vi.fn())}</div>
           <ol aria-label="shortcuts">
             {entries.map((entry) => (
               <li key={entry.key} aria-label={entry.label}>
@@ -182,7 +187,7 @@ describe('app Sidebar', () => {
     render(<Sidebar />)
     if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
     const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
-    await user.click(within(sidebar).getByRole('button', { name: 'User' }))
+    await user.click(within(sidebar).getByRole('button', { name: 'OTT24x7 AI' }))
     expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
     fireEvent.blur(within(screen.getByLabelText('sidebar.account_menu')).getAllByRole('button')[0])
     expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
@@ -214,7 +219,7 @@ describe('app Sidebar', () => {
 
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
 
-    await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'User' }))
+    await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'OTT24x7 AI' }))
     expect(screen.getByTestId('account-menu')).toBeVisible()
     expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
 
@@ -222,10 +227,19 @@ describe('app Sidebar', () => {
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
 
+  it('opens a fresh Compare chat from the sidebar New Chat action', async () => {
+    const user = userEvent.setup()
+    render(<Sidebar />)
+
+    await user.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/compare', { forceNew: true })
+  })
+
   it('keeps pointer focus on the avatar and focuses the first account action for keyboard access', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)
-    const avatar = screen.getByRole('button', { name: 'User' })
+    const avatar = screen.getByRole('button', { name: 'OTT24x7 AI' })
 
     await user.click(avatar)
     expect(screen.getByTestId('account-menu')).toBeVisible()
@@ -242,7 +256,7 @@ describe('app Sidebar', () => {
     const user = userEvent.setup()
     const view = render(<Sidebar />)
 
-    await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'User' }))
+    await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'OTT24x7 AI' }))
     expect(screen.getByTestId('account-menu')).toBeVisible()
 
     mocks.sidebarWidth = 0

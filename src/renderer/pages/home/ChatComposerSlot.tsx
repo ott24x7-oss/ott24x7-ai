@@ -38,6 +38,7 @@ interface ChatComposerSlotBaseProps {
   placeholder?: string
   sendDisabled?: boolean
   modelOptional?: boolean
+  selectedAiCount?: number
 }
 
 type ChatComposerSlotProps = ChatComposerSlotBaseProps & { placement: 'home' | 'docked' }
@@ -53,6 +54,7 @@ function ChatComposerSlot({
   sendDisabled,
   placeholder,
   modelOptional,
+  selectedAiCount,
   composerContext,
   assistantContext,
   providers,
@@ -71,6 +73,7 @@ function ChatComposerSlot({
         placeholder={placeholder}
         sendDisabled={sendDisabled}
         modelOptional={modelOptional}
+        selectedAiCount={selectedAiCount}
         chatTarget={chatTarget}
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
@@ -94,6 +97,7 @@ function ChatComposerSlot({
         onCreateEmptyTopic={onCreateEmptyTopic}
         sendDisabled={sendDisabled}
         modelOptional={modelOptional}
+        selectedAiCount={selectedAiCount}
         resolvedContext={assistantContext}
         resolvedProviders={providers}
         externalContextControls

@@ -181,6 +181,7 @@ export interface ChatComposerProps {
   placeholder?: string
   /** Compare: web panels and signed-in CLIs answer without a chat model, so sending never requires one. */
   modelOptional?: boolean
+  selectedAiCount?: number
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
@@ -274,6 +275,7 @@ const ChatComposerRoot = ({
   sendDisabled,
   placeholder,
   modelOptional,
+  selectedAiCount,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -336,6 +338,7 @@ const ChatComposerRoot = ({
             sendDisabled={sendDisabled}
             placeholder={placeholder}
             modelOptional={modelOptional}
+            selectedAiCount={selectedAiCount}
             compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
@@ -379,6 +382,7 @@ const ChatComposerInner = ({
   sendDisabled = false,
   placeholder: placeholderOverride,
   modelOptional = false,
+  selectedAiCount,
   compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
@@ -1826,6 +1830,11 @@ const ChatComposerInner = ({
         />
       ) : null}
       <ChatComposerContextUsage usage={contextUsage} />
+      {selectedAiCount !== undefined && (
+        <span className="whitespace-nowrap px-1 text-[11px] text-muted-foreground">
+          {t('compare.prompt.selected_count', { count: selectedAiCount })}
+        </span>
+      )}
       <ComposerDictationButton inputAdapter={inputAdapter} />
     </>
   )

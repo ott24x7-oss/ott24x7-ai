@@ -298,7 +298,8 @@ vi.mock('../list/MessageVirtualList', async () => {
       renderItem,
       scrollToBottomButtonBottomOffset,
       showScrollToBottomButton,
-      topPadding
+      topPadding,
+      topicId
     }: any) => {
       const renderedScrollElementRef = React.useRef<HTMLDivElement | null>(null)
       React.useImperativeHandle(
@@ -339,6 +340,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           data-keep-mounted-keys={(keepMountedKeys ?? []).join(',')}
           data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
           data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
+          data-topic-id={topicId ?? ''}
           data-testid="virtual-list"
           data-top-padding={topPadding}>
           {visibleItems.map((item: unknown, index: number) => (
@@ -426,6 +428,37 @@ describe('MessageList', () => {
     )
     expect(screen.queryByText('Uploading report.pdf')).not.toBeInTheDocument()
     expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual(['sent'])
+  })
+
+  it('scrolls every visible Compare list to a newly sent prompt and keeps their saved positions separate', () => {
+    const firstPrompt = createMessage('user-1', 'user')
+    const nextPrompt = createMessage('user-2', 'user')
+    const renderColumns = (promptId: string | undefined, messages: MessageListItem[]) => {
+      const value = createValue(messages, {
+        renderConfig: { ...defaultMessageRenderConfig, compareMode: true }
+      })
+      return (
+        <>
+          <MessageListProvider value={value}>
+            <MessageList scrollPositionKey="compare:topic-1:model-a" scrollToBottomOnPrompt={promptId} />
+          </MessageListProvider>
+          <MessageListProvider value={value}>
+            <MessageList scrollPositionKey="compare:topic-1:model-b" scrollToBottomOnPrompt={promptId} />
+          </MessageListProvider>
+        </>
+      )
+    }
+
+    const view = render(renderColumns(undefined, [firstPrompt]))
+    expect(scrollToBottom).not.toHaveBeenCalled()
+    expect(screen.getAllByTestId('virtual-list').map((list) => list.getAttribute('data-topic-id'))).toEqual([
+      'compare:topic-1:model-a',
+      'compare:topic-1:model-b'
+    ])
+
+    view.rerender(renderColumns(nextPrompt.id, [firstPrompt, nextPrompt]))
+
+    expect(scrollToBottom).toHaveBeenCalledTimes(2)
   })
 
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { Clock3, GitBranch, Grid2X2, Plus, Save, Sparkles } from 'lucide-react'
+import { Check, ChevronDown, Clock3, Plus, Save, Sparkles } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -18,7 +19,6 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
-import { RightPanelShortcut } from '@renderer/components/chat/panes/Shell'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import type { CompareColumnId, CompareJudgeId, CompareLayout } from '@renderer/types/compare'
 import type { CacheCompareModelSelection, CacheCompareSavedSet } from '@shared/data/cache/cacheValueTypes'
@@ -82,6 +82,12 @@ export function CompareToolbar({
   const isAtColumnLimit = selection.length >= MAX_COMPARE_COLUMNS
   const { allApps } = useMiniApps()
   const apps = useMemo(() => allApps.filter((app) => app.status === 'enabled' || app.status === 'pinned'), [allApps])
+  const activeSetName = useMemo(() => {
+    if (activeSetId === 'my-subscriptions') return t('compare.saved_sets.my_subscriptions')
+    if (activeSetId === 'free') return t('compare.saved_sets.free_models')
+    if (activeSetId === 'custom') return t('compare.saved_sets.custom')
+    return savedSets.find((set) => set.id === activeSetId)?.name ?? t('compare.saved_sets.custom')
+  }, [activeSetId, savedSets, t])
 
   const handlePickerOpenChange = useCallback(
     (open: boolean) => {
@@ -110,33 +116,57 @@ export function CompareToolbar({
   return (
     <header
       data-ui="fiesta.compare-toolbar"
-      className="flex h-12 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border bg-background px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <Select value={activeSetId} onValueChange={onSelectSet}>
-        <SelectTrigger size="sm" className="h-8 w-36 shrink-0" aria-label={t('compare.saved_sets.label')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="my-subscriptions">{t('compare.saved_sets.my_subscriptions')}</SelectItem>
-          <SelectItem value="free">{t('compare.saved_sets.free_models')}</SelectItem>
-          <SelectItem value="custom">{t('compare.saved_sets.custom')}</SelectItem>
+      className="flex h-12 shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-border bg-background px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 max-w-56 shrink-0 gap-1.5 px-2.5"
+            aria-label={`${t('compare.saved_sets.label')}: ${activeSetName}`}>
+            <span className="text-muted-foreground">{t('compare.saved_sets.prefix')}</span>
+            <span className="truncate">{activeSetName}</span>
+            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-64">
+          <DropdownMenuLabel>{t('compare.saved_sets.label')}</DropdownMenuLabel>
+          {[
+            ['my-subscriptions', t('compare.saved_sets.my_subscriptions')],
+            ['free', t('compare.saved_sets.free_models')],
+            ['custom', t('compare.saved_sets.custom')]
+          ].map(([id, name]) => (
+            <DropdownMenuItem key={id} onSelect={() => onSelectSet(id)}>
+              <span className="flex-1">{name}</span>
+              {activeSetId === id && <Check className="size-3.5 text-primary" aria-hidden="true" />}
+            </DropdownMenuItem>
+          ))}
           {savedSets
-            .filter((set) => !['my-subscriptions', 'free', 'all-enabled'].includes(set.id))
+            .filter((set) => !['my-subscriptions', 'free', 'custom', 'all-enabled'].includes(set.id))
             .map((set) => (
-              <SelectItem key={set.id} value={set.id}>
-                {set.name}
-              </SelectItem>
+              <DropdownMenuItem key={set.id} onSelect={() => onSelectSet(set.id)}>
+                <span className="flex-1">{set.name}</span>
+                {activeSetId === set.id && <Check className="size-3.5 text-primary" aria-hidden="true" />}
+              </DropdownMenuItem>
             ))}
-        </SelectContent>
-      </Select>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setIsNamingSet(true)}>
+            <Save className="mr-2 size-3.5" />
+            {t('compare.save_set')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Select
         value={judgeId}
         onValueChange={(value) => onJudgeChange(value as CompareJudgeId)}
         onOpenChange={(open) => open && onJudgePickerOpen()}>
         <SelectTrigger
           size="sm"
-          className="h-8 w-56 shrink-0"
+          className="h-8 w-56 shrink-0 gap-1.5"
           aria-label={t('compare.judge.label')}
           title={judgeOptions.find((option) => option.id === judgeId)?.label}>
+          <span className="text-muted-foreground">{t('compare.judge.prefix')}</span>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -209,12 +239,27 @@ export function CompareToolbar({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {isNamingSet && (
+        <form
+          className="flex shrink-0 items-center gap-1"
+          onSubmit={(event) => {
+            event.preventDefault()
+            saveSet()
+          }}>
+          <Input
+            autoFocus
+            className="h-8 w-32"
+            value={setName}
+            aria-label={t('compare.save_set_placeholder')}
+            placeholder={t('compare.save_set_placeholder')}
+            onChange={(event) => setSetName(event.target.value)}
+          />
+          <Button type="submit" size="icon-sm" variant="secondary" className="size-8" disabled={!setName.trim()}>
+            <Save className="size-3.5" />
+          </Button>
+        </form>
+      )}
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        <RightPanelShortcut
-          tab="branch"
-          label={t('chat.message.flow.title')}
-          icon={<GitBranch className="size-3.5" />}
-        />
         <div className="flex items-center rounded-md border border-border p-0.5" aria-label={t('compare.layout.label')}>
           {COLUMN_COUNTS.map((count) => (
             <Tooltip key={count} content={t('compare.layout.columns', { count })}>
@@ -230,61 +275,21 @@ export function CompareToolbar({
               </Button>
             </Tooltip>
           ))}
-          <Tooltip content={t('compare.layout.grid_2x2')}>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant={layout.kind === 'grid' ? 'secondary' : 'ghost'}
-              aria-label={t('compare.layout.grid_2x2')}
-              aria-pressed={layout.kind === 'grid'}
-              className="size-7"
-              onClick={() => onLayoutChange({ kind: 'grid' })}>
-              <Grid2X2 className="size-3.5" aria-hidden="true" />
-            </Button>
-          </Tooltip>
         </div>
-        {isNamingSet ? (
-          <form
-            className="flex items-center gap-1"
-            onSubmit={(event) => {
-              event.preventDefault()
-              saveSet()
-            }}>
-            <Input
-              autoFocus
-              className="h-8 w-32"
-              value={setName}
-              aria-label={t('compare.save_set_placeholder')}
-              placeholder={t('compare.save_set_placeholder')}
-              onChange={(event) => setSetName(event.target.value)}
-            />
-            <Button type="submit" size="icon-sm" variant="secondary" className="size-8" disabled={!setName.trim()}>
-              <Save className="size-3.5" />
-            </Button>
-          </form>
-        ) : (
-          <Tooltip content={t('compare.save_set')}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('compare.save_set')}
-              className="size-8"
-              onClick={() => setIsNamingSet(true)}>
-              <Save className="size-4" />
-            </Button>
-          </Tooltip>
-        )}
         <Button type="button" size="sm" variant="ghost" className="h-8 shrink-0 gap-1.5 px-2" onClick={onOpenHistory}>
           <Clock3 className="size-3.5" />
           {t('history.records.shortTitle')}
         </Button>
-        {canCombine && (
-          <Button type="button" size="sm" variant="default" className="h-8 shrink-0 gap-1.5 px-2.5" onClick={onCombine}>
-            <Sparkles className="size-3.5" />
-            {t('compare.combine')}
-          </Button>
-        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="default"
+          className="h-8 shrink-0 gap-1.5 bg-(--cs-theme-primary) px-2.5 text-(--cs-theme-primary-foreground) hover:bg-(--cs-theme-primary)/90"
+          disabled={!canCombine}
+          onClick={onCombine}>
+          <Sparkles className="size-3.5" />
+          {t('compare.combine')}
+        </Button>
       </div>
     </header>
   )

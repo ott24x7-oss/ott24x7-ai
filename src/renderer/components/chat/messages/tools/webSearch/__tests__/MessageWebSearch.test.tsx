@@ -39,13 +39,13 @@ describe('MessageWebSearchToolTitle', () => {
           toolCallId: 'tool-call-1',
           tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
           status: 'done',
-          arguments: { query: 'Cherry Studio' },
+          arguments: { query: 'OTT24x7 AI' },
           response: []
         }}
       />
     )
 
-    expect(screen.getByText('Cherry Studio')).toBeInTheDocument()
+    expect(screen.getByText('OTT24x7 AI')).toBeInTheDocument()
     expect(screen.getByText('No search results found')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
@@ -58,23 +58,23 @@ describe('MessageWebSearchToolTitle', () => {
           toolCallId: 'tool-call-1',
           tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
           status: 'done',
-          arguments: { query: 'Cherry Studio' },
-          response: [{ id: 1, title: 'Cherry Studio', url: 'app://ott24x7ai/blog', content: 'Cherry Studio' }]
+          arguments: { query: 'OTT24x7 AI' },
+          response: [{ id: 1, title: 'OTT24x7 AI', url: 'https://www.example.com/blog', content: 'OTT24x7 AI' }]
         }}
       />
     )
 
     // Header shows the query + the result count (collapse body is not rendered yet).
     const header = screen.getByRole('button')
-    expect(within(header).getByText('Cherry Studio')).toBeInTheDocument()
+    expect(within(header).getByText('OTT24x7 AI')).toBeInTheDocument()
     expect(within(header).getByText('1 search results')).toBeInTheDocument()
 
     fireEvent.click(header)
 
     const link = await screen.findByRole('link')
-    expect(link).toHaveAttribute('href', 'app://ott24x7ai/blog')
-    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.cherry-ai.com')
-    expect(screen.getByText('cherry-ai.com')).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', 'https://www.example.com/blog')
+    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.example.com')
+    expect(screen.getByText('example.com')).toBeInTheDocument()
   })
 })
 

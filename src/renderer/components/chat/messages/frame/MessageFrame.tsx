@@ -83,6 +83,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const messageFont = renderConfig.messageFont
   const fontSize = renderConfig.fontSize
   const messageStyle = renderConfig.messageStyle
+  const isCompareMode = renderConfig.compareMode ?? false
 
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
@@ -116,7 +117,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isStreamTarget = activityState.isStreamTarget
   const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
-  const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
+  const isUserBubbleMessage = (messageStyle === 'bubble' || isCompareMode) && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
@@ -311,8 +312,14 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
+          isCompareMode={isCompareMode}
           isEditing={isEditing}
         />
+      ) : isCompareMode && isAssistantMessage ? (
+        <div className="message-body-column flex min-w-0 flex-col">
+          {plainMessageContent}
+          {!isEditing && assistantFooter}
+        </div>
       ) : (
         <MessageHeader
           message={message}
@@ -351,6 +358,7 @@ const UserBubbleMessage = ({
   onSelectContext,
   messageFont,
   fontSize,
+  isCompareMode,
   isEditing
 }: {
   message: MessageListItem
@@ -362,6 +370,7 @@ const UserBubbleMessage = ({
   onSelectContext?: (msgId: string) => void
   messageFont: string
   fontSize: number
+  isCompareMode: boolean
   isEditing: boolean
 }) => {
   const messageParts = useMessageParts(message.id)
@@ -396,8 +405,11 @@ const UserBubbleMessage = ({
         )}
         <div
           data-ui="part:message-content"
-
-          className="message-content-container mt-0 max-w-full rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+          className={cn(
+            'message-content-container mt-0 max-w-full rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!',
+            isCompareMode &&
+              'rounded-2xl bg-[var(--cs-theme-primary)]! px-3 py-2 text-[var(--cs-theme-primary-foreground)]!'
+          )}
           style={{
             fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
             fontSize,

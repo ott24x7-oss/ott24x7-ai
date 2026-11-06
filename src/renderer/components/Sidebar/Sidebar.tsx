@@ -13,7 +13,7 @@ import { UserAvatar } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarUser, SidebarVisibleLayout } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
@@ -28,6 +28,7 @@ export interface SidebarProps {
   extensionsLabel?: string
   actions?: SidebarFooterActions
   userAction?: SidebarFooterActions
+  topAction?: (layout: SidebarVisibleLayout, onDismiss?: () => void) => React.ReactNode
   onHoverChange?: (visible: boolean) => void
   onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
@@ -49,6 +50,7 @@ export function Sidebar({
   extensionsLabel = '',
   actions,
   userAction,
+  topAction,
   onHoverChange,
   onResizePreview,
   onSearchClick,
@@ -154,7 +156,8 @@ export function Sidebar({
         'flex min-w-0 max-w-full items-center gap-2 [-webkit-app-region:no-drag]',
         contentLayout === 'full'
           ? 'shell-navigation-item h-9 w-full justify-start rounded-full px-2 text-left'
-          : 'rounded-lg p-0 text-sidebar-foreground hover:bg-transparent hover:text-sidebar-foreground'
+          : 'rounded-lg p-0 text-sidebar-foreground hover:bg-transparent hover:text-sidebar-foreground',
+        user.buttonClassName
       )}>
       <span
         className={cn(
@@ -165,8 +168,10 @@ export function Sidebar({
       </span>
       {contentLayout === 'full' && (
         <>
-          <span className="min-w-0 flex-1 truncate text-[13px] text-sidebar-foreground">{user.name}</span>
-          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />
+          <span className="min-w-0 flex-1 truncate text-[13px] text-sidebar-foreground">
+            {user.displayName ?? user.name}
+          </span>
+          {!user.hideChevron && <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.6} />}
         </>
       )}
     </Button>
@@ -211,6 +216,7 @@ export function Sidebar({
             clearHoverDismiss()
           }}>
           {header}
+          {topAction?.('full', handleDismiss)}
           {showSearch && (
             <div className="px-3 py-2">
               <Button
@@ -282,6 +288,7 @@ export function Sidebar({
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {header}
+      {topAction?.(layout)}
       {/* Search */}
       {showSearch &&
         (layout === 'full' ? (

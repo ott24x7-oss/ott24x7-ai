@@ -1,6 +1,7 @@
-import { memo, type FC, useMemo } from 'react'
+import { memo, type FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -80,102 +81,86 @@ const ChatMain: FC<ChatMainProps> = ({
     )
   }
 
+  return <CompareChatMain compare={compare} baseValue={baseValue} onRegenerateModel={onRegenerateModel} />
+}
+
+interface CompareChatMainProps {
+  compare: ComparePageConfig
+  baseValue: ReturnType<typeof useHomeMessageListProviderValue>
+  onRegenerateModel?: (modelId: CompareColumnId) => void
+}
+
+const CompareChatMain: FC<CompareChatMainProps> = ({ compare, baseValue, onRegenerateModel }) => {
+  const { t } = useTranslation()
+  const isCompactViewport = useIsCompactCompareViewport()
+
   const columnCount = compare.focusedModelId ? 1 : compare.layout.kind === 'grid' ? 2 : compare.layout.columns
-  const trackCount = compare.focusedModelId
-    ? 1
-    : compare.layout.kind === 'grid'
-      ? 2
-      : Math.max(columnCount, compare.columns.length)
   const gridRowCount =
     compare.layout.kind === 'grid' && !compare.focusedModelId ? Math.ceil(compare.columns.length / 2) : 1
-  const minGridWidth = `${trackCount * 380}px`
   const regenerateModel = onRegenerateModel ?? (() => {})
-  // CLI columns and the final answer render markdown, which reads the message list context.
-  return (
-    <MessageListProvider value={baseValue}>
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2 pb-40">
-        {compare.welcomeCard}
-        {(compare.canCombine || compare.finalAnswer) && (
-          <FinalAnswerCard
-            answer={compare.finalAnswer}
-            canCombine={compare.canCombine}
-            onCombine={compare.onCombine}
-            onCopy={compare.onCopyFinalAnswer}
-            onContinue={() => {
-              if (compare.finalAnswer?.status === 'done') compare.onContinueFromAnswer?.(compare.finalAnswer.content)
-            }}
-          />
-        )}
-        {compare.columns.length === 0 ? (
-          <CompareEmptyState
-            onAddColumn={compare.onAddColumn}
-            onUseSubscriptions={compare.onUseSubscriptions}
-            onOpenModelPicker={compare.onOpenModelPicker}
-            cliAvailability={compare.cliAvailability}
-          />
-        ) : (
-          <div className="relative min-h-0 flex-1">
-            <div
-              id="compare-panels"
-              className="grid h-full min-h-0 w-full auto-cols-fr gap-3 overflow-auto scroll-smooth pb-1"
-              style={{
-                gridTemplateColumns: compare.focusedModelId
-                  ? 'minmax(0, 1fr)'
-                  : `repeat(${columnCount}, minmax(380px, 1fr))`,
-                gridAutoColumns:
-                  compare.focusedModelId || compare.layout.kind === 'grid' ? undefined : 'minmax(380px, 1fr)',
-                minWidth: compare.focusedModelId ? 0 : minGridWidth,
-                gridTemplateRows: `repeat(${gridRowCount}, minmax(0, 1fr))`,
-                gridAutoFlow: compare.layout.kind === 'grid' ? 'row' : 'column'
-              }}>
-              {compare.columns.map((column) => {
-                const visible = !compare.focusedModelId || compare.focusedModelId === column.id
-                const isFocused = compare.focusedModelId === column.id
-                if (column.kind === 'api') {
-                  return (
-                    <CompareApiColumn
-                      key={column.id}
-                      column={column}
-                      baseValue={baseValue}
-                      ownsRuntime={column.id === compare.runtimeOwnerId}
-                      visible={visible}
-                      focused={isFocused}
-                      onFocusModel={compare.onFocusModel}
-                      onToggleModel={compare.onToggleModel}
-                      onRemoveModel={compare.onRemoveModel}
-                      onRegenerateModel={regenerateModel}
-                      onReorder={compare.onReorderModels}
-                      delivery={compare.deliveryStatuses[column.id]}
-                    />
-                  )
-                }
-                if (column.kind === 'web') {
-                  return (
-                    <CompareWebColumn
-                      key={column.id}
-                      column={column}
-                      visible={visible}
-                      warning={compare.webWarnings[column.appId] ?? false}
-                      delivery={compare.deliveryStatuses[column.id]}
-                      onSetRef={compare.onWebviewRef}
-                      onUseInFinalAnswer={compare.onUseWebAnswer}
-                      focused={isFocused}
-                      onFocusModel={compare.onFocusModel}
-                      onToggleModel={compare.onToggleModel}
-                      onRemoveModel={compare.onRemoveModel}
-                      onRegenerateModel={regenerateModel}
-                      onReorder={compare.onReorderModels}
-                    />
-                  )
-                }
+  const latestPromptMessageId = useMemo(() => {
+    for (let index = baseValue.state.messages.length - 1; index >= 0; index -= 1) {
+      const message = baseValue.state.messages[index]
+      if (message.role === 'user') return message.id
+    }
+    return undefined
+  }, [baseValue.state.messages])
+  const columnsContent = (
+    <div className="relative min-h-0 flex-1">
+      {compare.columns.length === 0 ? (
+        <CompareEmptyState
+          onAddColumn={compare.onAddColumn}
+          onUseSubscriptions={compare.onUseSubscriptions}
+          onOpenModelPicker={compare.onOpenModelPicker}
+          cliAvailability={compare.cliAvailability}
+        />
+      ) : (
+        <>
+          <div
+            id="compare-panels"
+            className="grid h-full min-h-0 w-full auto-cols-fr gap-3 overflow-auto scroll-smooth pb-1"
+            style={{
+              gridTemplateColumns: compare.focusedModelId
+                ? 'minmax(0, 1fr)'
+                : `repeat(${columnCount}, minmax(380px, 1fr))`,
+              gridAutoColumns:
+                compare.focusedModelId || compare.layout.kind === 'grid' ? undefined : 'minmax(380px, 1fr)',
+              minWidth: 0,
+              gridTemplateRows: `repeat(${gridRowCount}, minmax(0, 1fr))`,
+              gridAutoFlow: compare.layout.kind === 'grid' ? 'row' : 'column'
+            }}>
+            {compare.columns.map((column) => {
+              const visible = !compare.focusedModelId || compare.focusedModelId === column.id
+              const isFocused = compare.focusedModelId === column.id
+              if (column.kind === 'api') {
                 return (
-                  <CompareCliColumn
+                  <CompareApiColumn
                     key={column.id}
                     column={column}
-                    output={compare.cliOutputs[column.cliId]}
-                    delivery={compare.deliveryStatuses[column.id]}
+                    baseValue={baseValue}
+                    ownsRuntime={column.id === compare.runtimeOwnerId}
                     visible={visible}
-                    onCancel={compare.onCancelCli}
+                    latestPromptMessageId={latestPromptMessageId}
+                    focused={isFocused}
+                    onFocusModel={compare.onFocusModel}
+                    onToggleModel={compare.onToggleModel}
+                    onRemoveModel={compare.onRemoveModel}
+                    onRegenerateModel={regenerateModel}
+                    onReorder={compare.onReorderModels}
+                    delivery={compare.deliveryStatuses[column.id]}
+                  />
+                )
+              }
+              if (column.kind === 'web') {
+                return (
+                  <CompareWebColumn
+                    key={column.id}
+                    column={column}
+                    visible={visible}
+                    warning={compare.webWarnings[column.appId] ?? false}
+                    delivery={compare.deliveryStatuses[column.id]}
+                    onSetRef={compare.onWebviewRef}
+                    onUseInFinalAnswer={compare.onUseWebAnswer}
                     focused={isFocused}
                     onFocusModel={compare.onFocusModel}
                     onToggleModel={compare.onToggleModel}
@@ -184,15 +169,108 @@ const ChatMain: FC<ChatMainProps> = ({
                     onReorder={compare.onReorderModels}
                   />
                 )
-              })}
-            </div>
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-background to-transparent" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-background to-transparent" />
+              }
+              return (
+                <CompareCliColumn
+                  key={column.id}
+                  column={column}
+                  output={compare.cliOutputs[column.cliId]}
+                  delivery={compare.deliveryStatuses[column.id]}
+                  visible={visible}
+                  onCancel={compare.onCancelCli}
+                  focused={isFocused}
+                  onFocusModel={compare.onFocusModel}
+                  onToggleModel={compare.onToggleModel}
+                  onRemoveModel={compare.onRemoveModel}
+                  onRegenerateModel={regenerateModel}
+                  onReorder={compare.onReorderModels}
+                />
+              )
+            })}
           </div>
-        )}
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-background to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-background to-transparent" />
+        </>
+      )}
+    </div>
+  )
+  const finalAnswerPanel = (
+    <FinalAnswerCard
+      answer={compare.finalAnswer}
+      canCombine={compare.canCombine}
+      onCombine={compare.onCombine}
+      onCopy={compare.onCopyFinalAnswer}
+      onContinue={() => {
+        if (compare.finalAnswer?.status === 'done') compare.onContinueFromAnswer?.(compare.finalAnswer.content)
+      }}
+      onClose={compare.onCloseFinalAnswer}
+    />
+  )
+
+  // API/CLI columns and the final answer render markdown inside the message-list context.
+  return (
+    <MessageListProvider value={baseValue}>
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2 pb-40">
+        {compare.welcomeCard}
+        <div className="relative flex min-h-0 flex-1">
+          {compare.finalAnswerPanelOpen && !isCompactViewport ? (
+            <ResizablePanelGroup id="compare-final-answer-layout" direction="horizontal" className="min-h-0 flex-1">
+              <ResizablePanel id="compare-columns" minSize="380px" className="min-w-0 overflow-hidden">
+                <div className="flex h-full min-h-0 flex-col">{columnsContent}</div>
+              </ResizablePanel>
+              <ResizableHandle withHandle aria-label={t('common.resize_panel')} />
+              <ResizablePanel
+                id="compare-final-answer"
+                defaultSize="40%"
+                minSize="360px"
+                maxSize="60%"
+                className="min-w-0">
+                {finalAnswerPanel}
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          ) : (
+            <div className="flex h-full min-h-0 w-full flex-col">{columnsContent}</div>
+          )}
+          {compare.finalAnswerPanelOpen && isCompactViewport && (
+            <div className="absolute inset-0 z-20">
+              <button
+                type="button"
+                aria-label={t('common.close')}
+                className="absolute inset-0 cursor-default bg-black/35"
+                onClick={compare.onCloseFinalAnswer}
+              />
+              <aside
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${t('compare.final_answer.title')} ${compare.finalAnswer?.judgeName ?? ''}`.trim()}
+                className="absolute inset-y-0 right-0 z-10 w-[min(90vw,480px)] min-w-[360px] max-w-full">
+                {finalAnswerPanel}
+              </aside>
+            </div>
+          )}
+        </div>
       </div>
     </MessageListProvider>
   )
+}
+
+function useIsCompactCompareViewport(): boolean {
+  const [isCompact, setIsCompact] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1280)
+
+  useEffect(() => {
+    const media = window.matchMedia?.('(max-width: 1279px)')
+    if (!media) {
+      const update = () => setIsCompact(window.innerWidth < 1280)
+      window.addEventListener('resize', update)
+      return () => window.removeEventListener('resize', update)
+    }
+    const update = (event: MediaQueryListEvent) => setIsCompact(event.matches)
+    setIsCompact(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  return isCompact
 }
 
 interface CompareApiColumnProps {
@@ -200,6 +278,7 @@ interface CompareApiColumnProps {
   baseValue: ReturnType<typeof useHomeMessageListProviderValue>
   ownsRuntime: boolean
   visible: boolean
+  latestPromptMessageId?: string
   focused: boolean
   onFocusModel: ComparePageConfig['onFocusModel']
   onToggleModel: ComparePageConfig['onToggleModel']
@@ -214,6 +293,7 @@ const CompareApiColumn = memo(function CompareApiColumn({
   baseValue,
   ownsRuntime,
   visible,
+  latestPromptMessageId,
   focused,
   onFocusModel,
   onToggleModel,
@@ -260,7 +340,11 @@ const CompareApiColumn = memo(function CompareApiColumn({
       <div className="relative min-h-0 flex-1">
         <div className={enabled ? 'h-full min-h-0' : 'pointer-events-none invisible h-full min-h-0'}>
           <MessageListProvider value={value}>
-            <MessageList enableSearch />
+            <MessageList
+              enableSearch
+              scrollPositionKey={`compare:${baseValue.state.topic.id}:${column.id}`}
+              scrollToBottomOnPrompt={visible ? latestPromptMessageId : undefined}
+            />
           </MessageListProvider>
         </div>
         {!enabled && (
@@ -319,6 +403,7 @@ function buildApiColumnValue(
       partsByMessageId,
       renderConfig: {
         ...baseValue.state.renderConfig,
+        messageStyle: 'bubble' as const,
         compareMode: true,
         multiModelMessageStyle: 'grid' as const,
         multiModelGridColumns: 1,

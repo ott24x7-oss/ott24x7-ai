@@ -98,6 +98,8 @@ export interface ComparePageConfig {
   onUseSubscriptions: (ids: CompareColumnId[]) => void
   canCombine: boolean
   onCombine: () => void
+  finalAnswerPanelOpen: boolean
+  onCloseFinalAnswer: () => void
   finalAnswer?: CompareFinalAnswer
   onCopyFinalAnswer: () => void
   onUseWebAnswer: (appId: string) => void

@@ -2,6 +2,7 @@ import { Columns2 } from 'lucide-react'
 import React from 'react'
 
 import { Button } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import { UserAvatar } from './primitives'
 import { SidebarTooltip } from './Tooltip'
@@ -42,7 +43,7 @@ function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       variant="ghost"
       aria-label={user.name}
       size="icon"
-      className="shell-navigation-item rounded-full"
+      className={cn('shell-navigation-item rounded-full', user.buttonClassName)}
       onClick={user.onClick}>
       <UserAvatar user={user} className="size-6.5" />
     </Button>
@@ -78,10 +79,13 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       type="button"
       variant="ghost"
       aria-label={user.name}
-      className="shell-navigation-item h-9 min-w-0 flex-1 justify-start gap-2 rounded-full py-0 pr-1 pl-2 text-left"
+      className={cn(
+        'shell-navigation-item h-9 min-w-0 flex-1 justify-start gap-2 rounded-full py-0 pr-1 pl-2 text-left',
+        user.buttonClassName
+      )}
       onClick={user.onClick}>
       <UserAvatar user={user} className="size-6.5 shrink-0" />
-      <span className="min-w-0 truncate text-[13px] text-sidebar-foreground">{user.name}</span>
+      <span className="min-w-0 truncate text-[13px] text-sidebar-foreground">{user.displayName ?? user.name}</span>
     </Button>
   ) : null
 
