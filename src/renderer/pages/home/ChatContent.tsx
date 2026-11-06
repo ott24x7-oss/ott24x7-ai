@@ -209,7 +209,11 @@ const ChatContentInner: FC<InnerProps> = ({
       const [webAndCliResults, apiSent] = await Promise.all([
         compare.onSendText(text),
         compare.sendModels.length > 0
-          ? sendMessage(text, { ...options, mentionedModels: compare.sendModels.map((model) => model.id) })
+          ? sendMessage(text, {
+              ...options,
+              mentionedModels: compare.sendModels.map((model) => model.id),
+              webSearch: compare.webSearchEnabled
+            })
           : Promise.resolve(true)
       ])
       const apiResults = compare.sendModels.map((model) => ({
@@ -234,6 +238,7 @@ const ChatContentInner: FC<InnerProps> = ({
   )
   const compareCurrentQuestion = compare?.currentQuestion
   const compareColumns = compare?.columns
+  const compareWebSearchEnabled = compare?.webSearchEnabled
   const sendCompareText = compare?.onSendText
   const handleRegenerateCompareModel = useCallback(
     (modelId: CompareColumnId) => {
@@ -241,12 +246,12 @@ const ChatContentInner: FC<InnerProps> = ({
       const column = compareColumns.find((candidate) => candidate.id === modelId)
       if (!column) return
       if (column.kind === 'api') {
-        void sendMessage(compareCurrentQuestion, { mentionedModels: [column.id] })
+        void sendMessage(compareCurrentQuestion, { mentionedModels: [column.id], webSearch: compareWebSearchEnabled })
       } else {
         void sendCompareText(compareCurrentQuestion, [modelId])
       }
     },
-    [compareColumns, compareCurrentQuestion, sendCompareText, sendMessage]
+    [compareColumns, compareCurrentQuestion, compareWebSearchEnabled, sendCompareText, sendMessage]
   )
   const locateRuntimeMessage = runtime.locateMessage
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])

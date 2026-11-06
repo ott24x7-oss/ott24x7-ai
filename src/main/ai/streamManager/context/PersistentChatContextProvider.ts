@@ -493,6 +493,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           turnOptions.reasoningEffort,
           turnOptions.serviceTier,
           turnOptions.fastMode === true,
+          req.webSearch,
           retainedContext
         ),
         rootSpan
@@ -583,6 +584,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         turnOptions.reasoningEffort,
         turnOptions.serviceTier,
         turnOptions.fastMode === true,
+        req.webSearch,
         retainedContext
       )
       applyTurnInputAttributes(rootSpan, {
@@ -735,6 +737,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.data.turnOptions?.reasoningEffort,
               anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
+              undefined,
               retainedContext
             ),
             rootSpan
@@ -836,6 +839,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               req.reasoningEffort,
               req.serviceTier,
               req.fastMode,
+              undefined,
               retainedContext
             ),
             rootSpan
@@ -1095,6 +1099,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     reasoningEffort: AiStreamRequest['reasoningEffort'],
     serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
+    webSearch: AiStreamRequest['webSearch'],
     retainedContext?: RetainedContext
   ): AiStreamRequest {
     return {
@@ -1108,6 +1113,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       reasoningEffort,
       serviceTier,
       fastMode,
+      ...(webSearch !== undefined ? { webSearch } : {}),
       ...(retainedContext ? { retainedContext } : {})
     }
   }

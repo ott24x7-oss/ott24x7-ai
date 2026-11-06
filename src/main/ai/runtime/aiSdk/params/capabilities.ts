@@ -71,7 +71,7 @@ function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | unde
 export function resolveCapabilities(
   model: Model,
   provider: Provider,
-  assistant: Assistant,
+  assistant: Assistant | undefined,
   options: ResolveCapabilitiesOptions = {}
 ): ResolvedCapabilities {
   // This flag means the model exposes reasoning behavior, not that the persisted assistant setting
@@ -87,7 +87,7 @@ export function resolveCapabilities(
 
   const isSupportedToolUse = isFunctionCallingModel(model)
 
-  const streamOutput = assistant.settings?.streamOutput !== false
+  const streamOutput = assistant?.settings?.streamOutput !== false
 
   // Build provider-builtin web search config when the plan routed search to the server side
   let webSearchPluginConfig: AppWebSearchPluginConfig | undefined

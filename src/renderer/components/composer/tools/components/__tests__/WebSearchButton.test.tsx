@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -6,6 +7,7 @@ import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ComposerModelOptionalContext } from '@renderer/components/composer/ComposerModelOptionalContext'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -180,6 +182,7 @@ vi.mock('@renderer/types', () => {
 describe('WebSearchButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', { keys: [] })
     mocks.assistant = {
@@ -296,6 +299,39 @@ describe('WebSearchButton', () => {
 
     expect(toast.warning).not.toHaveBeenCalled()
     expect(mocks.updateAssistant).not.toHaveBeenCalled()
+  })
+
+  it('enables and persists Compare web search with a ready provider and no assistant', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.assistant = undefined
+
+    MockUseCacheUtils.setPersistCacheValue('ui.compare.web_search_enabled', false)
+
+    const view = render(
+      <ComposerModelOptionalContext.Provider value>
+        <WebSearchButton launcher={launcherApi} />
+      </ComposerModelOptionalContext.Provider>
+    )
+
+    const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
+    expect(button).toBeEnabled()
+    await user.click(button)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.compare.web_search_enabled')).toBe(true)
+    expect(mocks.updateAssistant).not.toHaveBeenCalled()
+
+    view.unmount()
+    render(
+      <ComposerModelOptionalContext.Provider value>
+        <WebSearchButton launcher={launcherApi} />
+      </ComposerModelOptionalContext.Provider>
+    )
+
+    const activeButton = screen.getByRole('button', { name: 'common.close' })
+    expect(activeButton).toBeEnabled()
+    expect(document.querySelector('[data-slot="provider-avatar"]')).toBeInTheDocument()
+    await user.click(activeButton)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.compare.web_search_enabled')).toBe(false)
   })
 
   it('enables web search with an external provider when the model can call tools', async () => {

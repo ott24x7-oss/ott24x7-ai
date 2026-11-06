@@ -70,6 +70,7 @@ export interface ComparePageConfig {
   runtimeOwnerId?: UniqueModelId
   currentQuestion: string
   sendModels: Model[]
+  webSearchEnabled: boolean
   focusedModelId: CompareColumnId | null
   layout: CompareLayout
   sendDisabled: boolean

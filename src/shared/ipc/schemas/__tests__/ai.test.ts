@@ -64,6 +64,17 @@ describe('ai.stream.open IPC schema', () => {
     ).toMatchObject({ targetMode: 'reserved-branch' })
   })
 
+  it('preserves the Compare web-search flag at the renderer-to-main boundary', () => {
+    expect(
+      openStream.parse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [{ type: 'text', text: 'search this' }],
+        webSearch: true
+      })
+    ).toMatchObject({ webSearch: true })
+  })
+
   it('rejects an unknown target mode', () => {
     expect(
       openStream.safeParse({

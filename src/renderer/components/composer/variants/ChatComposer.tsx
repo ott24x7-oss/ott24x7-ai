@@ -10,6 +10,7 @@ import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutMo
 import { replaceReasoningPartText } from '@renderer/components/chat/messages/blocks/reasoningEditing'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { useActiveComposerOverride, useComposerLayerActive } from '@renderer/components/composer/ComposerContext'
+import { ComposerModelOptionalContext } from '@renderer/components/composer/ComposerModelOptionalContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerPinnedToolsProvider,
@@ -1840,127 +1841,131 @@ const ChatComposerInner = ({
   )
 
   return (
-    <ComposerToolDerivedStateProvider
-      couldAddImageFile={canAddImageFile}
-      extensions={supportedExts}
-      selectableKnowledgeBases={selectableKnowledgeBases}>
-      <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
-      <ResourceEditDialogEventHost />
-      <ComposerPinnedToolsProvider value={pinnedToolIds}>
-        <ComposerSurface
-          showAiDisclaimer
-          voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
-          text={text}
-          onTextChange={handleTextChange}
-          tokens={tokens}
-          draftTokens={draftTokens}
-          managedTokenKinds={
-            isKnowledgeBaseDraftHydrated ? CHAT_MANAGED_TOKEN_KINDS : CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE
-          }
-          onTokensChange={handleTokensChange}
-          suggestionSources={entityReferenceSources}
-          resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
-          placeholder={searching ? t('chat.input.translating') : placeholderText}
-          sendMessageShortcut={sendMessageShortcut}
-          sendDisabled={
-            (text.trim().length === 0 && files.length === 0) ||
-            (loading && !canSteer) ||
-            isSavingEdit ||
-            isDirectSending ||
-            sendDisabled ||
-            searching ||
-            (runtimeModelPending && !modelOptional) ||
-            hasPendingReference ||
-            !!missingAssistantMessage ||
-            !!missingModelMessage ||
-            !!missingSelectedModelMessage
-          }
-          sendBlockedReason={
-            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
-              ? t('common.loading')
-              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
-          }
-          isLoading={loading}
-          onSendDraft={handleSendDraft}
-          editingState={
-            editingMessageForCurrentTopic
-              ? {
-                  messageId: editingMessageForCurrentTopic.message.id,
-                  highlightKey: editingMessageForCurrentTopic.editingSessionId,
-                  onLocate: handleLocateEditingMessage,
-                  onCancel: handleCancelEditing,
-                  reasoning: editingReasoning
-                    ? {
-                        value: reasoningDraft,
-                        onChange: setReasoningDraft,
-                        disabled: isSavingEdit,
-                        label: t('chat.input.editing_part.reasoning'),
-                        actionLabel: t('message.reasoning.edit'),
-                        title: t('message.reasoning.edit_title'),
-                        placeholder: t('message.reasoning.edit_placeholder'),
-                        hint: t('message.reasoning.edit_hint')
-                      }
-                    : undefined,
-                  // Assistant edits already save in place on send; only user edits need a save-only path.
-                  onSave:
-                    editingMessageForCurrentTopic.message.role === 'assistant' ? undefined : handleSaveEditedMessage
-                }
-              : undefined
-          }
-          onPause={onPause}
-          queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={sendFollowup}
-                onEdit={(id) => {
-                  if (directSendInFlightRef.current) return
-                  editFollowup(id, {
-                    editingMessage: Boolean(editingMessageForCurrentTopic),
-                    getDraft: () => actionsRef.current.getDraft(),
-                    buildPayload: buildQueuedPayload,
-                    hasFiles: files.length > 0,
-                    restore: restoreFollowupDraft
-                  })
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-                isSteerDisabled={isQueuedFollowupSteerDisabled}
-              />
-            ) : undefined
-          }
-          supportedExts={supportedExts}
-          setFiles={setFiles}
-          previewInputFile={previewInputFile}
-          filesCount={files.length}
-          isExpanded={isExpanded}
-          onExpandedChange={setIsExpanded}
-          quickPanelEnabled={config.enableQuickPanel ?? true}
-          enableDragDrop={config.enableDragDrop ?? true}
-          enableSpellCheck={enableSpellCheck}
-          editable={!searching && !isDirectSending && !isSavingEdit}
-          fontSize={fontSize}
-          narrowMode={forceNarrowLayout || narrowMode}
-          railGutterPx={railGutterPx}
-          sidePaddingPx={sidePaddingPx}
-          onFocus={() => setSearching(false)}
-          onActionsChange={handleSurfaceActionsChange}
-          isInputHistoryActive={isInputHistoryActive}
-          onInputHistoryNavigate={handleInputHistoryNavigate}
-          getToolLaunchers={() => getLaunchers()}
-          toolLaunchersVersion={toolLaunchersVersion}
-          rootPanelLeadingItems={rootPanelLeadingItems}
-          rootPanelAdditionalItems={rootPanelAdditionalItems}
-          onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-          deferQuickPanel={deferQuickPanel}
-          sendAccessory={sendAccessory}
-          compactWhenSingleLine={compactWhenSingleLine}
-          {...controlSlots}
-        />
-      </ComposerPinnedToolsProvider>
-    </ComposerToolDerivedStateProvider>
+    <ComposerModelOptionalContext.Provider value={modelOptional}>
+      <ComposerToolDerivedStateProvider
+        couldAddImageFile={canAddImageFile}
+        extensions={supportedExts}
+        selectableKnowledgeBases={selectableKnowledgeBases}>
+        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
+        <ResourceEditDialogEventHost />
+        <ComposerPinnedToolsProvider value={pinnedToolIds}>
+          <ComposerSurface
+            showAiDisclaimer
+            voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
+            text={text}
+            onTextChange={handleTextChange}
+            tokens={tokens}
+            draftTokens={draftTokens}
+            managedTokenKinds={
+              isKnowledgeBaseDraftHydrated
+                ? CHAT_MANAGED_TOKEN_KINDS
+                : CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE
+            }
+            onTokensChange={handleTokensChange}
+            suggestionSources={entityReferenceSources}
+            resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
+            placeholder={searching ? t('chat.input.translating') : placeholderText}
+            sendMessageShortcut={sendMessageShortcut}
+            sendDisabled={
+              (text.trim().length === 0 && files.length === 0) ||
+              (loading && !canSteer) ||
+              isSavingEdit ||
+              isDirectSending ||
+              sendDisabled ||
+              searching ||
+              (runtimeModelPending && !modelOptional) ||
+              hasPendingReference ||
+              !!missingAssistantMessage ||
+              !!missingModelMessage ||
+              !!missingSelectedModelMessage
+            }
+            sendBlockedReason={
+              isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
+                ? t('common.loading')
+                : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
+            }
+            isLoading={loading}
+            onSendDraft={handleSendDraft}
+            editingState={
+              editingMessageForCurrentTopic
+                ? {
+                    messageId: editingMessageForCurrentTopic.message.id,
+                    highlightKey: editingMessageForCurrentTopic.editingSessionId,
+                    onLocate: handleLocateEditingMessage,
+                    onCancel: handleCancelEditing,
+                    reasoning: editingReasoning
+                      ? {
+                          value: reasoningDraft,
+                          onChange: setReasoningDraft,
+                          disabled: isSavingEdit,
+                          label: t('chat.input.editing_part.reasoning'),
+                          actionLabel: t('message.reasoning.edit'),
+                          title: t('message.reasoning.edit_title'),
+                          placeholder: t('message.reasoning.edit_placeholder'),
+                          hint: t('message.reasoning.edit_hint')
+                        }
+                      : undefined,
+                    // Assistant edits already save in place on send; only user edits need a save-only path.
+                    onSave:
+                      editingMessageForCurrentTopic.message.role === 'assistant' ? undefined : handleSaveEditedMessage
+                  }
+                : undefined
+            }
+            onPause={onPause}
+            queueContent={
+              queuedFollowups.length > 0 ? (
+                <QueuedFollowupsDock
+                  items={queuedFollowups}
+                  paused={followupPaused}
+                  onTogglePause={() => setFollowupPaused(!followupPaused)}
+                  onSteer={sendFollowup}
+                  onEdit={(id) => {
+                    if (directSendInFlightRef.current) return
+                    editFollowup(id, {
+                      editingMessage: Boolean(editingMessageForCurrentTopic),
+                      getDraft: () => actionsRef.current.getDraft(),
+                      buildPayload: buildQueuedPayload,
+                      hasFiles: files.length > 0,
+                      restore: restoreFollowupDraft
+                    })
+                  }}
+                  onRemove={removeFollowup}
+                  onReorder={reorderFollowups}
+                  isSteerDisabled={isQueuedFollowupSteerDisabled}
+                />
+              ) : undefined
+            }
+            supportedExts={supportedExts}
+            setFiles={setFiles}
+            previewInputFile={previewInputFile}
+            filesCount={files.length}
+            isExpanded={isExpanded}
+            onExpandedChange={setIsExpanded}
+            quickPanelEnabled={config.enableQuickPanel ?? true}
+            enableDragDrop={config.enableDragDrop ?? true}
+            enableSpellCheck={enableSpellCheck}
+            editable={!searching && !isDirectSending && !isSavingEdit}
+            fontSize={fontSize}
+            narrowMode={forceNarrowLayout || narrowMode}
+            railGutterPx={railGutterPx}
+            sidePaddingPx={sidePaddingPx}
+            onFocus={() => setSearching(false)}
+            onActionsChange={handleSurfaceActionsChange}
+            isInputHistoryActive={isInputHistoryActive}
+            onInputHistoryNavigate={handleInputHistoryNavigate}
+            getToolLaunchers={() => getLaunchers()}
+            toolLaunchersVersion={toolLaunchersVersion}
+            rootPanelLeadingItems={rootPanelLeadingItems}
+            rootPanelAdditionalItems={rootPanelAdditionalItems}
+            onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+            deferQuickPanel={deferQuickPanel}
+            sendAccessory={sendAccessory}
+            compactWhenSingleLine={compactWhenSingleLine}
+            {...controlSlots}
+          />
+        </ComposerPinnedToolsProvider>
+      </ComposerToolDerivedStateProvider>
+    </ComposerModelOptionalContext.Provider>
   )
 }
 

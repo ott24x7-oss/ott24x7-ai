@@ -608,7 +608,8 @@ vi.mock('@shared/utils/model', () => ({
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
   isReasoningModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
-  isVisionModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ?? false,
+  isVisionModel: (currentModel?: Model) =>
+    currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ?? false,
   isWebSearchModel: () => false
 }))
 

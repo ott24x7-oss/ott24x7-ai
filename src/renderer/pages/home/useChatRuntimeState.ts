@@ -50,6 +50,7 @@ export interface ChatTurnInput {
   text: string
   options?: {
     mentionedModels?: UniqueModelId[]
+    webSearch?: boolean
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
@@ -320,6 +321,7 @@ export function useChatRuntimeState({
       const requestOptions = {
         topicId: conversation.topicId,
         mentionedModelIds: options?.mentionedModels,
+        webSearch: options?.webSearch,
         reasoningEffort: options?.reasoningEffort,
         serviceTier: options?.serviceTier,
         ...(options?.fastMode ? { fastMode: true as const } : {})

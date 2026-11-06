@@ -56,6 +56,7 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
+import { ComposerModelOptionalContext } from '../ComposerModelOptionalContext'
 import {
   ComposerActiveToolControls,
   ComposerPinnedToolsProvider,
@@ -286,6 +287,33 @@ describe('ComposerToolRuntimeHost', () => {
 
     expect(screen.getByTestId('model-independent-runtime')).toBeInTheDocument()
     expect(screen.queryByTestId('model-dependent-runtime')).not.toBeInTheDocument()
+  })
+
+  it('mounts Compare-capable tools without a model only when the composer is model-optional', () => {
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'compare-capable',
+        label: 'Compare capable',
+        availableWhenModelOptional: true,
+        composer: { runtime: () => <div data-testid="compare-capable-runtime" /> }
+      }
+    ])
+    const host = (
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} />
+      </ComposerToolRuntimeProvider>
+    )
+
+    const { unmount } = render(host)
+    expect(screen.queryByTestId('compare-capable-runtime')).not.toBeInTheDocument()
+    unmount()
+
+    render(<ComposerModelOptionalContext.Provider value>{host}</ComposerModelOptionalContext.Provider>)
+    expect(mockGetToolsForScope).toHaveBeenLastCalledWith(
+      TopicType.Chat,
+      expect.objectContaining({ modelOptional: true })
+    )
+    expect(screen.getByTestId('compare-capable-runtime')).toBeInTheDocument()
   })
 
   it('normalizes initial composer files with file token source ids', async () => {

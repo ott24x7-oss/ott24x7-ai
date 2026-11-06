@@ -1392,6 +1392,38 @@ describe('buildAgentParams web-tool routing', () => {
     expect(result.tools?.web_search).toBe(clientSearchEntry.tool)
     expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(false)
   })
+
+  it.each([
+    { webSearch: true, modelToolsPreferred: false, expectedRoute: 'client' },
+    { webSearch: false, modelToolsPreferred: false, expectedRoute: 'none' },
+    { webSearch: true, modelToolsPreferred: true, expectedRoute: 'server' }
+  ] as const)(
+    'routes assistant-less web search to $expectedRoute when webSearch=$webSearch and model tools preferred=$modelToolsPreferred',
+    async ({ webSearch, modelToolsPreferred, expectedRoute }) => {
+      const preferences = new Map<string, unknown>([
+        ['app.developer_mode.enabled', false],
+        ['chat.web_search.model_tools_preferred', modelToolsPreferred],
+        ['chat.web_search.default_search_keywords_provider', 'tavily'],
+        ['chat.web_search.default_fetch_urls_provider', null],
+        ['chat.web_search.provider_overrides', { tavily: { apiKeys: [] } }],
+        ['chat.web_search.max_results', 5],
+        ['chat.web_search.exclude_domains', []]
+      ])
+      preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+      registry.register(clientSearchEntry)
+
+      const result = await buildAgentParams({
+        request: { conversation: CONVERSATION, webSearch },
+        signal: undefined,
+        provider,
+        model
+      })
+
+      expect(result.tools?.web_search === clientSearchEntry.tool).toBe(expectedRoute === 'client')
+      expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(expectedRoute === 'server')
+    }
+  )
+
   it('disables Responses storage for assistant-backed calls too', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'openai', providerSettings: {} },

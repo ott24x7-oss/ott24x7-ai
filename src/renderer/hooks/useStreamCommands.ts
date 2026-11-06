@@ -93,6 +93,7 @@ export function useStreamCommands(
         userMessageParts: parts,
         parentAnchorId: body.parentAnchorId,
         mentionedModelIds: body.mentionedModels,
+        ...(body.webSearch !== undefined ? { webSearch: body.webSearch } : {}),
         reasoningEffort: body.reasoningEffort,
         serviceTier: body.serviceTier,
         ...(body.fastMode ? { fastMode: true } : {})
@@ -108,6 +109,7 @@ export function useStreamCommands(
         topicId,
         parentAnchorId: body.parentAnchorId ?? '',
         mentionedModelIds: body.mentionedModels,
+        ...(body.webSearch !== undefined ? { webSearch: body.webSearch } : {}),
         reasoningEffort: body.reasoningEffort,
         serviceTier: body.serviceTier,
         ...(body.fastMode ? { fastMode: true } : {})

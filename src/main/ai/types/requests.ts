@@ -79,6 +79,8 @@ export interface AiRequest {
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
   mcpToolIds?: string[]
+  /** Per-request web-search opt-in for assistant-less Compare sends. */
+  webSearch?: boolean
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured when the message was submitted. */

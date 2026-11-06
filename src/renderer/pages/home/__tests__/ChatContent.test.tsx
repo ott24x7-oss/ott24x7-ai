@@ -225,6 +225,7 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
 
 vi.mock('../messages/homeMessageListAdapter', () => ({
   useHomeMessageListProviderValue: (params: {
+    topic: { id: string }
     messages: CherryUIMessage[]
     partsByMessageId: Record<string, CherryMessagePart[]>
     streamingLayers: {
@@ -235,6 +236,7 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
     isInitialLoading?: boolean
   }) => ({
     state: {
+      topic: params.topic,
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
       streamingLayers: params.streamingLayers,
@@ -434,6 +436,60 @@ describe('ChatContent', () => {
 
     expect(onSendText).not.toHaveBeenCalled()
     expect(sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('passes the persisted Compare web-search choice with its API-model request', async () => {
+    const model = { id: 'anthropic::claude-sonnet-4-6', providerId: 'anthropic', name: 'Claude' } as any
+    const compare = {
+      header: null,
+      selectedModelIds: [model.id],
+      columns: [{ id: model.id, kind: 'api', model, enabled: true }],
+      currentQuestion: '',
+      sendModels: [model],
+      webSearchEnabled: true,
+      focusedModelId: null,
+      layout: { kind: 'columns', columns: 2 },
+      sendDisabled: false,
+      subscriptionColumnIds: [],
+      deliveryStatuses: {},
+      onSendText: vi.fn().mockResolvedValue([]),
+      onDeliveryResults: vi.fn(),
+      onFocusModel: vi.fn(),
+      onToggleModel: vi.fn(),
+      onRemoveModel: vi.fn(),
+      onReorderModels: vi.fn(),
+      onTopicIdChange: vi.fn(),
+      onWebviewRef: vi.fn(),
+      webWarnings: {},
+      webAnswers: {},
+      cliOutputs: {},
+      cliAvailability: [],
+      onCancelCli: vi.fn(),
+      judgeId: 'auto',
+      judgeOptions: [],
+      onJudgeChange: vi.fn(),
+      onJudgePickerOpen: vi.fn(),
+      onOpenHistory: vi.fn(),
+      onOpenModelPicker: vi.fn(),
+      onAddColumn: vi.fn(),
+      onUseSubscriptions: vi.fn(),
+      canCombine: false,
+      onCombine: vi.fn(),
+      onCopyFinalAnswer: vi.fn(),
+      onUseWebAnswer: vi.fn()
+    } as any
+
+    render(<ChatContent topic={{ ...topic, assistantId: null }} compare={compare} />)
+
+    await act(async () => {
+      await capturedOnSend?.('search this', { userMessageParts: [{ type: 'text', text: 'search this' }] })
+    })
+
+    await waitFor(() =>
+      expect(streamOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ webSearch: true, mentionedModelIds: [model.id] })
+      )
+    )
   })
 
   it('hides context usage while topic history is stale', () => {

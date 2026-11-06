@@ -30,7 +30,13 @@ Detach only removes a delivery lease. It never aborts a model or releases a nati
 
 ## Input and dispatch results
 
-`submit-message` carries `userMessageParts` and the selected parent/model/request controls. `regenerate-message` carries the existing parent anchor instead of creating another user message. Approval-driven continuation is a Main command triggered by `ai.tool.respond_approval`, not inferred from renderer message content.
+`submit-message` carries `userMessageParts` and the selected parent/model/request
+controls. Compare sets the optional `webSearch` request flag when its persisted
+toggle is on, allowing Main to resolve web-search routes for model requests
+without an assistant-backed setting. `regenerate-message` carries the existing
+parent anchor instead of creating another user message. Approval-driven
+continuation is a Main command triggered by `ai.tool.respond_approval`, not
+inferred from renderer message content.
 
 `streamDispatchService` returns and broadcasts the admission result, including reserved messages, active executions and branch-preservation facts. Existing optimistic-message consumers keep this result path. Blocked admission uses the existing localized toast; request failures reach the command caller. The service does not serialize submissions: Main arbitrates concurrent input, chat steering and Agent follow-ups.
 

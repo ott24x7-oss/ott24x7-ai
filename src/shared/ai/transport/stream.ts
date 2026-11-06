@@ -27,6 +27,8 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
   parentAnchorId?: string
   /** Composer-selected request models; one id overrides the fallback, while supported flows may fan out several. */
   mentionedModels?: UniqueModelId[]
+  /** Per-request web-search opt-in for assistant-less Compare sends. */
+  webSearch?: boolean
   /** User message parts to persist/display for submit-message turns. */
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
@@ -194,6 +196,8 @@ export type AiStreamOpenRequest = {
   topicId: string
   /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
   mentionedModelIds?: UniqueModelId[]
+  /** Per-request web-search opt-in for assistant-less Compare sends. */
+  webSearch?: boolean
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */

@@ -8,10 +8,12 @@ import { Tooltip } from '@cherrystudio/ui'
 import type { IconRef } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
+import { useComposerModelOptional } from '@renderer/components/composer/ComposerModelOptionalContext'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { WEB_SEARCH_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
@@ -23,7 +25,7 @@ import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/uti
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 interface Props {
-  assistantId: string
+  assistantId?: string
   launcher: ToolLauncherApi
 }
 
@@ -64,6 +66,9 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
+  const [compareWebSearchEnabled, setCompareWebSearchEnabled] = usePersistCache('ui.compare.web_search_enabled')
+  // Compare sends with each column's model, so the assistant's own model must not gate the toggle.
+  const modelOptional = useComposerModelOptional()
   const { provider: modelProvider } = useProviderById(model?.providerId)
   const {
     defaultFetchUrlsProvider,
@@ -73,7 +78,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   } = useWebSearchProviders()
   const [modelToolsPreferred] = usePreference('chat.web_search.model_tools_preferred')
 
-  const enableWebSearch = assistant?.settings.enableWebSearch ?? false
+  const enableWebSearch = modelOptional ? compareWebSearchEnabled : (assistant?.settings.enableWebSearch ?? false)
   const effectiveSearchProvider = resolveReadyWebSearchProvider(
     providers,
     defaultSearchKeywordsProvider,
@@ -90,8 +95,9 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const clientFetchAvailable = Boolean(effectiveFetchProvider)
   // Same resolver as the main process; MCP mode stands in for the request's
   // eventual function tools, which only exist at build time.
-  const { webSearch: webSearchRoute, reasons } =
-    model && assistant
+  const { webSearch: webSearchRoute, reasons } = modelOptional
+    ? { webSearch: clientSearchAvailable ? ('client' as const) : ('none' as const), reasons: undefined }
+    : model && assistant
       ? resolveWebToolRoutes(model, modelProvider, {
           webSearchEnabled: true,
           clientSearchAvailable,
@@ -112,11 +118,19 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       : undefined
   const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
   const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
-  const isDisabled = isLoadingWebSearchProviders || Boolean(disabledReason)
+  const isDisabled =
+    isLoadingWebSearchProviders ||
+    (modelOptional ? !clientSearchAvailable && !enableWebSearch : Boolean(disabledReason))
 
   const onClick = useCallback(
     async (restoreFocus?: () => void) => {
-      if (!assistant || !model) {
+      if (modelOptional) {
+        if (enableWebSearch) setCompareWebSearchEnabled(false)
+        else if (clientSearchAvailable) setCompareWebSearchEnabled(true)
+        return
+      }
+
+      if (!assistant || (!model && !modelOptional)) {
         toast.error(t('error.model.not_exists'))
         return
       }
@@ -156,7 +170,19 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, searchUnavailableReason]
+    [
+      assistant,
+      disabledReason,
+      enableWebSearch,
+      navigate,
+      t,
+      updateAssistant,
+      model,
+      modelOptional,
+      searchUnavailableReason,
+      clientSearchAvailable,
+      setCompareWebSearchEnabled
+    ]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')

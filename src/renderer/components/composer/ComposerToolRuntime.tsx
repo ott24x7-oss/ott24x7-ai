@@ -29,6 +29,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 
+import { useComposerModelOptional } from './ComposerModelOptionalContext'
 import type { ComposerUnifiedPanelControl } from './quickPanel'
 import type { ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
@@ -147,6 +148,7 @@ const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previou
 
 export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
+  const modelOptional = useComposerModelOptional()
   const toolState = useComposerToolProviderState()
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
     useComposerToolProviderDispatch()
@@ -164,8 +166,10 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session }).filter((tool) => model || tool.availableWithoutModel)
-  }, [assistant, model, scope, session])
+    return getToolsForScope(scope, { assistant, model, session, modelOptional }).filter(
+      (tool) => model || tool.availableWithoutModel || (modelOptional && tool.availableWhenModelOptional)
+    )
+  }, [assistant, model, modelOptional, scope, session])
 
   const getLauncherApiForTool = useCallback(
     (toolKey: string): ToolRenderContext<any, any>['launcher'] => {

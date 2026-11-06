@@ -187,7 +187,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         Object.keys(request.callOverrides?.tools ?? {}).length > 0 ||
         assistant?.settings.enableGenerateImage === true
       : false,
-    reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
+    reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort,
+    webSearch: request.webSearch
   })
   const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
@@ -211,13 +212,19 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       }
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
+  const capabilityOptions = {
+    webToolRoutes: finalWebToolRoutes,
+    runtimeProviderId: sdkConfig.providerId,
+    serving: sdkConfig.providerSettings
+  }
   const capabilities = assistant
-    ? resolveCapabilities(model, provider, assistant, {
-        webToolRoutes: finalWebToolRoutes,
-        runtimeProviderId: sdkConfig.providerId,
-        serving: sdkConfig.providerSettings
-      })
-    : undefined
+    ? resolveCapabilities(model, provider, assistant, capabilityOptions)
+    : request.webSearch === true
+      ? {
+          ...resolveCapabilities(model, provider, undefined, capabilityOptions),
+          enableReasoning: request.reasoningEffort !== undefined
+        }
+      : undefined
 
   const { endpointType } = resolvedEndpoint
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
@@ -570,12 +577,13 @@ async function resolveRequestWebToolRoutes(
     endpointType: EndpointType | undefined
     hasFunctionToolSignals: boolean
     reasoningEffort: string | undefined
+    webSearch: boolean | undefined
   }
 ): Promise<WebToolRoutes> {
-  if (!assistant) return NO_WEB_TOOL_ROUTES
+  if (!assistant && requestContext.webSearch !== true) return NO_WEB_TOOL_ROUTES
 
   const preferenceService = application.get('PreferenceService')
-  const clientWebToolsEnabled = assistant.settings.enableWebSearch === true
+  const clientWebToolsEnabled = assistant?.settings.enableWebSearch === true || requestContext.webSearch === true
   const [clientSearchAvailable, clientFetchAvailable] = clientWebToolsEnabled
     ? await Promise.all([
         resolveClientWebCapabilityAvailability('searchKeywords'),
@@ -655,8 +663,8 @@ function buildAgentOptions(
   } = scope
 
   // One path for both callers, so protocol/model defaults (store, safetySettings, num_ctx…)
-  // can't diverge. Assistant-less callers (translate, prompt streams) carry no capabilities;
-  // they opt into reasoning by setting `request.reasoningEffort` explicitly.
+  // can't diverge. Assistant-less callers only resolve capabilities for an explicit web-search
+  // request, and their reasoning selection still comes from the request.
   let providerOptions = buildCapabilityProviderOptions(
     model,
     provider,

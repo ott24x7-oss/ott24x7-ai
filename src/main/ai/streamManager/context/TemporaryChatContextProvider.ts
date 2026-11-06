@@ -134,6 +134,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
       serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
+      ...(req.webSearch !== undefined ? { webSearch: req.webSearch } : {}),
       ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 

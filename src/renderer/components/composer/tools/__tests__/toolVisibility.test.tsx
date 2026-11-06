@@ -68,13 +68,14 @@ describe('composer tool visibility', () => {
   })
 
   it('keeps dictation available without mounting assistant tools in an unlinked chat with a default model', () => {
-    const tools = getToolsForScope(TopicType.Chat, {
-      model: { id: 'default-model', providerId: 'provider-1', name: 'Default model' } as any
-    }).map((tool) => tool.key)
+    const context = { model: { id: 'default-model', providerId: 'provider-1', name: 'Default model' } as any }
+    const tools = getToolsForScope(TopicType.Chat, context).map((tool) => tool.key)
+    const compareTools = getToolsForScope(TopicType.Chat, { ...context, modelOptional: true }).map((tool) => tool.key)
 
     expect(tools).toContain('dictation')
     expect(tools).not.toContain('web_search')
     expect(tools).not.toContain('generate_image')
+    expect(compareTools).toContain('web_search')
   })
 
   it('shows MCP status in chat and agent session scopes only', () => {

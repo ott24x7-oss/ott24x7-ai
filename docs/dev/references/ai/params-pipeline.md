@@ -45,6 +45,12 @@ Callers (chat, agent session, translate, prompt-only) shape their own
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
 passthrough is required.
 
+Compare model requests can set `AiChatRequest.webSearch` to opt into web-search
+routing without an assistant-backed setting. Main still resolves the available
+client or native server route for the selected model and provider. Assistantless
+requests without that opt-in keep web-search capabilities disabled; ordinary
+assistant-backed chat continues to use the assistant's settings.
+
 ## RequestFeature
 
 The composition unit is `RequestFeature`

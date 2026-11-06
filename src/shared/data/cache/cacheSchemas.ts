@@ -458,6 +458,7 @@ export type RendererPersistCacheSchema = {
   'ui.compare.judge': string
   'ui.compare.auto_combine': boolean
   'ui.compare.read_web_answers': boolean
+  'ui.compare.web_search_enabled': boolean
   'ui.compare.final_answers': Record<string, CacheValueTypes.CacheCompareFinalAnswer>
   'ui.compare.topic_ids': string[]
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
@@ -536,6 +537,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.compare.judge': 'auto',
   'ui.compare.auto_combine': true,
   'ui.compare.read_web_answers': true,
+  'ui.compare.web_search_enabled': false,
   'ui.compare.final_answers': {},
   'ui.compare.topic_ids': [],
   'ui.chat.right_pane_open_override': null,

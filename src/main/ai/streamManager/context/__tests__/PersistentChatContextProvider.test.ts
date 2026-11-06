@@ -488,6 +488,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         topicId: 'topic-1',
         parentAnchorId: 'u1',
         mentionedModelIds: [selectedModelId],
+        webSearch: true,
         userMessageParts: [{ type: 'text', text: 'use the selected model' }]
       },
       { hasLiveStream: false }
@@ -496,6 +497,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(resolveAssistantModelId).not.toHaveBeenCalled()
     expect(resolveModels).toHaveBeenLastCalledWith([selectedModelId], selectedModelId)
     expect(prepared.models[0].modelId).toBe(selectedModelId)
+    expect(prepared.models[0].request.webSearch).toBe(true)
     const userMessageId = prepared.reservedMessages?.find((message) => message.role === 'user')?.id as string
     expect(messageService.getById(userMessageId).modelId).toBe(selectedModelId)
     expect(messageService.getChildrenByParentId(userMessageId)[0].modelId).toBe(selectedModelId)

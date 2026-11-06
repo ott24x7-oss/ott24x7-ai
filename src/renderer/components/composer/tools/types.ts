@@ -55,6 +55,8 @@ export interface ToolDependencies {
 
 export interface ToolContext {
   scope: ComposerToolScope
+  /** True when the composer sends to models selected outside the current assistant (Compare). */
+  modelOptional?: boolean
   /** Absent in Agent Session scope — Sessions have an `agentId` (see `session`), not an assistant row. */
   assistant?: Assistant
   model?: Model
@@ -152,6 +154,8 @@ export interface ToolDefinition<
   visibleInScopes?: ComposerToolScope[]
   defaultHidden?: boolean
   availableWithoutModel?: boolean
+  /** Also mount when the composer sends to models picked elsewhere (Compare columns). */
+  availableWhenModelOptional?: boolean
 
   // Dependencies
   dependencies?: {

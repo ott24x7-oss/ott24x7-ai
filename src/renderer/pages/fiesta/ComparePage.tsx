@@ -123,6 +123,7 @@ function ComparePage() {
   const [judgeIdValue, setJudgeIdValue] = usePersistCache('ui.compare.judge')
   const [autoCombine] = usePersistCache('ui.compare.auto_combine')
   const [readWebAnswers] = usePersistCache('ui.compare.read_web_answers')
+  const [webSearchEnabled] = usePersistCache('ui.compare.web_search_enabled')
   const [finalAnswers, setFinalAnswers] = usePersistCache('ui.compare.final_answers')
   const [activeSetId, setActiveSetId] = useState('custom')
   const [focusedModelId, setFocusedModelId] = useState<CompareColumnId | null>(null)
@@ -1309,6 +1310,7 @@ function ComparePage() {
       runtimeOwnerId: columns.find((column) => column.kind === 'api')?.id,
       currentQuestion,
       sendModels,
+      webSearchEnabled,
       focusedModelId,
       layout,
       sendDisabled: columns.filter((column) => sendColumnIds.includes(column.id)).length === 0,
@@ -1375,6 +1377,7 @@ function ComparePage() {
       layout,
       sendColumnIds,
       sendModels,
+      webSearchEnabled,
       subscriptionColumnIds,
       selection,
       toolbar,

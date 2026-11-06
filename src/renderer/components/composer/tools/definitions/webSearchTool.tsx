@@ -6,10 +6,8 @@ import { WEB_SEARCH_TOOLBAR_MANIFEST } from '../toolbarManifests'
 /**
  * Web Search Tool
  *
- * Toggle that flips `assistant.settings.enableWebSearch`. Provider selection
- * happens server-side at tool execute time — see `WebSearchTool.ts`'s
- * `pickFirstUsableProvider`. The previous quick-panel picker has been
- * retired now that there's no per-assistant provider id to set.
+ * Toggles assistant web search in Chat and a persisted Compare flag when the
+ * composer sends to externally selected models.
  */
 const webSearchTool = defineTool({
   key: 'web_search',
@@ -17,9 +15,10 @@ const webSearchTool = defineTool({
 
   visibleInScopes: WEB_SEARCH_TOOLBAR_MANIFEST.visibleInScopes,
 
-  condition: ({ assistant }) => Boolean(assistant),
+  availableWhenModelOptional: true,
+  condition: ({ assistant, modelOptional }) => Boolean(assistant || modelOptional),
   composer: {
-    runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
+    runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant?.id} launcher={context.launcher} />
   }
 })
 
