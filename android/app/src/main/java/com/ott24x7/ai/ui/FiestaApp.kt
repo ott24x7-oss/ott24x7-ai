@@ -3,12 +3,17 @@ package com.ott24x7.ai.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -101,6 +106,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -117,7 +123,13 @@ import com.ott24x7.ai.data.ApiChatMessage
 import com.ott24x7.ai.data.ApiClient
 import com.ott24x7.ai.data.ApiEndpoint
 import com.ott24x7.ai.data.ChatTurnSummary
+import com.ott24x7.ai.data.CitationParser
 import com.ott24x7.ai.data.DeliveryStatus
+import com.ott24x7.ai.data.ExaClient
+import com.ott24x7.ai.data.ExaSource
+import com.ott24x7.ai.data.HistoryAnswer
+import com.ott24x7.ai.data.HistoryTurn
+import com.ott24x7.ai.data.GuideChecklist
 import com.ott24x7.ai.data.PanelAnswer
 import com.ott24x7.ai.data.PanelCatalog
 import com.ott24x7.ai.data.PanelDefinition
@@ -126,6 +138,7 @@ import com.ott24x7.ai.data.WebPanelScripts
 import com.ott24x7.ai.data.WebSendStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONTokener
@@ -145,6 +158,7 @@ fun FiestaApp(activity: MainActivity) {
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     var themeMode by remember { mutableStateOf(settings.themeMode()) }
+    var accentColor by remember { mutableStateOf(settings.accentColor()) }
     val dark = when (themeMode) { "dark" -> true; "light" -> false; else -> systemDark }
     var endpoints by remember { mutableStateOf(settings.endpoints()) }
     val availablePanelIds = remember(endpoints) {
@@ -152,6 +166,14 @@ fun FiestaApp(activity: MainActivity) {
     }
     var selectedIds by remember { mutableStateOf(settings.selectedPanels().filter { it in availablePanelIds }.take(8)) }
     var readWebAnswers by remember { mutableStateOf(settings.readWebAnswers()) }
+    var exaKey by remember { mutableStateOf(settings.exaApiKey()) }
+    var webSearchEnabled by remember { mutableStateOf(settings.defaultWebSearch()) }
+    var onboardingSeen by remember { mutableStateOf(settings.onboardingSeen()) }
+    var guideDone by remember { mutableStateOf(settings.guideChecklist()) }
+    var selectedTab by remember { mutableStateOf(MainTab.HOME) }
+    var compareStack by remember { mutableStateOf(false) }
+    var exaTestMessage by remember { mutableStateOf("") }
+    var exaTesting by remember { mutableStateOf(false) }
     val panels = remember(endpoints) { PanelCatalog.withEndpoints(endpoints) }
     val selectedPanels = panels.filter { it.id in selectedIds }
     var prompt by remember { mutableStateOf("") }
@@ -161,18 +183,36 @@ fun FiestaApp(activity: MainActivity) {
     var showSettings by remember { mutableStateOf(false) }
     var showCombine by remember { mutableStateOf(false) }
     var expandedPanelId by remember { mutableStateOf<String?>(null) }
-    var currentSetName by remember { mutableStateOf("My subscriptions") }
+    var currentSetName by remember { mutableStateOf(context.getString(R.string.my_subscriptions)) }
     var setMenuExpanded by remember { mutableStateOf(false) }
     var combineText by remember { mutableStateOf("") }
+    var combineSources by remember { mutableStateOf(emptyList<ExaSource>()) }
     var combineLoading by remember { mutableStateOf(false) }
-    var judgeId by remember { mutableStateOf(endpoints.firstOrNull()?.id) }
+    var judgeId by remember { mutableStateOf(settings.judgeModelId() ?: endpoints.firstOrNull()?.id) }
     var googleSignInPanel by remember { mutableStateOf<String?>(null) }
     var activeTurn by remember { mutableIntStateOf(0) }
     val answers = remember { mutableStateMapOf<String, PanelAnswer>() }
     val conversationTurns = remember { mutableStateListOf<ChatTurnSummary>() }
     val apiConversations = remember { mutableStateMapOf<String, List<ApiChatMessage>>() }
     val history = remember { mutableStateListOf<String>().apply { addAll(settings.history()) } }
+    val historyTurns = remember { mutableStateListOf<HistoryTurn>().apply { addAll(settings.historyTurns()) } }
+    var activeHistoryTimestamp by remember { mutableStateOf<Long?>(null) }
+    var selectedHistoryTurn by remember { mutableStateOf<HistoryTurn?>(null) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    fun persistHistoryTurns() {
+        val saved = historyTurns.toList()
+        scope.launch { activity.historyRepository.save(saved) }
+    }
+
+    LaunchedEffect(Unit) {
+        if (activity.historyRepository.hasStoredTurns.first()) {
+            historyTurns.clear()
+            historyTurns.addAll(activity.historyRepository.turns.first())
+        } else if (historyTurns.isNotEmpty()) {
+            activity.historyRepository.save(historyTurns.toList())
+        }
+    }
 
     SideEffect {
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).isAppearanceLightStatusBars = !dark
@@ -186,7 +226,7 @@ fun FiestaApp(activity: MainActivity) {
     fun copyText(value: String) {
         if (value.isNotBlank()) {
             clipboard.setText(AnnotatedString(value))
-            scope.launch { snackbar.showSnackbar("Copied to clipboard") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.copied_to_clipboard)) }
         }
     }
 
@@ -196,7 +236,27 @@ fun FiestaApp(activity: MainActivity) {
     }
 
     fun updateAnswer(id: String, update: (PanelAnswer) -> PanelAnswer) {
-        answers[id] = update(answers[id] ?: PanelAnswer())
+        val next = update(answers[id] ?: PanelAnswer())
+        answers[id] = next
+        val timestamp = activeHistoryTimestamp
+        val panel = panels.firstOrNull { it.id == id }
+        if (timestamp != null && panel?.kind == PanelKind.API) {
+            val recordIndex = historyTurns.indexOfFirst { it.timestamp == timestamp }
+            if (recordIndex >= 0) {
+                val record = historyTurns[recordIndex]
+                val saved = record.answers.map { existing -> if (existing.modelId == id) existing.copy(text = next.text) else existing }
+                historyTurns[recordIndex] = record.copy(answers = saved)
+                persistHistoryTurns()
+            }
+        }
+    }
+
+    fun copyPanelAnswer(panel: PanelDefinition) {
+        val value = answers[panel.id]?.text.orEmpty()
+        if (value.isNotBlank()) {
+            copyText(value)
+            updateAnswer(panel.id) { it.copy(status = DeliveryStatus.COPIED) }
+        }
     }
 
     fun runApi(panel: PanelDefinition, text: String, file: ApiAttachment?, turn: Int) {
@@ -206,7 +266,11 @@ fun FiestaApp(activity: MainActivity) {
         scope.launch {
             try {
                 val answerText = withContext(Dispatchers.IO) {
-                    ApiClient.stream(endpoint, text, file, previousMessages) { delta ->
+                    ApiClient.stream(
+                        endpoint, text, file, previousMessages,
+                        exaApiKey = if (webSearchEnabled) exaKey else null,
+                        onSources = { sources -> mainHandler.post { if (activeTurn == turn) updateAnswer(panel.id) { it.copy(sources = sources) } } }
+                    ) { delta ->
                         mainHandler.post {
                             if (activeTurn == turn) updateAnswer(panel.id) { it.copy(text = it.text + delta, status = DeliveryStatus.TYPING, loading = true) }
                         }
@@ -218,7 +282,7 @@ fun FiestaApp(activity: MainActivity) {
                 }
             } catch (_: Exception) {
                 if (activeTurn == turn) updateAnswer(panel.id) { it.copy(status = DeliveryStatus.ERROR, loading = false) }
-                snackbar.showSnackbar("${panel.name} could not respond. Check the endpoint settings.")
+                snackbar.showSnackbar(context.getString(R.string.api_panel_failed, panel.name))
             }
         }
     }
@@ -237,11 +301,26 @@ fun FiestaApp(activity: MainActivity) {
     fun submitPrompt(value: String) {
         val text = value.trim()
         if (text.isEmpty()) return
+        if (webSearchEnabled && exaKey.isBlank() && selectedPanels.any { it.kind == PanelKind.API }) {
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.exa_key_required)) }
+            return
+        }
         if (selectedPanels.isEmpty()) {
-            scope.launch { snackbar.showSnackbar("Choose at least one AI model") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.choose_one_model)) }
             return
         }
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        activeHistoryTimestamp = System.currentTimeMillis()
+        val historyRecord = HistoryTurn(
+            text,
+            selectedPanels.map { panel -> HistoryAnswer(panel.id, panel.name, if (panel.kind == PanelKind.WEB) "sent" else "") },
+            "",
+            activeHistoryTimestamp!!
+        )
+        historyTurns.add(0, historyRecord)
+        persistHistoryTurns()
+        guideDone = GuideChecklist.autoCheck(guideDone, "first_send")
+        settings.saveGuideChecklist(guideDone)
         if (currentPrompt.isNotBlank()) {
             val previousAnswers = selectedPanels.mapNotNull { panel ->
                 answers[panel.id]?.text?.takeIf(String::isNotBlank)?.let { panel.name to it }
@@ -263,8 +342,8 @@ fun FiestaApp(activity: MainActivity) {
                     updateAnswer(panel.id) { it.copy(status = WebPanelScripts.mapStatus(status), loading = false) }
                     if (status != WebSendStatus.SENT) {
                         val systemClipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        systemClipboard.setPrimaryClip(ClipData.newPlainText("OTT24x7 AI prompt", text))
-                        scope.launch { snackbar.showSnackbar("Prompt copied for a panel that couldn't accept it") }
+                systemClipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.share_prompt_title), text))
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.panel_prompt_copy_failed)) }
                     }
                 }
             }
@@ -289,6 +368,7 @@ fun FiestaApp(activity: MainActivity) {
         judgeId = judge.id
         combineLoading = true
         combineText = ""
+        combineSources = emptyList()
         scope.launch {
             val source = mutableListOf<String>()
             selectedPanels.filter { it.kind == PanelKind.API }.forEach { panel ->
@@ -302,21 +382,31 @@ fun FiestaApp(activity: MainActivity) {
             }
             if (source.isEmpty()) {
                 combineLoading = false
-                combineText = "No answers are ready yet. Wait for a model to respond, then try Combine again."
+                combineText = context.getString(R.string.no_answers_ready)
                 return@launch
             }
-            val synthesisPrompt = "Create one clear, accurate final answer to the user's prompt. Compare the model responses, keep useful detail, and resolve disagreements.\n\nUser prompt:\n$currentPrompt\n\nModel responses:\n${source.joinToString("\n\n---\n\n")}"
+            val synthesisPrompt = "Create a concise comparison with exactly these sections: ## Best answer, ## Where they agree, and ## Where they differ. Base each section only on the available responses. Cite any web sources using [1], [2].\n\nUser prompt:\n$currentPrompt\n\nModel responses:\n${source.joinToString("\n\n---\n\n")}"
             try {
                 val result = withContext(Dispatchers.IO) {
-                    ApiClient.stream(judge, synthesisPrompt, null) { delta ->
+                    ApiClient.stream(
+                        judge, synthesisPrompt, null,
+                        exaApiKey = if (webSearchEnabled) exaKey else null,
+                        onSources = { sources -> mainHandler.post { combineSources = sources } }
+                    ) { delta ->
                         mainHandler.post { combineText += delta }
                     }
                 }
                 combineText = result
             } catch (_: Exception) {
-                combineText = "The judge model couldn't complete the combined answer. Check its endpoint settings and try again."
+                combineText = context.getString(R.string.judge_failed)
             }
             combineLoading = false
+            activeHistoryTimestamp?.let { timestamp ->
+                val index = historyTurns.indexOfFirst { it.timestamp == timestamp }
+                if (index >= 0) { historyTurns[index] = historyTurns[index].copy(finalAnswer = combineText); persistHistoryTurns() }
+            }
+            guideDone = GuideChecklist.autoCheck(guideDone, "first_combine")
+            settings.saveGuideChecklist(guideDone)
         }
     }
 
@@ -326,12 +416,12 @@ fun FiestaApp(activity: MainActivity) {
             scope.launch {
                 runCatching { readAttachment(context, uri) }
                     .onSuccess { attachment = it }
-                    .onFailure { snackbar.showSnackbar("This file could not be attached. Choose an image or PDF.") }
+                .onFailure { snackbar.showSnackbar(context.getString(R.string.attachment_failed)) }
             }
         }
     }
 
-    FiestaTheme(dark) {
+    FiestaTheme(dark, Color(accentColor)) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
@@ -339,14 +429,11 @@ fun FiestaApp(activity: MainActivity) {
                     history = history,
                     onSelectHistory = { item ->
                         activeTurn += 1
-                        currentPrompt = ""
                         prompt = item
-                        answers.clear()
-                        conversationTurns.clear()
-                        apiConversations.clear()
+                        selectedTab = MainTab.COMPARE
                         scope.launch { drawerState.close() }
                     },
-                    onSettings = { scope.launch { drawerState.close() }; showSettings = true }
+                    onSettings = { scope.launch { drawerState.close() }; selectedTab = MainTab.SETTINGS }
                 )
             }
         ) {
@@ -354,31 +441,26 @@ fun FiestaApp(activity: MainActivity) {
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.background,
                 snackbarHost = { SnackbarHost(snackbar) },
+                bottomBar = { if (onboardingSeen && expandedPanelId == null) AppBottomBar(selectedTab) { selectedTab = it } },
                 contentWindowInsets = WindowInsets(0, 0, 0, 0)
             ) { innerPadding ->
                 Column(
                     Modifier.fillMaxSize().padding(innerPadding).background(MaterialTheme.colorScheme.background)
-                        .statusBarsPadding().navigationBarsPadding().imePadding()
+                        .statusBarsPadding().imePadding()
                 ) {
-                    TopBar(
-                        title = if (expandedPanelId != null) panels.firstOrNull { it.id == expandedPanelId }?.name ?: "OTT24x7 AI" else currentSetName,
-                        setMenuExpanded = setMenuExpanded,
-                        onSetMenu = { setMenuExpanded = true },
-                        onDismissSet = { setMenuExpanded = false },
-                        onSelectSet = { setName ->
-                            currentSetName = setName
-                            setMenuExpanded = false
-                            if (setName == "My subscriptions") saveSelection(PanelCatalog.defaultSelection)
-                            else if (setName == "Free models") saveSelection(listOf("gemini", "deepseek", "perplexity", "qwen"))
-                            else showModelPicker = true
-                        },
-                        onHistory = { scope.launch { drawerState.open() } },
-                        onNewChat = { activeTurn += 1; currentPrompt = ""; answers.clear(); conversationTurns.clear(); apiConversations.clear(); attachment = null; expandedPanelId = null; combineText = "" },
-                        expanded = expandedPanelId != null,
-                        onCloseExpanded = { expandedPanelId = null }
-                    )
-
-                    if (expandedPanelId != null) {
+                    if (!onboardingSeen) {
+                        OnboardingScreenV2 { selected ->
+                            saveSelection(selected)
+                            settings.saveOnboardingSeen(true)
+                            onboardingSeen = true
+                        }
+                    } else if (expandedPanelId != null) {
+                        TopBar(
+                            title = panels.firstOrNull { it.id == expandedPanelId }?.name ?: context.getString(R.string.brand_name),
+                            setMenuExpanded = false, onSetMenu = {}, onDismissSet = {}, onSelectSet = {},
+                            onHistory = {}, onNewChat = {}, expanded = true,
+                            onCloseExpanded = { expandedPanelId = null }
+                        )
                         val panel = panels.firstOrNull { it.id == expandedPanelId }
                         if (panel != null) {
                             PanelCard(
@@ -387,41 +469,113 @@ fun FiestaApp(activity: MainActivity) {
                                 answer = answers[panel.id] ?: PanelAnswer(),
                                 bodyHeight = (LocalConfiguration.current.screenHeightDp * 0.70f).dp,
                                 expanded = true,
-                                onCopy = { copyText(answers[panel.id]?.text.orEmpty()) },
+                                onCopy = { copyPanelAnswer(panel) },
                                 onRegenerate = { sendOne(panel, currentPrompt, attachment, activeTurn) },
                                 onExpand = { expandedPanelId = null },
                                 onClearLogin = { activity.clearPanelLogin(panel); googleSignInPanel = null },
                                 onOpenGoogleCustomTab = { activity.openGoogleSignIn(activity.googleSignInUrl(panel.id, panel.url)) },
                                 googleSignInRequired = googleSignInPanel == panel.id,
-                                modifier = Modifier.fillMaxWidth().weight(1f).padding(12.dp)
+                                modifier = Modifier.fillMaxWidth().weight(1f).padding(12.dp),
+                                onShare = { shareText(context, answers[panel.id]?.text.orEmpty()) }
                             )
                         }
                     } else {
+                        if (selectedTab == MainTab.HOME || selectedTab == MainTab.COMPARE) {
+                            TopBar(
+                                title = if (selectedTab == MainTab.HOME) context.getString(R.string.brand_name) else currentSetName,
+                                setMenuExpanded = setMenuExpanded,
+                                onSetMenu = { setMenuExpanded = true },
+                                onDismissSet = { setMenuExpanded = false },
+                                onSelectSet = { setName ->
+                                    currentSetName = setName
+                                    setMenuExpanded = false
+                                    if (setName == context.getString(R.string.my_subscriptions)) saveSelection(PanelCatalog.defaultSelection)
+                                    else if (setName == context.getString(R.string.free_models)) saveSelection(listOf("gemini", "deepseek", "perplexity", "qwen"))
+                                    else showModelPicker = true
+                                },
+                                onHistory = { selectedTab = MainTab.HISTORY },
+                                onNewChat = { activeTurn += 1; currentPrompt = ""; prompt = ""; answers.clear(); conversationTurns.clear(); apiConversations.clear(); attachment = null; expandedPanelId = null; combineText = ""; selectedTab = MainTab.HOME },
+                                expanded = false,
+                                onCloseExpanded = { expandedPanelId = null }
+                            )
+                        }
                         Box(Modifier.fillMaxWidth().weight(1f)) {
-                            if (currentPrompt.isBlank()) {
-                                HomeWelcome(
-                                    panels = selectedPanels,
+                            AnimatedContent(
+                                targetState = selectedTab,
+                                transitionSpec = {
+                                    (fadeIn(tween(170)) + slideInHorizontally { it / 12 }) togetherWith
+                                        (fadeOut(tween(120)) + slideOutHorizontally { -it / 12 })
+                                },
+                                label = "screen-transition"
+                            ) { tab -> when (tab) {
+                                MainTab.HOME -> HomeDashboard(
+                                    selectedPanels,
+                                    (historyTurns.map { it.prompt } + history).distinct().take(3),
                                     onOpenPicker = { showModelPicker = true },
-                                    onSuggestion = ::submitPrompt,
-                                    modifier = Modifier.fillMaxSize()
+                                    onSuggestion = { value -> selectedTab = MainTab.COMPARE; submitPrompt(value) },
+                                    onRecent = { value ->
+                                        val savedTurn = historyTurns.firstOrNull { it.prompt == value }
+                                        if (savedTurn != null) { selectedHistoryTurn = savedTurn; selectedTab = MainTab.HISTORY }
+                                        else { prompt = value; selectedTab = MainTab.COMPARE }
+                                    },
+                                    onHistory = { selectedTab = MainTab.HISTORY }
                                 )
-                            } else {
-                                AnswerTurn(
+                                MainTab.COMPARE -> if (currentPrompt.isBlank()) {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(context.getString(R.string.prompt_to_compare), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                } else AnswerTurn(
                                     panels = selectedPanels,
                                     currentPrompt = currentPrompt,
                                     pastTurns = conversationTurns,
                                     answers = answers,
                                     activity = activity,
                                     googleSignInPanel = googleSignInPanel,
-                                    onCopy = { panel -> copyText(answers[panel.id]?.text.orEmpty()) },
+                                    onCopy = ::copyPanelAnswer,
                                     onRegenerate = { panel -> sendOne(panel, currentPrompt, attachment, activeTurn) },
                                     onExpand = { panel -> expandedPanelId = panel.id },
                                     onClearLogin = { panel -> activity.clearPanelLogin(panel); googleSignInPanel = null },
                                     onOpenGoogle = { panel -> activity.openGoogleSignIn(activity.googleSignInUrl(panel.id, panel.url)) },
+                                    stack = compareStack,
+                                    onViewMode = { compareStack = it },
+                                    onShare = { panel -> shareText(context, answers[panel.id]?.text.orEmpty()) },
                                     modifier = Modifier.fillMaxSize()
                                 )
-                            }
+                                MainTab.STUDIO -> StudioScreenV2(endpoints, onOpenSettings = { selectedTab = MainTab.SETTINGS }) {
+                                    guideDone = GuideChecklist.autoCheck(guideDone, "first_image"); settings.saveGuideChecklist(guideDone)
+                                }
+                                MainTab.GUIDE -> GuideScreenV2(
+                                    done = guideDone,
+                                    onToggle = { index ->
+                                        guideDone = guideDone.toMutableList().also { it[index] = !it.getOrElse(index) { false } }
+                                        settings.saveGuideChecklist(guideDone)
+                                    },
+                                    onMarkDone = { index -> guideDone = GuideChecklist.complete(guideDone, index); settings.saveGuideChecklist(guideDone) }
+                                )
+                                MainTab.SETTINGS -> SettingsScreenV2(
+                                    panels = panels, selectedIds = selectedIds, endpoints = endpoints, themeMode = themeMode,
+                                    accentColor = accentColor, exaKey = exaKey, webDefault = webSearchEnabled, judgeId = judgeId,
+                                    testMessage = exaTestMessage, testing = exaTesting,
+                                    onPickModels = { showModelPicker = true }, onManageEndpoints = { showSettings = true },
+                                    onTheme = { themeMode = it; settings.saveThemeMode(it) },
+                                    onAccent = { accentColor = it; settings.saveAccentColor(it) },
+                                    onExaKey = { exaKey = it; settings.saveExaApiKey(it) },
+                                    onWebDefault = { webSearchEnabled = it; settings.saveDefaultWebSearch(it); if (it) { guideDone = GuideChecklist.autoCheck(guideDone, "web_search_on"); settings.saveGuideChecklist(guideDone) } },
+                                    onTestExa = { key ->
+                                        exaTesting = true; exaTestMessage = context.getString(R.string.testing)
+                                        scope.launch {
+                                            val result = runCatching { withContext(Dispatchers.IO) { ExaClient.search(key, "OTT24x7 AI") } }
+                                            result.onSuccess { exaTestMessage = context.getString(R.string.web_search_test_success, it.size) }
+                                                .onFailure { exaTestMessage = context.getString(R.string.web_search_test_failed) }
+                                            exaTesting = false
+                                        }
+                                    },
+                                    onJudge = { judgeId = it; settings.saveJudgeModelId(it); guideDone = GuideChecklist.complete(guideDone, 4); settings.saveGuideChecklist(guideDone) },
+                                    onClearLogins = { PanelCatalog.webPanels.forEach(activity::clearPanelLogin) },
+                                    onOpenUrl = activity::openExternal
+                                )
+                                MainTab.HISTORY -> HistoryScreenV2(historyTurns, onDelete = { turn -> historyTurns.remove(turn); persistHistoryTurns() }, onOpen = { selectedHistoryTurn = it })
+                            } }
                         }
+                        if (selectedTab == MainTab.COMPARE || selectedTab == MainTab.HOME) {
                         AnimatedVisibility(
                             visible = currentPrompt.isNotBlank() && answers.values.any { !it.loading && it.status != DeliveryStatus.IDLE },
                             enter = fadeIn(tween(180)), exit = fadeOut(tween(180))
@@ -436,7 +590,7 @@ fun FiestaApp(activity: MainActivity) {
                                     Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(6.dp))
-                                        Text("Combine", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Text(context.getString(R.string.combine), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                     }
                                 }
                             }
@@ -450,8 +604,11 @@ fun FiestaApp(activity: MainActivity) {
                             onRemoveAttachment = { attachment = null },
                             onMic = { activity.launchSpeechRecognition() },
                             onOpenPicker = { showModelPicker = true },
-                            onSend = { submitPrompt(prompt) }
+                            webSearchEnabled = webSearchEnabled,
+                            onWebSearch = { webSearchEnabled = it; settings.saveDefaultWebSearch(it); if (it) { guideDone = GuideChecklist.autoCheck(guideDone, "web_search_on"); settings.saveGuideChecklist(guideDone) } },
+                            onSend = { selectedTab = MainTab.COMPARE; submitPrompt(prompt) }
                         )
+                        }
                     }
                 }
             }
@@ -464,9 +621,19 @@ fun FiestaApp(activity: MainActivity) {
             onToggle = { id ->
                 if (id in selectedIds) saveSelection(selectedIds - id)
                 else if (selectedIds.size < 8) saveSelection(selectedIds + id)
-                else scope.launch { snackbar.showSnackbar("You can select up to 8 models") }
+                else scope.launch { snackbar.showSnackbar(context.getString(R.string.models_max_eight)) }
             },
-            onDismiss = { showModelPicker = false }
+            onDismiss = { showModelPicker = false },
+            onMove = { id, up ->
+                val index = selectedIds.indexOf(id)
+                val target = if (up) index - 1 else index + 1
+                if (index >= 0 && target in selectedIds.indices) {
+                    val reordered = selectedIds.toMutableList()
+                    val value = reordered.removeAt(index)
+                    reordered.add(target, value)
+                    saveSelection(reordered)
+                }
+            }
         )
     }
     if (showSettings) {
@@ -478,11 +645,16 @@ fun FiestaApp(activity: MainActivity) {
             onThemeMode = { themeMode = it; settings.saveThemeMode(it) },
             onReadWebAnswers = { readWebAnswers = it; settings.saveReadWebAnswers(it) },
             onEndpointsChanged = { updated ->
-                endpoints = updated
+                val addedEndpoint = updated.size > endpoints.size
                 settings.saveEndpoints(updated)
                 selectedIds = selectedIds.filter { id -> !id.startsWith("api:") || id.removePrefix("api:") in updated.map(ApiEndpoint::id) }
                 settings.saveSelectedPanels(selectedIds)
-                if (judgeId !in updated.map(ApiEndpoint::id)) judgeId = updated.firstOrNull()?.id
+                if (judgeId !in updated.map(ApiEndpoint::id)) {
+                    judgeId = updated.firstOrNull()?.id
+                    judgeId?.let(settings::saveJudgeModelId)
+                }
+                if (addedEndpoint) { guideDone = GuideChecklist.autoCheck(guideDone, "endpoint_added"); settings.saveGuideChecklist(guideDone) }
+                endpoints = updated
             },
             onClearLogin = activity::clearPanelLogin,
             onOpenUrl = activity::openExternal,
@@ -495,12 +667,35 @@ fun FiestaApp(activity: MainActivity) {
             answer = combineText,
             loading = combineLoading,
             judgeId = judgeId,
-            onJudgeSelected = { judgeId = it },
+            onJudgeSelected = { judgeId = it; settings.saveJudgeModelId(it); guideDone = GuideChecklist.complete(guideDone, 4); settings.saveGuideChecklist(guideDone) },
             onCombine = ::combineAnswers,
             onCopy = { copyText(combineText) },
             onReRun = ::combineAnswers,
             onSettings = { showCombine = false; showSettings = true },
-            onDismiss = { showCombine = false }
+            onDismiss = { showCombine = false },
+            onShare = { shareText(context, combineText) },
+            sources = combineSources,
+            onOpenSource = activity::openCustomTab
+        )
+    }
+    selectedHistoryTurn?.let { turn ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { selectedHistoryTurn = null },
+            title = { Text(turn.prompt, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    turn.answers.forEach { answer ->
+                        Text(answer.modelName, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                        Text(answer.text.ifBlank { context.getString(R.string.prompt_sent) }, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    }
+                    if (turn.finalAnswer.isNotBlank()) {
+                        Text(context.getString(R.string.history_final), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
+                        MarkdownText(turn.finalAnswer, Modifier.heightIn(max = 160.dp))
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { val question = turn.prompt; selectedHistoryTurn = null; selectedTab = MainTab.COMPARE; submitPrompt(question) }) { Text(context.getString(R.string.ask_again)) } },
+            dismissButton = { TextButton(onClick = { selectedHistoryTurn = null }) { Text(context.getString(R.string.close)) } }
         )
     }
     }
@@ -521,7 +716,7 @@ private fun TopBar(
     val colors = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = if (expanded) onCloseExpanded else onHistory, modifier = Modifier.size(42.dp)) {
-            Icon(if (expanded) Icons.Default.Close else Icons.Default.Menu, if (expanded) "Close expanded model" else "Open history", tint = colors.onSurface)
+            Icon(if (expanded) Icons.Default.Close else Icons.Default.Menu, stringResource(if (expanded) R.string.close_expanded_model else R.string.open_history), tint = colors.onSurface)
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable(enabled = !expanded, onClick = onSetMenu).padding(horizontal = 7.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -529,13 +724,13 @@ private fun TopBar(
                 if (!expanded) Icon(Icons.Default.ArrowDropDown, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
             DropdownMenu(expanded = setMenuExpanded, onDismissRequest = onDismissSet) {
-                listOf("My subscriptions", "Free models", "Custom set").forEach { setName ->
+                listOf(stringResource(R.string.my_subscriptions), stringResource(R.string.free_models), stringResource(R.string.custom_set)).forEach { setName ->
                     DropdownMenuItem(text = { Text(setName) }, onClick = { onSelectSet(setName) })
                 }
             }
         }
         if (!expanded) {
-            IconButton(onClick = onNewChat, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Edit, "New chat", tint = colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
+            IconButton(onClick = onNewChat, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Edit, stringResource(R.string.new_chat), tint = colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
         }
     }
 }
@@ -556,13 +751,13 @@ private fun HistoryDrawerContent(
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.foundation.Image(
                     painterResource(R.drawable.ott_logo),
-                    contentDescription = "OTT24x7 AI logo",
+                    contentDescription = stringResource(R.string.brand_name),
                     modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
-                Text("OTT24x7 AI", Modifier.padding(start = 9.dp), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text(stringResource(R.string.brand_name), Modifier.padding(start = 9.dp), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
-            Text("Recent", color = colors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 8.dp, top = 18.dp, bottom = 4.dp))
+            Text(stringResource(R.string.recent_title), color = colors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 8.dp, top = 18.dp, bottom = 4.dp))
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
                 history.take(30).forEach { item ->
                     Text(
@@ -575,7 +770,7 @@ private fun HistoryDrawerContent(
                     )
                 }
                 if (history.isEmpty()) {
-                    Text("Your prompts will appear here.", Modifier.padding(horizontal = 9.dp, vertical = 10.dp), color = colors.onSurfaceVariant, fontSize = 13.sp)
+                    Text(stringResource(R.string.recent_prompts_empty), Modifier.padding(horizontal = 9.dp, vertical = 10.dp), color = colors.onSurfaceVariant, fontSize = 13.sp)
                 }
             }
             Row(
@@ -584,7 +779,7 @@ private fun HistoryDrawerContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Default.Settings, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                Text("Settings", Modifier.padding(start = 10.dp), fontSize = 14.sp)
+                Text(stringResource(R.string.nav_settings), Modifier.padding(start = 10.dp), fontSize = 14.sp)
             }
         }
     }
@@ -600,9 +795,9 @@ private fun HomeWelcome(
 ) {
     val colors = MaterialTheme.colorScheme
     Column(modifier.padding(horizontal = 20.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        androidx.compose.foundation.Image(painterResource(R.drawable.ott_logo), contentDescription = "OTT24x7 AI logo", modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
-        Text("Good evening", Modifier.padding(top = 20.dp), fontWeight = FontWeight.SemiBold, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 30.sp)
-        Text("Ask all your AIs at once", Modifier.padding(top = 4.dp), color = colors.onSurfaceVariant, fontSize = 14.sp, textAlign = TextAlign.Center)
+        androidx.compose.foundation.Image(painterResource(R.drawable.ott_logo), contentDescription = stringResource(R.string.brand_name), modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
+        Text(stringResource(R.string.home_greeting), Modifier.padding(top = 20.dp), fontWeight = FontWeight.SemiBold, fontSize = 24.sp, textAlign = TextAlign.Center, lineHeight = 30.sp)
+        Text(stringResource(R.string.home_title), Modifier.padding(top = 4.dp), color = colors.onSurfaceVariant, fontSize = 14.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(20.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) {
             panels.forEach { panel ->
@@ -614,7 +809,7 @@ private fun HomeWelcome(
                 }
             }
             Surface(shape = CircleShape, color = colors.surfaceVariant, modifier = Modifier.clickable(onClick = onOpenPicker)) {
-                Text("+ Models", Modifier.padding(horizontal = 11.dp, vertical = 8.dp), color = colors.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.add_models), Modifier.padding(horizontal = 11.dp, vertical = 8.dp), color = colors.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         Spacer(Modifier.height(24.dp))
@@ -647,7 +842,10 @@ private fun AnswerTurn(
     onExpand: (PanelDefinition) -> Unit,
     onClearLogin: (PanelDefinition) -> Unit,
     onOpenGoogle: (PanelDefinition) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    stack: Boolean = false,
+    onViewMode: (Boolean) -> Unit = {},
+    onShare: (PanelDefinition) -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     BoxWithConstraints(modifier) {
@@ -662,6 +860,17 @@ private fun AnswerTurn(
             turnScroll.animateScrollTo(turnScroll.maxValue)
         }
         Column(Modifier.fillMaxSize().verticalScroll(turnScroll)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.nav_compare), Modifier.weight(1f), color = colors.onSurfaceVariant, fontSize = 12.sp)
+                listOf(false to R.string.cards, true to R.string.stack).forEach { (isStack, label) ->
+                    Surface(
+                        modifier = Modifier.padding(start = 4.dp).clip(CircleShape).clickable { onViewMode(isStack) },
+                        color = if (stack == isStack) colors.surfaceVariant else Color.Transparent,
+                        shape = CircleShape,
+                        border = BorderStroke(1.dp, if (stack == isStack) colors.primary.copy(alpha = .5f) else colors.outline)
+                    ) { Text(stringResource(label), Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 11.sp, color = if (stack == isStack) colors.onSurface else colors.onSurfaceVariant) }
+                }
+            }
             pastTurns.forEach { previous ->
                 Surface(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -670,7 +879,7 @@ private fun AnswerTurn(
                 ) {
                     Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) {
                         Text(previous.prompt, color = colors.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text("${previous.modelCount} AIs · previous turn", color = colors.onSurfaceVariant.copy(alpha = 0.75f), fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
+                        Text(stringResource(R.string.previous_turn, previous.modelCount), color = colors.onSurfaceVariant.copy(alpha = 0.75f), fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
                     }
                 }
             }
@@ -680,7 +889,7 @@ private fun AnswerTurn(
                 }
             }
             if (panels.isEmpty()) {
-                Text("Choose one or more models to see responses.", Modifier.padding(20.dp), color = colors.onSurfaceVariant)
+                Text(stringResource(R.string.choose_models_first), Modifier.padding(20.dp), color = colors.onSurfaceVariant)
             } else if (availableWidth >= 680.dp) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     panels.chunked(2).forEach { pair ->
@@ -691,14 +900,28 @@ private fun AnswerTurn(
                                     onCopy = { onCopy(panel) }, onRegenerate = { onRegenerate(panel) }, onExpand = { onExpand(panel) },
                                     onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
                                     googleSignInRequired = googleSignInPanel == panel.id,
-                                    modifier = Modifier.weight(1f).fillMaxHeight()
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    onShare = { onShare(panel) }
                                 )
                             }
                             if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
-                if (panels.size > 2) Text("${panels.size} models", Modifier.align(Alignment.CenterHorizontally).padding(vertical = 6.dp), color = colors.onSurfaceVariant, fontSize = 11.sp)
+                if (panels.size > 2) Text(stringResource(R.string.models_count, panels.size), Modifier.align(Alignment.CenterHorizontally).padding(vertical = 6.dp), color = colors.onSurfaceVariant, fontSize = 11.sp)
+            } else if (stack) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    panels.forEach { panel ->
+                        PanelCard(
+                            activity, panel, answers[panel.id] ?: PanelAnswer(), 300.dp, false,
+                            onCopy = { onCopy(panel) }, onRegenerate = { onRegenerate(panel) }, onExpand = { onExpand(panel) },
+                            onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
+                            googleSignInRequired = googleSignInPanel == panel.id,
+                            modifier = Modifier.fillMaxWidth().height(380.dp),
+                            onShare = { onShare(panel) }
+                        )
+                    }
+                }
             } else {
                 val cardWidth = (availableWidth * 0.84f).coerceAtLeast(280.dp)
                 HorizontalPager(
@@ -715,11 +938,12 @@ private fun AnswerTurn(
                         onCopy = { onCopy(panel) }, onRegenerate = { onRegenerate(panel) }, onExpand = { onExpand(panel) },
                         onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
                         googleSignInRequired = googleSignInPanel == panel.id,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        onShare = { onShare(panel) }
                     )
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    Text("${pagerState.currentPage + 1}/${panels.size}", color = colors.onSurfaceVariant, fontSize = 12.sp)
+                    Text(stringResource(R.string.page_count, pagerState.currentPage + 1, panels.size), color = colors.onSurfaceVariant, fontSize = 12.sp)
                     Spacer(Modifier.width(9.dp))
                     repeat(panels.size) { index ->
                         Box(
@@ -745,9 +969,12 @@ private fun PromptComposer(
     onRemoveAttachment: () -> Unit,
     onMic: () -> Unit,
     onOpenPicker: () -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    webSearchEnabled: Boolean = false,
+    onWebSearch: (Boolean) -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
+    val context = LocalContext.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).clip(RoundedCornerShape(24.dp)).background(colors.surface).border(1.dp, colors.outline, RoundedCornerShape(24.dp)), horizontalAlignment = Alignment.CenterHorizontally) {
         androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(2.dp).clip(RoundedCornerShape(22.dp)).background(colors.surface).padding(horizontal = 8.dp, vertical = 5.dp)) {
             Column {
@@ -755,7 +982,7 @@ private fun PromptComposer(
                     Surface(color = colors.surfaceVariant, shape = CircleShape, modifier = Modifier.padding(start = 5.dp, bottom = 5.dp)) {
                         Row(Modifier.padding(start = 9.dp, end = 5.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(attachment.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, modifier = Modifier.widthIn(max = 185.dp))
-                            IconButton(onClick = onRemoveAttachment, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.Close, "Remove attachment", modifier = Modifier.size(14.dp)) }
+                            IconButton(onClick = onRemoveAttachment, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.Close, stringResource(R.string.remove_attachment), modifier = Modifier.size(14.dp)) }
                         }
                     }
                 }
@@ -767,7 +994,7 @@ private fun PromptComposer(
                     cursorBrush = Brush.verticalGradient(listOf(colors.primary, colors.primary)),
                     decorationBox = { inner ->
                         Box {
-                            if (prompt.isBlank()) Text("Ask all your AIs…", color = colors.onSurfaceVariant, fontSize = 15.sp)
+                            if (prompt.isBlank()) Text(stringResource(R.string.ask_placeholder), color = colors.onSurfaceVariant, fontSize = 15.sp)
                             inner()
                         }
                     }
@@ -778,7 +1005,13 @@ private fun PromptComposer(
                         shape = CircleShape,
                         color = colors.surface,
                         border = BorderStroke(1.dp, colors.outline)
-                    ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.AttachFile, "Attach an image or PDF", tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp)) } }
+                    ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.AttachFile, stringResource(R.string.attach_image_pdf), tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp)) } }
+                    Surface(
+                        modifier = Modifier.clip(CircleShape).clickable { onWebSearch(!webSearchEnabled) },
+                        shape = CircleShape,
+                        color = if (webSearchEnabled) colors.primary.copy(alpha = 0.16f) else colors.surface,
+                        border = BorderStroke(1.dp, if (webSearchEnabled) colors.primary.copy(alpha = 0.6f) else colors.outline)
+                    ) { Text(context.getString(R.string.web_chip), Modifier.padding(horizontal = 10.dp, vertical = 8.dp), fontSize = 11.sp, color = if (webSearchEnabled) colors.primary else colors.onSurfaceVariant) }
                     Surface(
                         modifier = Modifier.clip(CircleShape).clickable(onClick = onOpenPicker),
                         color = colors.surface,
@@ -789,19 +1022,28 @@ private fun PromptComposer(
                             Row(horizontalArrangement = Arrangement.spacedBy((-4).dp)) {
                                 selectedPanels.take(3).forEach { panel -> ModelAvatar(panel.name, Modifier.size(16.dp)) }
                             }
-                            Text("${selectedPanels.size} AIs", Modifier.padding(start = 6.dp), fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                            Text(stringResource(R.string.ai_count, selectedPanels.size), Modifier.padding(start = 6.dp), fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                             Icon(Icons.Default.ArrowDropDown, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         }
                     }
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onMic, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Mic, "Speak", tint = colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
+                    IconButton(onClick = onMic, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Mic, stringResource(R.string.speak), tint = colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
                     IconButton(onClick = onSend, enabled = prompt.isNotBlank(), modifier = Modifier.size(36.dp).clip(CircleShape).background(if (prompt.isBlank()) colors.surfaceVariant else colors.primary)) {
-                        Icon(Icons.Default.ArrowUpward, "Send prompt", tint = if (prompt.isBlank()) colors.onSurfaceVariant else Color.White, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.ArrowUpward, stringResource(R.string.send_prompt), tint = if (prompt.isBlank()) colors.onSurfaceVariant else Color.White, modifier = Modifier.size(18.dp))
                     }
                 }
             }
         }
     }
+}
+
+private fun shareText(context: Context, value: String) {
+    if (value.isBlank()) return
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, value)
+    }
+    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_answer)))
 }
 
 private fun readAttachment(context: Context, uri: Uri): ApiAttachment {
@@ -928,7 +1170,7 @@ private fun PageIndicatorPreview() {
 }
 
 @Composable
-private fun PreviewAnswerCard(title: String, status: String, answer: String, modifier: Modifier = Modifier) {
+fun PreviewAnswerCard(title: String, status: String, answer: String, modifier: Modifier = Modifier) {
     Card(modifier, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 10.dp, top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {

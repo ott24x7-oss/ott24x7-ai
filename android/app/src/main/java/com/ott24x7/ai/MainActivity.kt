@@ -1,8 +1,11 @@
 package com.ott24x7.ai
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.webkit.CookieManager
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -15,10 +18,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.view.WindowCompat
 import com.ott24x7.ai.data.PanelDefinition
 import com.ott24x7.ai.data.WebPanelScripts
 import com.ott24x7.ai.data.WebSendStatus
 import com.ott24x7.ai.data.SecureSettings
+import com.ott24x7.ai.data.HistoryRepository
 import com.ott24x7.ai.ui.FiestaApp
 import java.net.URI
 import org.json.JSONObject
@@ -26,9 +31,12 @@ import org.json.JSONObject
 class MainActivity : ComponentActivity() {
     lateinit var secureSettings: SecureSettings
         private set
+    val historyRepository: HistoryRepository by lazy { HistoryRepository(applicationContext) }
 
     private lateinit var documentPicker: ActivityResultLauncher<Array<String>>
     private lateinit var speechRecognizer: ActivityResultLauncher<Intent>
+    private lateinit var galleryPermission: ActivityResultLauncher<String>
+    private var galleryPermissionCallback: ((Boolean) -> Unit)? = null
     private var webFileCallback: ValueCallback<Array<Uri>>? = null
     private var attachmentCallback: ((Uri?) -> Unit)? = null
     private val webViews = mutableMapOf<String, WebView>()
@@ -45,6 +53,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         secureSettings = SecureSettings(applicationContext)
         documentPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             val webCallback = webFileCallback
@@ -56,6 +65,10 @@ class MainActivity : ComponentActivity() {
         speechRecognizer = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val phrase = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
             if (phrase.isNotBlank()) onSpeechResult?.invoke(phrase)
+        }
+        galleryPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            galleryPermissionCallback?.invoke(granted)
+            galleryPermissionCallback = null
         }
         setContent { FiestaApp(this) }
     }
@@ -81,6 +94,15 @@ class MainActivity : ComponentActivity() {
         runCatching { speechRecognizer.launch(intent) }
     }
 
+    fun requestLegacyGalleryPermission(onResult: (Boolean) -> Unit) {
+        if (Build.VERSION.SDK_INT >= 29 || checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+            onResult(true)
+        } else {
+            galleryPermissionCallback = onResult
+            galleryPermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
+
     fun openGoogleSignIn(url: String) {
         runCatching { CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(this, Uri.parse(url)) }
             .onFailure { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
@@ -90,6 +112,11 @@ class MainActivity : ComponentActivity() {
 
     fun openExternal(url: String) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
+
+    fun openCustomTab(url: String) {
+        runCatching { CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(this, Uri.parse(url)) }
+            .onFailure { openExternal(url) }
     }
 
     fun webViewFor(panel: PanelDefinition): WebView = webViews.getOrPut(panel.id) {

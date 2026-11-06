@@ -15,15 +15,20 @@ object ApiClient {
         prompt: String,
         attachment: ApiAttachment?,
         history: List<ApiChatMessage> = emptyList(),
+        exaApiKey: String? = null,
+        onSources: (List<ExaSource>) -> Unit = {},
         onDelta: (String) -> Unit
     ): String {
+        val sources = exaApiKey?.takeIf(String::isNotBlank)?.let { ExaClient.search(it, prompt) }.orEmpty()
+        onSources(sources)
+        val context = ExaClient.formatContext(sources)
         val connection = openConnection(endpoint)
         try {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
             connection.setRequestProperty("Authorization", "Bearer ${endpoint.apiKey}")
             connection.setRequestProperty("Accept", "text/event-stream")
-            val payload = requestBody(endpoint, prompt, attachment, history).put("stream", true)
+            val payload = requestBody(endpoint, prompt, attachment, history, context).put("stream", true)
             connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(payload.toString()) }
             if (connection.responseCode !in 200..299) throw IllegalStateException("Request failed (${connection.responseCode})")
             val answer = StringBuilder()
@@ -73,6 +78,26 @@ object ApiClient {
         }
     }
 
+    fun generateImages(endpoint: ApiEndpoint, prompt: String, size: String, count: Int = 1, modelId: String = endpoint.imageModelId.ifBlank { endpoint.modelId }): List<GeneratedImage> {
+        val connection = (URL(ImageResponseParser.endpointUrl(endpoint.baseUrl)).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 25_000
+            readTimeout = 180_000
+            doOutput = true
+            setRequestProperty("User-Agent", "OTT24x7-AI-Android/1.1")
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Authorization", "Bearer ${endpoint.apiKey}")
+        }
+        try {
+            val payload = ImageGenerationRequest(modelId, prompt, size, count).toJson()
+            connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(payload.toString()) }
+            if (connection.responseCode !in 200..299) throw IllegalStateException("Image generation failed (${connection.responseCode})")
+            return connection.inputStream.bufferedReader(Charsets.UTF_8).use { ImageResponseParser.parse(it.readText()) }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private fun openConnection(endpoint: ApiEndpoint): HttpURLConnection {
         val url = normalizeChatCompletionsUrl(endpoint.baseUrl)
         return (URL(url).openConnection() as HttpURLConnection).apply {
@@ -87,10 +112,15 @@ object ApiClient {
         endpoint: ApiEndpoint,
         prompt: String,
         attachment: ApiAttachment?,
-        history: List<ApiChatMessage> = emptyList()
+        history: List<ApiChatMessage> = emptyList(),
+        systemContext: String = ""
     ): JSONObject {
         val messages = JSONArray()
-        messages.put(JSONObject().put("role", "system").put("content", "You are a helpful assistant."))
+        val systemMessage = buildString {
+            append("You are a helpful assistant.")
+            if (systemContext.isNotBlank()) append("\n\n").append(systemContext)
+        }
+        messages.put(JSONObject().put("role", "system").put("content", systemMessage))
         history.forEach { previous ->
             if (previous.role == "user" || previous.role == "assistant") {
                 messages.put(JSONObject().put("role", previous.role).put("content", previous.content))

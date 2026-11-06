@@ -39,8 +39,9 @@ private val LightColors = lightColorScheme(
 )
 
 @Composable
-fun FiestaTheme(dark: Boolean, content: @Composable () -> Unit) {
-    val colors = if (dark) DarkColors else LightColors
+fun FiestaTheme(dark: Boolean, accent: Color = FiestaAccent, content: @Composable () -> Unit) {
+    val base = if (dark) DarkColors else LightColors
+    val colors = base.copy(primary = accent, secondary = accent, tertiary = accent)
     MaterialTheme(colorScheme = colors) {
         Surface(color = colors.background, contentColor = colors.onBackground) {
             content()

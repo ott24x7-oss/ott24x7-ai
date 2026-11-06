@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,10 +27,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +68,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color.Companion.White
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,6 +78,8 @@ import androidx.compose.ui.unit.sp
 import com.ott24x7.ai.data.ApiEndpoint
 import com.ott24x7.ai.data.PanelDefinition
 import com.ott24x7.ai.data.PanelKind
+import com.ott24x7.ai.data.ExaSource
+import com.ott24x7.ai.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -82,10 +91,12 @@ fun ModelPickerSheet(
     panels: List<PanelDefinition>,
     selectedIds: List<String>,
     onToggle: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onMove: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val colors = MaterialTheme.colorScheme
+    var search by remember { mutableStateOf("") }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -96,24 +107,24 @@ fun ModelPickerSheet(
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.84f).padding(horizontal = 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Choose AIs", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("${selectedIds.size} selected · Max 8", color = colors.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+                    Text(stringResource(R.string.choose_ais), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.max_eight, selectedIds.size), color = colors.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
                 }
-                Button(onClick = onDismiss, shape = RoundedCornerShape(18.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 17.dp, vertical = 8.dp)) { Text("Done", fontSize = 13.sp) }
+                Button(onClick = onDismiss, shape = RoundedCornerShape(18.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 17.dp, vertical = 8.dp)) { Text(stringResource(R.string.done), fontSize = 13.sp) }
             }
+            OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth().padding(bottom = 5.dp), singleLine = true, placeholder = { Text(stringResource(R.string.model_search)) }, leadingIcon = { Icon(Icons.Default.Search, null) }, shape = RoundedCornerShape(16.dp))
             LazyColumn(Modifier.weight(1f, fill = false)) {
-                item { SectionHeading("My subscriptions (Web)") }
-                items(panels.filter { it.kind == PanelKind.WEB && it.id in setOf("chatgpt", "claude", "gemini", "deepseek") }, key = { it.id }) { panel ->
-                    ModelPickerRow(panel, panel.id in selectedIds, canAdd = selectedIds.size < 8 || panel.id in selectedIds) { onToggle(panel.id) }
+                val visible = panels.filter { it.name.contains(search, ignoreCase = true) || it.description.contains(search, ignoreCase = true) }
+                item { SectionHeading(stringResource(R.string.web_logins)) }
+                items(visible.filter { it.kind == PanelKind.WEB }, key = { it.id }) { panel ->
+                    ModelPickerRow(panel, panel.id in selectedIds, canAdd = selectedIds.size < 8 || panel.id in selectedIds,
+                        onToggle = { onToggle(panel.id) }, onMoveUp = { onMove(panel.id, true) }, onMoveDown = { onMove(panel.id, false) })
                 }
-                item { SectionHeading("Signed-in") }
-                items(panels.filter { it.kind == PanelKind.WEB && it.id !in setOf("chatgpt", "claude", "gemini", "deepseek") }, key = { it.id }) { panel ->
-                    ModelPickerRow(panel, panel.id in selectedIds, canAdd = selectedIds.size < 8 || panel.id in selectedIds) { onToggle(panel.id) }
-                }
-                if (panels.any { it.kind == PanelKind.API }) {
-                    item { SectionHeading("API models") }
-                    items(panels.filter { it.kind == PanelKind.API }, key = { it.id }) { panel ->
-                        ModelPickerRow(panel, panel.id in selectedIds, canAdd = selectedIds.size < 8 || panel.id in selectedIds) { onToggle(panel.id) }
+                if (visible.any { it.kind == PanelKind.API }) {
+                    item { SectionHeading(stringResource(R.string.api_models)) }
+                    items(visible.filter { it.kind == PanelKind.API }, key = { it.id }) { panel ->
+                        ModelPickerRow(panel, panel.id in selectedIds, canAdd = selectedIds.size < 8 || panel.id in selectedIds,
+                            onToggle = { onToggle(panel.id) }, onMoveUp = { onMove(panel.id, true) }, onMoveDown = { onMove(panel.id, false) })
                     }
                 }
             }
@@ -127,7 +138,7 @@ private fun SectionHeading(text: String) {
 }
 
 @Composable
-private fun ModelPickerRow(panel: PanelDefinition, selected: Boolean, canAdd: Boolean, onToggle: () -> Unit) {
+private fun ModelPickerRow(panel: PanelDefinition, selected: Boolean, canAdd: Boolean, onToggle: () -> Unit, onMoveUp: () -> Unit, onMoveDown: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
@@ -139,6 +150,10 @@ private fun ModelPickerRow(panel: PanelDefinition, selected: Boolean, canAdd: Bo
         Column(Modifier.weight(1f).padding(start = 10.dp)) {
             Text(panel.name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
             Text(panel.description, color = colors.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (selected) {
+            IconButton(onClick = onMoveUp, modifier = Modifier.size(30.dp)) { Icon(Icons.Default.ArrowUpward, stringResource(R.string.move_model_up, panel.name), tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp)) }
+            IconButton(onClick = onMoveDown, modifier = Modifier.size(30.dp)) { Icon(Icons.Default.ArrowDownward, stringResource(R.string.move_model_down, panel.name), tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp)) }
         }
         Box(
             Modifier.padding(horizontal = 2.dp).size(width = 36.dp, height = 20.dp).clip(CircleShape)
@@ -197,10 +212,12 @@ fun SettingsSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val colors = MaterialTheme.colorScheme
+    val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var baseUrl by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf("") }
     var modelId by remember { mutableStateOf("") }
+    var imageModelId by remember { mutableStateOf("") }
     var testMessage by remember { mutableStateOf("") }
     var testing by remember { mutableStateOf(false) }
 
@@ -213,31 +230,31 @@ fun SettingsSheet(
     ) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.94f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.onSurface, modifier = Modifier.size(20.dp)) }
-                Text("Settings", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 3.dp))
+                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.ArrowBack, stringResource(R.string.back), tint = colors.onSurface, modifier = Modifier.size(20.dp)) }
+                Text(stringResource(R.string.nav_settings), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 3.dp))
             }
-            SettingsSection("Appearance") {
-                SettingsRow("Theme") {
+            SettingsSection(stringResource(R.string.appearance)) {
+                SettingsRow(stringResource(R.string.theme)) {
                     Row(Modifier.clip(RoundedCornerShape(10.dp)).background(colors.background).padding(2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        listOf("dark" to "Dark", "light" to "Light", "system" to "System").forEach { (value, label) ->
+                        listOf("dark" to R.string.dark, "light" to R.string.light, "system" to R.string.system).forEach { (value, label) ->
                             val selected = themeMode == value
                             Surface(
                                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onThemeMode(value) },
                                 color = if (selected) colors.surfaceVariant else Color.Transparent,
                                 shape = RoundedCornerShape(8.dp)
-                            ) { Text(label, Modifier.padding(horizontal = 9.dp, vertical = 7.dp), color = if (selected) colors.onSurface else colors.onSurfaceVariant, fontSize = 11.sp) }
+                            ) { Text(stringResource(label), Modifier.padding(horizontal = 9.dp, vertical = 7.dp), color = if (selected) colors.onSurface else colors.onSurfaceVariant, fontSize = 11.sp) }
                         }
                     }
                 }
             }
-            SettingsSection("Panels") {
-                SettingsRow("Read web panel answers", "Let Combine read replies when you tap it.") {
+            SettingsSection(stringResource(R.string.settings_panels)) {
+                SettingsRow(stringResource(R.string.read_web_answers), stringResource(R.string.read_web_answers_hint)) {
                     Switch(checked = readWebAnswers, onCheckedChange = onReadWebAnswers)
                 }
             }
-            SettingsSection("Custom endpoints") {
+            SettingsSection(stringResource(R.string.settings_api)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                    Text("OpenAI-compatible · /v1/chat/completions", color = colors.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    Text(stringResource(R.string.openai_compatible_endpoint), color = colors.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
                     endpoints.forEach { endpoint ->
                         Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant)) {
                             Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -247,7 +264,7 @@ fun SettingsSheet(
                                     Text("${endpoint.modelId} · ${endpoint.baseUrl}", fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 IconButton(onClick = { onEndpointsChanged(endpoints.filterNot { it.id == endpoint.id }) }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Default.Delete, "Remove ${endpoint.name}", tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Delete, stringResource(R.string.remove_model, endpoint.name), tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -258,48 +275,52 @@ fun SettingsSheet(
                         focusedContainerColor = colors.background,
                         unfocusedContainerColor = colors.background
                     )
-                    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth().padding(top = 4.dp), label = { Text("Name") }, singleLine = true, colors = fieldColors)
-                    OutlinedTextField(baseUrl, { baseUrl = it }, Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Base URL") }, placeholder = { Text("https://openrouter.ai/api/v1") }, singleLine = true, colors = fieldColors)
-                    OutlinedTextField(apiKey, { apiKey = it }, Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), colors = fieldColors)
-                    OutlinedTextField(modelId, { modelId = it }, Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text("Model ID") }, singleLine = true, colors = fieldColors)
-                    if (testMessage.isNotBlank()) Text(testMessage, color = if (testMessage.startsWith("Connected")) Color(0xFF53C991) else colors.error, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth().padding(top = 4.dp), label = { Text(stringResource(R.string.endpoint_name)) }, singleLine = true, colors = fieldColors)
+                    OutlinedTextField(baseUrl, { baseUrl = it }, Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text(stringResource(R.string.base_url)) }, placeholder = { Text(stringResource(R.string.base_url_hint)) }, singleLine = true, colors = fieldColors)
+                    OutlinedTextField(apiKey, { apiKey = it }, Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text(stringResource(R.string.api_key)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), colors = fieldColors)
+                    OutlinedTextField(modelId, { modelId = it }, Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text(stringResource(R.string.model_id)) }, singleLine = true, colors = fieldColors)
+                    OutlinedTextField(imageModelId, { imageModelId = it }, Modifier.fillMaxWidth().padding(top = 6.dp), label = { Text(stringResource(R.string.image_model_id)) }, singleLine = true, colors = fieldColors)
+                    if (testMessage.isNotBlank()) Text(testMessage, color = if (testMessage.startsWith(context.getString(R.string.connected_prefix))) Color(0xFF53C991) else colors.error, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             enabled = !testing && baseUrl.isNotBlank() && apiKey.isNotBlank() && modelId.isNotBlank(),
                             onClick = {
                                 testing = true
-                                testMessage = "Testing endpoint…"
-                                val candidate = ApiEndpoint("test", name.ifBlank { modelId }, baseUrl, apiKey, modelId)
+                                testMessage = context.getString(R.string.endpoint_testing)
+                                val candidate = ApiEndpoint("test", name.ifBlank { modelId }, baseUrl, apiKey, modelId, imageModelId)
                                 scope.launch {
                                     val result = runCatching { withContext(Dispatchers.IO) { com.ott24x7.ai.data.ApiClient.test(candidate) } }
                                     testing = false
-                                    testMessage = result.fold({ "Connected · ${it.take(80)}" }, { "Connection failed · ${it.message.orEmpty()}" })
+                                    testMessage = result.fold(
+                                        { context.getString(R.string.endpoint_connected, it.take(80)) },
+                                        { context.getString(R.string.endpoint_connection_failed, it.message.orEmpty().take(120)) }
+                                    )
                                 }
                             }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)
-                        ) { Text(if (testing) "Testing…" else "Test") }
+                        ) { Text(stringResource(if (testing) R.string.testing else R.string.test)) }
                         Button(
                             enabled = name.isNotBlank() && baseUrl.isNotBlank() && apiKey.isNotBlank() && modelId.isNotBlank(),
                             onClick = {
-                                val endpoint = ApiEndpoint(UUID.randomUUID().toString(), name.trim(), baseUrl.trim(), apiKey, modelId.trim())
+                                val endpoint = ApiEndpoint(UUID.randomUUID().toString(), name.trim(), baseUrl.trim(), apiKey, modelId.trim(), imageModelId.trim())
                                 onEndpointsChanged(endpoints + endpoint)
-                                name = ""; baseUrl = ""; apiKey = ""; modelId = ""; testMessage = "Endpoint saved securely."
+                                name = ""; baseUrl = ""; apiKey = ""; modelId = ""; imageModelId = ""; testMessage = context.getString(R.string.endpoint_saved_securely)
                             }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)
-                        ) { Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Add model") }
+                        ) { Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.add_model)) }
                     }
                 }
             }
-            SettingsSection("Panel logins") {
+            SettingsSection(stringResource(R.string.panel_logins)) {
                 panels.filter { it.kind == PanelKind.WEB }.forEach { panel ->
-                    SettingsRow(panel.name) { TextButton(onClick = { onClearLogin(panel) }) { Text("Clear login", fontSize = 12.sp) } }
+                    SettingsRow(panel.name) { TextButton(onClick = { onClearLogin(panel) }) { Text(stringResource(R.string.clear_login), fontSize = 12.sp) } }
                 }
             }
-            SettingsSection("About") {
-                SettingsRow("OTT24x7 AI", "Version 1.0") { }
-                SettingsRow("AI tools") { TextButton(onClick = { onOpenUrl("https://ott24x7.com") }) { Text("ott24x7.com", fontSize = 12.sp) } }
-                SettingsRow("Windows & Office keys") { TextButton(onClick = { onOpenUrl("https://keys24x7.com") }) { Text("keys24x7.com", fontSize = 12.sp) } }
-                SettingsRow("AGPL source") {
+            SettingsSection(stringResource(R.string.about)) {
+                SettingsRow(stringResource(R.string.brand_name), stringResource(R.string.app_version)) { }
+                SettingsRow(stringResource(R.string.ai_tools)) { TextButton(onClick = { onOpenUrl("https://ott24x7.com") }) { Text(stringResource(R.string.ai_tools_domain), fontSize = 12.sp) } }
+                SettingsRow(stringResource(R.string.windows_office_keys)) { TextButton(onClick = { onOpenUrl("https://keys24x7.com") }) { Text(stringResource(R.string.software_keys_domain), fontSize = 12.sp) } }
+                SettingsRow(stringResource(R.string.agpl_source)) {
                     TextButton(onClick = { onOpenUrl("https://github.com/ott24x7-oss/ott24x7-ai") }) {
-                        Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("GitHub", fontSize = 12.sp)
+                        Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.github), fontSize = 12.sp)
                     }
                 }
             }
@@ -319,12 +340,16 @@ fun CombineSheet(
     onCopy: () -> Unit,
     onReRun: () -> Unit,
     onSettings: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onShare: () -> Unit = {},
+    sources: List<ExaSource> = emptyList(),
+    onOpenSource: (String) -> Unit = {}
 ) {
     val sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val colors = MaterialTheme.colorScheme
     var judgeMenu by remember { mutableStateOf(false) }
     val judge = endpoints.firstOrNull { it.id == judgeId } ?: endpoints.firstOrNull()
+    val sections = remember(answer) { splitFinalAnswer(answer) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -336,24 +361,36 @@ fun CombineSheet(
             if (answer.isNotBlank()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Final answer · ${judge?.name ?: "judge"}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Combined from your selected models", color = colors.onSurfaceVariant, fontSize = 12.sp)
+                        Text(stringResource(R.string.final_answer_judge, judge?.name ?: stringResource(R.string.judge)), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.combined_from_models), color = colors.onSurfaceVariant, fontSize = 12.sp)
                     }
-                    TextButton(onClick = onCopy, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 7.dp, vertical = 5.dp)) { Text("Copy", fontSize = 12.sp) }
-                    TextButton(onClick = onReRun, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 7.dp, vertical = 5.dp)) { Text("Re-run", fontSize = 12.sp) }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, "Close", tint = colors.onSurfaceVariant, modifier = Modifier.size(17.dp)) }
+                    Box {
+                        TextButton(onClick = { judgeMenu = true }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 5.dp, vertical = 5.dp)) { Text(stringResource(R.string.judge), fontSize = 12.sp) }
+                        DropdownMenu(expanded = judgeMenu, onDismissRequest = { judgeMenu = false }) {
+                            endpoints.forEach { endpoint -> DropdownMenuItem(text = { Text(endpoint.name) }, onClick = { judgeMenu = false; onJudgeSelected(endpoint.id) }) }
+                        }
+                    }
+                    TextButton(onClick = onCopy, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 7.dp, vertical = 5.dp)) { Text(stringResource(R.string.copy), fontSize = 12.sp) }
+                    IconButton(onClick = onShare, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Share, stringResource(R.string.share_final_answer), tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp)) }
+                    TextButton(onClick = onReRun, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 7.dp, vertical = 5.dp)) { Text(stringResource(R.string.rerun), fontSize = 12.sp) }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, stringResource(R.string.close), tint = colors.onSurfaceVariant, modifier = Modifier.size(17.dp)) }
                 }
                 Spacer(Modifier.height(10.dp))
-                MarkdownText(answer, Modifier.fillMaxWidth().height(360.dp).padding(bottom = 12.dp))
+                Column(Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState()).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    FinalSection(R.string.best_answer, sections["Best answer"].orEmpty().ifBlank { answer }, colors.primary)
+                    FinalSection(R.string.where_agree, sections["Where they agree"].orEmpty().ifBlank { stringResource(R.string.no_agreement) }, Color(0xFF53C991))
+                    FinalSection(R.string.where_differ, sections["Where they differ"].orEmpty().ifBlank { stringResource(R.string.no_differences) }, Color(0xFFE5A94F))
+                    if (sources.isNotEmpty()) CitationSourcesRow(answer, sources, onOpenSource)
+                }
             } else {
-                Text("✦ Combine", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text("Choose an API model to compare the answers and write a final response.", color = colors.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+                Text(stringResource(R.string.combine_answers), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.choose_api_judge), color = colors.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
                 if (endpoints.isEmpty()) {
-                    Text("Add an API model in Settings to use Combine.", color = colors.onSurfaceVariant, fontSize = 13.sp)
-                    Button(onClick = onSettings, modifier = Modifier.padding(top = 10.dp)) { Text("Open Settings") }
+                    Text(stringResource(R.string.add_api_settings), color = colors.onSurfaceVariant, fontSize = 13.sp)
+                    Button(onClick = onSettings, modifier = Modifier.padding(top = 10.dp)) { Text(stringResource(R.string.open_settings)) }
                 } else {
                     OutlinedButton(onClick = { judgeMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(judge?.name ?: "Choose judge model", Modifier.weight(1f))
+                        Text(judge?.name ?: stringResource(R.string.choose_judge_model), Modifier.weight(1f))
                         DropdownMenu(expanded = judgeMenu, onDismissRequest = { judgeMenu = false }) {
                             endpoints.forEach { endpoint ->
                                 DropdownMenuItem(text = { Text("${endpoint.name} · ${endpoint.modelId}") }, onClick = { judgeMenu = false; onJudgeSelected(endpoint.id) })
@@ -361,10 +398,35 @@ fun CombineSheet(
                         }
                     }
                     Button(onClick = onCombine, enabled = !loading && judge != null, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), shape = RoundedCornerShape(16.dp)) {
-                        Text(if (loading) "Combining…" else "Combine answers")
+                        Text(stringResource(if (loading) R.string.combining else R.string.combine_answers))
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun FinalSection(title: Int, body: String, accent: Color) {
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.surfaceVariant.copy(alpha = .55f)).border(1.dp, accent.copy(alpha = .32f), RoundedCornerShape(18.dp)).padding(12.dp)) {
+        Text(stringResource(title).uppercase(), color = accent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .6.sp)
+        MarkdownText(body, Modifier.fillMaxWidth().padding(top = 6.dp))
+    }
+}
+
+private fun splitFinalAnswer(answer: String): Map<String, String> {
+    val headings = listOf("Best answer", "Where they agree", "Where they differ")
+    val lines = answer.lines()
+    val found = mutableMapOf<String, String>()
+    var current: String? = null
+    val content = mutableListOf<String>()
+    fun save() { current?.let { found[it] = content.joinToString("\n").trim() }; content.clear() }
+    lines.forEach { line ->
+        val heading = headings.firstOrNull { line.trim().removePrefix("#").trim().equals(it, ignoreCase = true) }
+        if (heading != null) { save(); current = heading }
+        else if (current != null) content += line
+    }
+    save()
+    return found
 }

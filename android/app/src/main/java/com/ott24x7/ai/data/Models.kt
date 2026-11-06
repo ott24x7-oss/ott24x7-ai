@@ -16,13 +16,15 @@ data class ApiEndpoint(
     val name: String,
     val baseUrl: String,
     val apiKey: String,
-    val modelId: String
+    val modelId: String,
+    val imageModelId: String = ""
 )
 
 data class PanelAnswer(
     val text: String = "",
     val status: DeliveryStatus = DeliveryStatus.IDLE,
-    val loading: Boolean = false
+    val loading: Boolean = false,
+    val sources: List<ExaSource> = emptyList()
 )
 
 data class ApiChatMessage(val role: String, val content: String)
