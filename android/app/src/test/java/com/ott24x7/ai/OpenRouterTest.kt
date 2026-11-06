@@ -34,4 +34,10 @@ class OpenRouterTest {
         assertEquals("new", updated[1].apiKey)
         assertEquals("https://openrouter.ai/api/v1", updated[1].baseUrl)
     }
+
+    @Test
+    fun startersPreferLargestContext() {
+        val models = listOf(OpenRouterModel("s", "S", 8_000), OpenRouterModel("l", "L", 200_000), OpenRouterModel("m", "M", 32_000))
+        assertEquals(listOf("l", "m"), OpenRouter.pickStarters(models, 2).map { it.id })
+    }
 }

@@ -36,12 +36,14 @@ function CompareToolbarHarness({
   selection = [{ id: model.id, enabled: true }],
   canCombine = true,
   onCombine = vi.fn(),
-  onSelectSet = vi.fn()
+  onSelectSet = vi.fn(),
+  onOpenFreeModels = vi.fn()
 }: {
   selection?: CacheCompareModelSelection[]
   canCombine?: boolean
   onCombine?: () => void
   onSelectSet?: (setId: string) => void
+  onOpenFreeModels?: () => void
 }) {
   const [layout, setLayout] = useState<CompareLayout>({ kind: 'columns', columns: 2 })
 
@@ -63,6 +65,7 @@ function CompareToolbarHarness({
       canCombine={canCombine}
       onCombine={onCombine}
       onOpenHistory={vi.fn()}
+      onOpenFreeModels={onOpenFreeModels}
       apiPickerOpen={false}
       onApiPickerOpenChange={vi.fn()}
       cliAvailability={[]}
@@ -105,5 +108,14 @@ describe('CompareToolbar', () => {
     render(<CompareToolbarHarness canCombine={false} />)
 
     expect(screen.getByRole('button', { name: 'compare.combine' })).toBeDisabled()
+  })
+
+  it('opens the OpenRouter free models dialog from Compare', () => {
+    const onOpenFreeModels = vi.fn()
+    render(<CompareToolbarHarness onOpenFreeModels={onOpenFreeModels} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'openrouter.free_models.button' }))
+
+    expect(onOpenFreeModels).toHaveBeenCalledOnce()
   })
 })

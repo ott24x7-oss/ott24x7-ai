@@ -60,6 +60,7 @@ fun UpdateGate(activity: MainActivity) {
         val fetched = withContext(Dispatchers.IO) { AppUpdate.fetch(activity.updateManifestUrl(), allowHttp = activity.isDebugBuild()) }
         info = fetched
         decision = AppUpdate.decide(activity.installedVersionCode(), fetched)
+        activity.updateBlocking = decision == UpdateDecision.FORCED
     }
     val current = info ?: return
     when (decision) {

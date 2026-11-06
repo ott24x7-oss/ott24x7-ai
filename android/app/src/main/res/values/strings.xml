@@ -270,4 +270,8 @@
     <string name="openrouter_added">%1$d added</string>
     <string name="openrouter_remove_all">Remove all</string>
     <string name="openrouter_free">FREE</string>
+    <string name="openrouter_prompt_title">Try free AI models</string>
+    <string name="openrouter_prompt_body">Add a free OpenRouter key (no card needed) and we’ll add 4 free AI models to Compare for you. You can change them any time in Settings.</string>
+    <string name="openrouter_prompt_done">Done</string>
+    <string name="openrouter_prompt_never">Don’t show again</string>
 </resources>

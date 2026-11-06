@@ -16,8 +16,9 @@ vi.unmock('react-i18next')
 vi.unmock('@data/CacheService')
 vi.unmock('@data/hooks/useCache')
 
-const { openTab } = vi.hoisted(() => ({ openTab: vi.fn() }))
+const { openTab, openFreeModels } = vi.hoisted(() => ({ openTab: vi.fn(), openFreeModels: vi.fn() }))
 vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ openTab }) }))
+vi.mock('@renderer/components/app/DesktopUpdateProvider', () => ({ useDesktopUpdate: () => ({ openFreeModels }) }))
 vi.mock('@renderer/services/website', () => ({ openExternalWebsite: vi.fn() }))
 
 const i18n = createInstance()
@@ -36,6 +37,7 @@ beforeEach(() => {
   cacheService.deletePersist('ui.guide.checklist')
   cacheService.deletePersist('ui.guide.banner_dismissed')
   openTab.mockReset()
+  openFreeModels.mockReset()
 })
 
 afterEach(cleanup)
@@ -69,5 +71,15 @@ describe('GuideContent', () => {
     await user.click(screen.getByRole('button', { name: 'Open Settings → Model Provider' }))
 
     expect(openTab).toHaveBeenCalledWith('/settings/provider')
+  })
+
+  it('opens Compare and the free models dialog from the Guide entry', async () => {
+    const user = userEvent.setup()
+    renderGuide()
+
+    await user.click(screen.getByRole('button', { name: 'Add free OpenRouter models' }))
+
+    expect(openTab).toHaveBeenCalledWith('/app/compare')
+    expect(openFreeModels).toHaveBeenCalledOnce()
   })
 })

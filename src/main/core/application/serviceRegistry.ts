@@ -43,6 +43,7 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { DesktopUpdateService } from '@main/services/DesktopUpdateService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
@@ -199,6 +200,7 @@ export const services = {
   MiniAppRuntimeService,
   ApiGatewayService,
   AppUpdaterService,
+  DesktopUpdateService,
   AutoBackupService,
   SchedulerService,
   JobManager,

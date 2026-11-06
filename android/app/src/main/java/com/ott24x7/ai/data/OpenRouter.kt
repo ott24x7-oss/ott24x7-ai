@@ -29,6 +29,9 @@ object OpenRouter {
     /** Returns true when OpenRouter accepts the key. */
     fun verifyKey(apiKey: String): Boolean = runCatching { get("$OPENROUTER_BASE_URL/key", apiKey) }.isSuccess
 
+    /** Largest context first: a sensible default set to try. */
+    fun pickStarters(models: List<OpenRouterModel>, count: Int) = models.sortedByDescending { it.contextLength }.take(count)
+
     fun endpointId(modelId: String) = OPENROUTER_ENDPOINT_PREFIX + modelId
 
     fun isOpenRouterEndpoint(endpoint: ApiEndpoint) = endpoint.id.startsWith(OPENROUTER_ENDPOINT_PREFIX)

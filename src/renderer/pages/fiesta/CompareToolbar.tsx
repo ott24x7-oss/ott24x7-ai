@@ -46,6 +46,7 @@ interface CompareToolbarProps {
   canCombine: boolean
   onCombine: () => void
   onOpenHistory: () => void
+  onOpenFreeModels: () => void
   apiPickerOpen: boolean
   onApiPickerOpenChange: (open: boolean) => void
   cliAvailability: readonly CompareCliAvailability[]
@@ -71,6 +72,7 @@ export function CompareToolbar({
   canCombine,
   onCombine,
   onOpenHistory,
+  onOpenFreeModels,
   apiPickerOpen,
   onApiPickerOpenChange,
   cliAvailability,
@@ -276,6 +278,15 @@ export function CompareToolbar({
             </Tooltip>
           ))}
         </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 shrink-0 gap-1.5 px-2"
+          onClick={onOpenFreeModels}>
+          <Sparkles className="size-3.5" />
+          {t('openrouter.free_models.button')}
+        </Button>
         <Button type="button" size="sm" variant="ghost" className="h-8 shrink-0 gap-1.5 px-2" onClick={onOpenHistory}>
           <Clock3 className="size-3.5" />
           {t('history.records.shortTitle')}

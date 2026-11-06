@@ -11,6 +11,7 @@ import {
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
+import { DesktopUpdatePrompt, DesktopUpdateProvider } from '@renderer/components/app/DesktopUpdateProvider'
 import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
@@ -102,21 +103,24 @@ export function MainWindowContent(): React.ReactElement {
   )
 
   return (
-    <TabsProvider initialDefaultTab={initialDefaultTab}>
-      <PromosProvider>
-        <SidebarShortcutRegistryProvider registry={sidebarShortcutRegistry}>
-          <AppShell />
-          <MainWindowRuntime />
-          <ConversationNotificationRuntime />
-          <McpInteractionHost />
-          <PopupHost />
-          <ToastHost />
-          <WindowFileEditRecovery />
-          <DictationShortcutHost />
-          <VoicePlaybackHost />
-        </SidebarShortcutRegistryProvider>
-      </PromosProvider>
-    </TabsProvider>
+    <DesktopUpdateProvider>
+      <TabsProvider initialDefaultTab={initialDefaultTab}>
+        <PromosProvider>
+          <SidebarShortcutRegistryProvider registry={sidebarShortcutRegistry}>
+            <AppShell />
+            <MainWindowRuntime />
+            <ConversationNotificationRuntime />
+            <McpInteractionHost />
+            <PopupHost />
+            <ToastHost />
+            <WindowFileEditRecovery />
+            <DictationShortcutHost />
+            <VoicePlaybackHost />
+            <DesktopUpdatePrompt />
+          </SidebarShortcutRegistryProvider>
+        </PromosProvider>
+      </TabsProvider>
+    </DesktopUpdateProvider>
   )
 }
 

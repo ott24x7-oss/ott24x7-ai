@@ -32,6 +32,9 @@ import android.provider.Settings
 import androidx.compose.foundation.layout.Box
 import androidx.core.content.FileProvider
 import java.io.File
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import java.net.URI
 import org.json.JSONObject
 
@@ -51,6 +54,8 @@ class MainActivity : ComponentActivity() {
     private val googleSignInUrls = mutableMapOf<String, String>()
     var onGoogleSignInRequired: ((String) -> Unit)? = null
     var onSpeechResult: ((String) -> Unit)? = null
+    /** True while the forced-update screen is up, so no other dialog opens above it. */
+    var updateBlocking by mutableStateOf(false)
 
     private data class PendingWebPrompt(
         val panel: PanelDefinition,

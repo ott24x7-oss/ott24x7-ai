@@ -18,6 +18,20 @@ vi.mock('../privacy/PrivacyPolicyUpdateGate', () => ({
 }))
 
 const tabsProviderMock = vi.hoisted(() => ({ lastInitialDefaultTab: null as unknown }))
+const ipcMock = vi.hoisted(() => ({
+  request: vi.fn().mockResolvedValue({ decision: 'NONE', currentBuild: 2 }),
+  on: vi.fn(() => () => {})
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: ipcMock,
+  useIpcOn: () => {}
+}))
+vi.mock('@renderer/components/app/OpenRouterFreeModelsDialog', () => ({ OpenRouterFreeModelsDialog: () => null }))
+vi.mock('@renderer/components/app/DesktopUpdateProvider', () => ({
+  DesktopUpdateProvider: ({ children }: { children: ReactNode }) => children,
+  DesktopUpdatePrompt: () => null
+}))
 
 vi.mock('@renderer/components/layout/TabsProvider', () => ({
   TabsProvider: ({ children, initialDefaultTab }: { children: ReactNode; initialDefaultTab?: unknown }) => {

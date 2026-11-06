@@ -6,6 +6,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import { application } from '@application'
 import { registerKnowledgeFunctions } from '@data/db/knowledgeFunctions'
+import { backupDatabaseOnStartup } from '@data/db/startupBackup'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
@@ -47,6 +48,11 @@ export class DbService extends BaseService {
   constructor() {
     super()
     try {
+      try {
+        backupDatabaseOnStartup(application.getPath('app.database.file'))
+      } catch (error) {
+        logger.warn('Startup database backup failed', error as Error)
+      }
       this.ensureDatabaseIntegrity()
       // better-sqlite3 opens a bare filesystem path (not a file: URL) and keeps a single
       // persistent connection for the process lifetime, so the per-connection PRAGMAs set

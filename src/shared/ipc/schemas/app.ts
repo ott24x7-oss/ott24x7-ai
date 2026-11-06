@@ -16,6 +16,23 @@ const relocationInspectionSchema = z.discriminatedUnion('valid', [
   z.object({ valid: z.literal(false), reason: z.enum(USER_DATA_RELOCATION_VALIDATION_REASONS) })
 ])
 
+const desktopUpdateManifestSchema = z.object({
+  latestBuild: z.number().int().positive(),
+  minBuild: z.number().int().positive(),
+  version: z.string().min(1),
+  url: z.url(),
+  notes: z.string()
+})
+
+const desktopUpdateStatusSchema = z.discriminatedUnion('decision', [
+  z.object({ decision: z.literal('NONE'), currentBuild: z.number().int().positive() }),
+  z.object({
+    decision: z.enum(['OPTIONAL', 'FORCED']),
+    currentBuild: z.number().int().positive(),
+    manifest: desktopUpdateManifestSchema
+  })
+])
+
 const cacheCleanupGroupSchema = z.enum(CACHE_CLEANUP_GROUPS)
 const cacheCleanupSizeSchema = z.object({
   bytes: z.number().int().nonnegative().nullable(),
@@ -107,7 +124,10 @@ export const appRequestSchemas = {
       releases: z.array(z.object({ version: z.string(), releaseNotes: z.string() }))
     })
   }),
-  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
+  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() }),
+  'app.desktop_update.status.get': defineRoute({ input: z.void(), output: desktopUpdateStatusSchema }),
+  'app.desktop_update.download_install': defineRoute({ input: z.void(), output: z.boolean() }),
+  'app.desktop_update.open_in_browser': defineRoute({ input: z.void(), output: z.void() })
 }
 
 /**
@@ -127,4 +147,9 @@ export type AppEventSchemas = {
   'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
+  'app.desktop_update.download_progress': {
+    downloadedBytes: number
+    totalBytes: number | null
+    progress: number | null
+  }
 }

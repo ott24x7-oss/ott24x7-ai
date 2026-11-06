@@ -32,6 +32,7 @@ import { navigationHandlers } from './navigation'
 import { notificationHandlers } from './notification'
 import { oauthHandlers } from './oauth'
 import { openclawHandlers } from './openclaw'
+import { openrouterHandlers } from './openrouter'
 import { ovmsHandlers } from './ovms'
 import { pdfjsHandlers } from './pdfjs'
 import { printHandlers } from './print'
@@ -95,6 +96,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...notificationHandlers,
   ...oauthHandlers,
   ...openclawHandlers,
+  ...openrouterHandlers,
   ...ovmsHandlers,
   ...pdfjsHandlers,
   ...printHandlers,

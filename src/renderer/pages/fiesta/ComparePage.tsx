@@ -6,6 +6,7 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { GuideBanner } from '@renderer/components/app/GuideBanner'
 import { ComparePromoFooter } from '@renderer/components/app/PromoCard'
+import { useDesktopUpdate } from '@renderer/components/app/DesktopUpdateProvider'
 import { getModelDisplayTags } from '@renderer/components/tags/Model'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useTabs } from '@renderer/hooks/tab'
@@ -65,6 +66,7 @@ import {
   setCompareModelEnabled
 } from './compareState'
 import { CompareToolbar } from './CompareToolbar'
+import { OpenRouterFreeModelsDialog } from './OpenRouterFreeModelsDialog'
 import { CompareWelcomeCard } from './CompareWelcomeCard'
 import { buildSynthesisPrompt, type SynthesisAnswer } from './synthesisPrompt'
 import {
@@ -119,6 +121,7 @@ const compareLogger = loggerService.withContext('ComparePage')
 
 function ComparePage() {
   const { t } = useTranslation()
+  const { openFreeModels } = useDesktopUpdate()
   const firstPaintLoggedRef = useRef(false)
   const [selection, setSelection] = usePersistCache('ui.compare.model_selection')
   const [customSelection, setCustomSelection] = usePersistCache('ui.compare.custom_selection')
@@ -1289,6 +1292,7 @@ function ComparePage() {
         canCombine={canCombineAnswers || Boolean(finalAnswer)}
         onCombine={() => void handleCombine()}
         onOpenHistory={handleOpenHistory}
+        onOpenFreeModels={openFreeModels}
         apiPickerOpen={apiPickerOpen}
         onApiPickerOpenChange={handleApiPickerOpenChange}
         cliAvailability={cliAvailability}
@@ -1302,6 +1306,7 @@ function ComparePage() {
       finalAnswer,
       handleCombine,
       handleOpenHistory,
+      openFreeModels,
       handleApiPickerOpenChange,
       handleJudgeChange,
       handleJudgePickerOpen,
@@ -1445,6 +1450,7 @@ function ComparePage() {
         <HomePage compare={compareConfig} />
       </div>
       <ComparePromoFooter />
+      <OpenRouterFreeModelsDialog />
     </div>
   )
 }

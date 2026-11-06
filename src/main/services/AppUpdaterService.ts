@@ -96,6 +96,7 @@ export class AppUpdaterService extends BaseService {
   private updateCheckFailures = 0
 
   private updatesEnabled(): boolean {
+    // OTT24x7 AI uses DesktopUpdateService; never contact electron-updater feeds.
     return false
   }
 

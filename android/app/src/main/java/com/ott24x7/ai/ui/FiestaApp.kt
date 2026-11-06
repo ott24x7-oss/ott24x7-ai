@@ -168,6 +168,7 @@ fun FiestaApp(activity: MainActivity) {
     var readWebAnswers by remember { mutableStateOf(settings.readWebAnswers()) }
     var exaKey by remember { mutableStateOf(settings.exaApiKey()) }
     var openRouterKey by remember { mutableStateOf(settings.openRouterKey()) }
+    var showOpenRouterPrompt by remember { mutableStateOf(settings.openRouterKey().isBlank() && !settings.openRouterPromptNever()) }
     var webSearchEnabled by remember { mutableStateOf(settings.defaultWebSearch()) }
     var onboardingSeen by remember { mutableStateOf(settings.onboardingSeen()) }
     var guideDone by remember { mutableStateOf(settings.guideChecklist()) }
@@ -638,6 +639,22 @@ fun FiestaApp(activity: MainActivity) {
             }
         }
 
+    if (showOpenRouterPrompt && onboardingSeen && !activity.updateBlocking) {
+        OpenRouterPromptDialog(
+            onDismiss = { showOpenRouterPrompt = false },
+            onNever = { settings.saveOpenRouterPromptNever(); showOpenRouterPrompt = false }
+        ) {
+            OpenRouterSection(
+                apiKey = openRouterKey,
+                endpoints = endpoints,
+                onApiKey = { openRouterKey = it; settings.saveOpenRouterKey(it) },
+                onEndpointsChanged = applyEndpoints,
+                onOpenUrl = activity::openExternal,
+                autoAddCount = 4,
+                compact = true
+            )
+        }
+    }
     if (showModelPicker) {
         ModelPickerSheet(
             panels = panels,

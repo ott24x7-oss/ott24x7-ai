@@ -69,6 +69,8 @@ class SecureSettings(context: Context) {
     fun saveHistoryTurns(values: List<HistoryTurn>) = preferences.edit().putString("history_turns", HistoryStoreCodec.encode(values)).apply()
     fun openRouterKey(): String = preferences.getString("openrouter_api_key", "").orEmpty()
     fun saveOpenRouterKey(value: String) = preferences.edit().putString("openrouter_api_key", value).apply()
+    fun openRouterPromptNever(): Boolean = preferences.getBoolean("openrouter_prompt_never", false)
+    fun saveOpenRouterPromptNever() = preferences.edit().putBoolean("openrouter_prompt_never", true).apply()
     fun endpoints(): List<ApiEndpoint> = runCatching {
         val array = JSONArray(preferences.getString("api_endpoints", "[]"))
         (0 until array.length()).map { index ->

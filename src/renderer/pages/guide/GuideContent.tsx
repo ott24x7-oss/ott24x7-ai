@@ -13,6 +13,7 @@ import { useCallback, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { useDesktopUpdate } from '@renderer/components/app/DesktopUpdateProvider'
 import screenshot01 from '@renderer/assets/images/guide/01-compare-4-ai-answers.webp'
 import screenshot02 from '@renderer/assets/images/guide/02-final-answer-panel.webp'
 import screenshot03 from '@renderer/assets/images/guide/03-web-search-with-citations.webp'
@@ -69,6 +70,7 @@ function scrollToStep(step: number) {
 export function GuideContent() {
   const { t } = useTranslation()
   const { openTab } = useTabs()
+  const { openFreeModels } = useDesktopUpdate()
   const { done, setDone, progress, complete, markAllDone, reset } = useGuideChecklist()
   const [openScreenshot, setOpenScreenshot] = useState<OpenScreenshot | null>(null)
 
@@ -97,12 +99,24 @@ export function GuideContent() {
           <h1 className="text-3xl font-semibold">{t('guide.title')}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{t('guide.subtitle')}</p>
         </div>
-        <div
-          role="status"
-          aria-live="polite"
-          className="flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-xs font-medium">
-          <CircleCheck className={complete ? 'size-4 text-success' : 'size-4 text-primary'} aria-hidden />
-          {t('guide.progress', { done: progress })}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              openTab('/app/compare')
+              openFreeModels()
+            }}>
+            {t('guide.actions.free_models')}
+          </Button>
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-xs font-medium">
+            <CircleCheck className={complete ? 'size-4 text-success' : 'size-4 text-primary'} aria-hidden />
+            {t('guide.progress', { done: progress })}
+          </div>
         </div>
       </header>
 
