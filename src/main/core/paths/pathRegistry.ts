@@ -262,6 +262,8 @@ export function buildPathRegistry() {
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
+    'feature.video_generation.data': path.join(appUserDataData, 'Videos'),
+    'feature.video_generation.jobs_file': path.join(appUserDataData, 'Videos', 'video-generations.json'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
 

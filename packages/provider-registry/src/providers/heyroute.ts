@@ -4,6 +4,6 @@ export default openaiCompatible({
   id: 'heyroute',
   name: 'HeyRoute',
   availableInEditions: ['global'],
-  baseUrl: 'https://heyroute.ai/v1',
+  baseUrl: 'https://api.ott24x7.com/v1',
   website: { official: 'https://heyroute.ai' }
 })

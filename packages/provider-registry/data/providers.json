@@ -2700,7 +2700,7 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://heyroute.ai/v1"
+          "baseUrl": "https://api.ott24x7.com/v1"
         }
       },
       "id": "heyroute",

@@ -50,6 +50,7 @@ import { toolResultHandlers } from './toolResult'
 import { translateHandlers } from './translate'
 import { trashHandlers } from './trash'
 import { voiceHandlers } from './voice'
+import { videoGenerationHandlers } from './videoGeneration'
 import { webSearchHandlers } from './webSearch'
 import { webviewHandlers } from './webview'
 import { windowHandlers } from './window'
@@ -67,6 +68,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...aiHandlers,
   ...agentHandlers,
   ...voiceHandlers,
+  ...videoGenerationHandlers,
   ...apiGatewayHandlers,
   ...appHandlers,
   ...backupHandlers,

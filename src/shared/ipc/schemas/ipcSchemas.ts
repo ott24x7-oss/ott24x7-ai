@@ -48,6 +48,7 @@ import { toolResultRequestSchemas } from './toolResult'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
 import { trashRequestSchemas } from './trash'
 import { type VoiceEventSchemas, voiceRequestSchemas } from './voice'
+import { type VideoGenerationEventSchemas, videoGenerationRequestSchemas } from './videoGeneration'
 import { type WebSearchEventSchemas, webSearchRequestSchemas } from './webSearch'
 import { type WebviewEventSchemas, webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -63,6 +64,7 @@ export const ipcRequestSchemas = {
   ...aiRequestSchemas,
   ...agentRequestSchemas,
   ...voiceRequestSchemas,
+  ...videoGenerationRequestSchemas,
   ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
   ...backupRequestSchemas,
@@ -145,6 +147,7 @@ export type IpcEventSchemas = AiEventSchemas &
   TabEventSchemas &
   TranslateEventSchemas &
   VoiceEventSchemas &
+  VideoGenerationEventSchemas &
   WebSearchEventSchemas &
   WebviewEventSchemas &
   WindowEventSchemas

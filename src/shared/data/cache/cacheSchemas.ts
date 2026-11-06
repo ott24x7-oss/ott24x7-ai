@@ -458,6 +458,7 @@ export type RendererPersistCacheSchema = {
   'ui.compare.defaults_seeded': boolean
   'ui.compare.welcome_dismissed': boolean
   'ui.compare.judge': string
+  'ui.studio.sign_in_hint_dismissed': boolean
   'ui.compare.auto_combine': boolean
   'ui.compare.read_web_answers': boolean
   'ui.compare.web_search_enabled': boolean
@@ -542,6 +543,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.compare.defaults_seeded': false,
   'ui.compare.welcome_dismissed': true,
   'ui.compare.judge': 'auto',
+  'ui.studio.sign_in_hint_dismissed': false,
   'ui.compare.auto_combine': true,
   'ui.compare.read_web_answers': true,
   'ui.compare.web_search_enabled': false,

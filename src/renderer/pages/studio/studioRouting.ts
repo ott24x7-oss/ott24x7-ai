@@ -1,4 +1,4 @@
-export type StudioTabId = 'generate' | 'gemini' | 'flow' | 'chatgpt-images' | 'designer'
+export type StudioTabId = 'generate' | 'video' | 'gemini' | 'flow' | 'chatgpt-images' | 'designer'
 
 export const STUDIO_TAB_MINI_APP_IDS: Partial<Record<StudioTabId, string>> = {
   gemini: 'gemini',
@@ -11,7 +11,8 @@ const MINI_APP_STUDIO_TABS = new Map(
   Object.entries(STUDIO_TAB_MINI_APP_IDS).flatMap(([tabId, appId]) => (appId ? [[appId, tabId as StudioTabId]] : []))
 )
 
-export function studioTabFromMiniAppId(miniAppId: string | undefined): StudioTabId {
+export function studioTabFromMiniAppId(miniAppId: string | undefined, tab?: string): StudioTabId {
+  if (tab === 'video') return 'video'
   return (miniAppId && MINI_APP_STUDIO_TABS.get(miniAppId)) || 'generate'
 }
 

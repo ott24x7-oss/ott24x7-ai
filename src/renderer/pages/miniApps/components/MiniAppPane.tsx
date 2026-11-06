@@ -27,6 +27,8 @@ interface Props {
   hostShortcutEnabled?: boolean
   /** Fired when the user interacts with this pane, so the page can track focus. */
   onActivate?: () => void
+  onLoadingChange?: (isLoading: boolean) => void
+  onCurrentUrlChange?: (url: string) => void
   className?: string
 }
 
@@ -52,6 +54,8 @@ const MiniAppPane: FC<Props> = ({
   onSplit,
   hostShortcutEnabled,
   onActivate,
+  onLoadingChange,
+  onCurrentUrlChange,
   className
 }) => {
   const { t } = useTranslation()
@@ -63,6 +67,7 @@ const MiniAppPane: FC<Props> = ({
   const resource = useMiniAppWebview(app.appId)
   const isReady = resource?.loaded ?? false
   const [currentUrl, setCurrentUrl] = useState<string | null>(app.url)
+  const [pageLoading, setPageLoading] = useState(true)
   const { webviewRef, webviewRevision } = useConcreteWebview(isReady ? (resource?.element ?? null) : null)
   const webview = webviewRef.current
 
@@ -75,13 +80,28 @@ const MiniAppPane: FC<Props> = ({
     // Clicking into the page focuses the webview element itself; that is the
     // only signal the host gets, since events inside the guest never bubble out.
     const handleFocus = () => onActivateRef.current?.()
+    const handleStartLoading = () => setPageLoading(true)
+    const handleStopLoading = () => setPageLoading(false)
     webview.addEventListener('did-navigate-in-page', handleInPageNav)
     webview.addEventListener('focus', handleFocus)
+    webview.addEventListener('did-start-loading', handleStartLoading)
+    webview.addEventListener('did-stop-loading', handleStopLoading)
+    setPageLoading(webview.isLoading())
     return () => {
       webview.removeEventListener('did-navigate-in-page', handleInPageNav)
       webview.removeEventListener('focus', handleFocus)
+      webview.removeEventListener('did-start-loading', handleStartLoading)
+      webview.removeEventListener('did-stop-loading', handleStopLoading)
     }
   }, [webview])
+
+  useEffect(() => {
+    onLoadingChange?.(pageLoading || !isReady)
+  }, [isReady, onLoadingChange, pageLoading])
+
+  useEffect(() => {
+    if (currentUrl) onCurrentUrlChange?.(currentUrl)
+  }, [currentUrl, onCurrentUrlChange])
 
   const handleReload = useCallback(() => {
     if (isReady && webview?.isConnected) webview.reload()

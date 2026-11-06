@@ -1,4 +1,4 @@
-import { BookOpen, Settings2 } from 'lucide-react'
+import { BookOpen, LoaderCircle, Settings2, WandSparkles } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -153,6 +153,9 @@ export interface PaintingComposerProps {
   onModelSelect: (selection: { providerId: string; modelId: string }) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
   onGenerateRandomSeed?: (key: string) => void
+  canEnhancePrompt?: boolean
+  enhancingPrompt?: boolean
+  onEnhancePrompt?: (prompt: string) => Promise<string>
 }
 
 /** Bottom-toolbar popover hosting the image-generation parameter list. */
@@ -221,7 +224,10 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   onGenerateRandomSeed,
   model,
   couldAddImageFile,
-  initialPromptDraft
+  initialPromptDraft,
+  canEnhancePrompt = false,
+  enhancingPrompt = false,
+  onEnhancePrompt
 }) => {
   const { t } = useTranslation()
   const { files, isExpanded } = useComposerToolState()
@@ -298,6 +304,11 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     setPromptDraft(prompt)
   }, [painting.prompt])
 
+  useEffect(() => {
+    if (painting.generationStatus !== 'failed' || !painting.prompt) return
+    setPromptDraft((current) => (current.trim() ? current : painting.prompt))
+  }, [painting.generationStatus, painting.prompt])
+
   // Edit-image models: images live in the top reference-image tray (reads `files` from
   // context), so emit no file pills and manage no tokens — `files` stays authoritative.
   const tokens = useMemo(
@@ -313,6 +324,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     },
     [onPromptChange]
   )
+
+  const handleEnhancePrompt = useCallback(async () => {
+    if (!onEnhancePrompt || !text.trim()) return
+    const improved = await onEnhancePrompt(text)
+    if (improved) handleTextChange(improved)
+  }, [handleTextChange, onEnhancePrompt, text])
 
   // The request is orchestrated by its owner (usePaintingGenerationSubmit), which
   // holds the re-entrancy guard and runs materialization only after the preconditions
@@ -377,6 +394,26 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
                   onConfigChange={onConfigChange}
                   onGenerateRandomSeed={onGenerateRandomSeed}
                 />
+                {onEnhancePrompt && (
+                  <Tooltip content={t('studio.prompt_helper.add_model')} isDisabled={canEnhancePrompt}>
+                    <span className="block">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'text-muted-foreground')}
+                        disabled={!canEnhancePrompt || !text.trim() || enhancingPrompt}
+                        onClick={() => void handleEnhancePrompt()}>
+                        {enhancingPrompt ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          <WandSparkles className="size-4" />
+                        )}
+                        {t(enhancingPrompt ? 'studio.prompt_helper.improving' : 'studio.prompt_helper.enhance')}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
                 <Tooltip content={t('settings.prompts.title')}>
                   <Button
                     ref={(element) => {

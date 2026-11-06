@@ -36,6 +36,7 @@ import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { BrowserSessionService } from '@main/features/browser'
 import { CompareCliService } from '@main/features/compare/CompareCliService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
+import { VideoGenerationService } from '@main/features/videoGeneration'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
 import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
@@ -142,6 +143,7 @@ export const services = {
   FileIntakeService,
   DirectoryTreeManager,
   FileProcessingService,
+  VideoGenerationService,
   PowerService,
   RuntimeActivityService,
   RuntimeQuitConfirmationService,

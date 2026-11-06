@@ -2,16 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import { miniAppIdForStudioTab, studioTabFromMiniAppId } from '../studioRouting'
 
-describe('studio tab routing', () => {
-  it('routes web tabs to their saved mini app sessions', () => {
-    expect(miniAppIdForStudioTab('gemini')).toBe('gemini')
-    expect(miniAppIdForStudioTab('flow')).toBe('google-flow')
-    expect(miniAppIdForStudioTab('chatgpt-images')).toBe('chatgpt-images')
-    expect(miniAppIdForStudioTab('designer')).toBe('microsoft-designer')
+describe('Studio tab routing', () => {
+  it('keeps Video in Studio search state without treating it as a Mini App', () => {
+    expect(studioTabFromMiniAppId(undefined, 'video')).toBe('video')
+    expect(miniAppIdForStudioTab('video')).toBeUndefined()
   })
 
-  it('returns Generate for the default and unknown web app routes', () => {
+  it('continues to route Generate and saved Mini Apps', () => {
     expect(studioTabFromMiniAppId(undefined)).toBe('generate')
-    expect(studioTabFromMiniAppId('unknown-app')).toBe('generate')
+    expect(studioTabFromMiniAppId('google-flow')).toBe('flow')
+    expect(miniAppIdForStudioTab('flow')).toBe('google-flow')
   })
 })

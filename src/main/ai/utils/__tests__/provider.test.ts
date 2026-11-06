@@ -34,6 +34,10 @@ describe('getBaseUrl', () => {
     expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('https://relay.example/openai')
   })
 
+  it('uses the provider API host when a video-specific host is not configured', () => {
+    expect(getBaseUrl(relayProvider(), ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION)).toBe('https://relay.example/openai')
+  })
+
   it('uses legacy behavior when preferredEndpoint is omitted', () => {
     expect(getBaseUrl(relayProvider())).toBe('https://relay.example/openai')
   })

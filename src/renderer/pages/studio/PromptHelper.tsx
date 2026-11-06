@@ -1,11 +1,12 @@
-import { WandSparkles } from 'lucide-react'
+import { LoaderCircle, WandSparkles } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, Textarea } from '@cherrystudio/ui'
-import { useDefaultModel } from '@renderer/hooks/useModel'
-import { ipcApi } from '@renderer/ipc'
+import { Button, Input, Textarea, Tooltip } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
+
+import { improveStudioPrompt } from './studioPrompt'
+import { useStudioPromptModel } from './useStudioPromptModel'
 
 const OPTION_FIELDS = [
   { key: 'style', labelKey: 'studio.prompt_helper.style', value: 'Photorealistic' },
@@ -15,7 +16,7 @@ const OPTION_FIELDS = [
 
 export default function PromptHelper({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
-  const { defaultModel } = useDefaultModel()
+  const model = useStudioPromptModel()
   const [prompt, setPrompt] = useState('')
   const [options, setOptions] = useState<Record<'style' | 'camera' | 'lighting', string>>({
     style: 'Photorealistic',
@@ -32,23 +33,11 @@ export default function PromptHelper({ onClose }: { onClose: () => void }) {
   }
 
   const improvePrompt = async () => {
-    if (!prompt.trim() || !defaultModel) return
+    if (!prompt.trim() || !model) return
     setImproving(true)
     try {
-      const { text } = await ipcApi.request('ai.text.generate', {
-        uniqueModelId: defaultModel.id,
-        reasoningEffort: 'none',
-        system: [
-          'Rewrite the user prompt as a detailed image or video generation prompt.',
-          `Style: ${options.style || 'choose a fitting style'}.`,
-          `Camera: ${options.camera || 'choose an appropriate camera framing'}.`,
-          `Lighting: ${options.lighting || 'choose suitable lighting'}.`,
-          `Aspect ratio: ${aspectRatio}.`,
-          'Keep the subject and intent. Return only the finished prompt.'
-        ].join('\n'),
-        prompt: prompt.trim()
-      })
-      if (text.trim()) setPrompt(text.trim())
+      const improved = await improveStudioPrompt(model.id, prompt, { ...options, aspectRatio })
+      if (improved) setPrompt(improved)
     } catch (error) {
       toast.errorFromException(error ?? new Error(t('studio.prompt_helper.improve_failed')))
     } finally {
@@ -93,13 +82,17 @@ export default function PromptHelper({ onClose }: { onClose: () => void }) {
             ))}
           </select>
         </label>
-        <Button
-          variant="outline"
-          disabled={!prompt.trim() || !defaultModel || improving}
-          onClick={() => void improvePrompt()}>
-          <WandSparkles size={16} />
-          {improving ? t('studio.prompt_helper.improving') : t('studio.prompt_helper.improve')}
-        </Button>
+        <Tooltip content={t('studio.prompt_helper.add_model')} isDisabled={Boolean(model)}>
+          <span className="block">
+            <Button
+              variant="outline"
+              disabled={!prompt.trim() || !model || improving}
+              onClick={() => void improvePrompt()}>
+              {improving ? <LoaderCircle className="size-4 animate-spin" /> : <WandSparkles size={16} />}
+              {improving ? t('studio.prompt_helper.improving') : t('studio.prompt_helper.improve')}
+            </Button>
+          </span>
+        </Tooltip>
         <div className="mt-auto grid grid-cols-2 gap-2">
           <Button variant="secondary" disabled={!prompt.trim()} onClick={() => void copyPrompt()}>
             {t('common.copy')}
