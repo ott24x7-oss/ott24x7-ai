@@ -36,7 +36,8 @@ function seoFiles(siteUrl: string): Plugin {
 
 // Preload the hero images so the browser fetches them before the JS runs (faster LCP).
 // The sizes must match the ones in Hero.tsx so the same file is picked.
-function heroPreload(): Plugin {
+function heroPreload(base: string): Plugin {
+  const b = base.replace(/\/$/, '');
   const HERO = [
     { key: 'desktop/01-compare-4-ai-answers', sizes: '(min-width: 1100px) 1000px, 92vw' },
     { key: 'android/answers-dark', sizes: '(min-width: 1100px) 230px, 30vw' },
@@ -49,7 +50,7 @@ function heroPreload(): Plugin {
         .filter((f) => /(space-grotesk-latin-700-normal|inter-latin-wght-normal)[^/]*\.woff2$/.test(f))
         .map((f) => ({
           tag: 'link',
-          attrs: { rel: 'preload', as: 'font', type: 'font/woff2', href: `/${f}`, crossorigin: '' },
+          attrs: { rel: 'preload', as: 'font', type: 'font/woff2', href: `${b}/${f}`, crossorigin: '' },
           injectTo: 'head' as const,
         }));
       const shots = JSON.parse(readFileSync(new URL('./src/shots.json', import.meta.url), 'utf8')) as Record<
@@ -62,7 +63,7 @@ function heroPreload(): Plugin {
           rel: 'preload',
           as: 'image',
           type: 'image/webp',
-          imagesrcset: shots[h.key].srcs.map((s) => `${s.url} ${s.w}w`).join(', '),
+          imagesrcset: shots[h.key].srcs.map((s) => `${b}${s.url} ${s.w}w`).join(', '),
           imagesizes: h.sizes,
           fetchpriority: 'high',
         },
@@ -74,10 +75,13 @@ function heroPreload(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const siteUrl = (env.VITE_SITE_URL || 'https://ai.ott24x7.com').replace(/\/+$/, '');
+  const siteUrl = (env.VITE_SITE_URL || 'https://ott24x7.com/ai').replace(/\/+$/, '');
+  // Path the site is served under: "/ai/" inside the ott24x7.com shop, "/" on its own domain.
+  const base = env.VITE_BASE || '/ai/';
   process.env.VITE_SITE_URL = siteUrl;
   return {
-    plugins: [react(), tailwindcss(), seoFiles(siteUrl), heroPreload()],
+    base,
+    plugins: [react(), tailwindcss(), seoFiles(siteUrl), heroPreload(base)],
     build: { target: 'es2020', cssMinify: true, assetsInlineLimit: 2048 },
     preview: { allowedHosts: true },
   };

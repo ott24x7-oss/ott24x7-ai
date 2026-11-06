@@ -39,9 +39,26 @@ A section whose screenshot is missing still renders, just without the image. No 
 
 ## Site URL
 
-The public URL is set by `VITE_SITE_URL` (default in `.env`: `https://ai.ott24x7.com`). It is used for the canonical link, Open Graph, JSON-LD, `sitemap.xml` and `robots.txt`, which are generated at build time.
+The public URL is set by `VITE_SITE_URL` (default: `https://ott24x7.com/ai`), and the path the site is served under by `VITE_BASE` (default `/ai/`; the Dockerfile uses `/`). It is used for the canonical link, Open Graph, JSON-LD, `sitemap.xml` and `robots.txt`, which are generated at build time.
 
-## Deploy on Railway
+## Live at ott24x7.com/ai
+
+The page is served by the OTT24x7 shop (Flask app in the `railway_final` repo) at
+**https://ott24x7.com/ai**. The build uses `VITE_BASE=/ai/`, so every file URL starts with `/ai/`.
+
+To update it:
+
+```bash
+cd site
+npm run build
+# copy the build into the shop (robots.txt and sitemap.xml are left out; the shop has its own)
+rm -rf "<railway_final>/web/ai_site" && cp -r dist "<railway_final>/web/ai_site"
+rm "<railway_final>/web/ai_site/robots.txt" "<railway_final>/web/ai_site/sitemap.xml"
+```
+
+Then commit `web/ai_site/` in the shop repo and push. The shop routes are `ai_landing*` in `public_site.py`.
+
+## Deploy on Railway (standalone, optional)
 
 This folder has a `Dockerfile` (Node builds the site, nginx serves `dist/` on `$PORT` with gzip and cache headers) and a `railway.json`.
 

@@ -12,7 +12,7 @@ function useTheme(): [Theme, () => void] {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try {
-      localStorage.setItem('theme', theme);
+      localStorage.setItem('ott-ai-theme', theme);
     } catch {
       /* storage blocked: theme still works for this visit */
     }

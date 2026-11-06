@@ -4,7 +4,7 @@ import { ImageIcon } from 'lucide-react';
 import { ALT, type ShotId } from '../content';
 
 export function Mark({ className = 'h-8 w-8' }: { className?: string }) {
-  return <img src="/mark.svg" alt="" width={32} height={32} className={className} decoding="async" />;
+  return <img src={`${import.meta.env.BASE_URL}mark.svg`} alt="" width={32} height={32} className={className} decoding="async" />;
 }
 
 export function Wordmark({ size = 'text-lg' }: { size?: string }) {

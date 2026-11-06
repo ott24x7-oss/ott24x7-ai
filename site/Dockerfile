@@ -4,8 +4,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
-ARG VITE_SITE_URL
-ENV VITE_SITE_URL=${VITE_SITE_URL}
+# Standalone deploy serves the site from the domain root.
+ARG VITE_SITE_URL=https://ott24x7.com/ai
+ARG VITE_BASE=/
+ENV VITE_SITE_URL=${VITE_SITE_URL} VITE_BASE=${VITE_BASE}
 RUN npm run build
 
 FROM nginx:1.27-alpine

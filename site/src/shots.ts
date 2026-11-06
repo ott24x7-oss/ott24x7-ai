@@ -28,7 +28,10 @@ export function getShot(id: ShotId): Shot | undefined {
   }
   if (!key) return undefined;
   const e = entries[key];
-  return { id, kind, ...e, alt: ALT[id] };
+  // shots.json stores root paths; prefix the deploy base (e.g. /ai/).
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const srcs = e.srcs.map((s) => ({ w: s.w, url: base + s.url }));
+  return { id, kind, width: e.width, height: e.height, srcs, alt: ALT[id] };
 }
 
 /** The desktop shot if it exists, otherwise the Android fallback (if any), otherwise the desktop id (renders a placeholder). */
