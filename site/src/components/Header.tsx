@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Github, Menu, Moon, Sun, X } from 'lucide-react';
 import { LINKS, NAV } from '../content';
 import { Logo } from './ui';
@@ -36,7 +36,16 @@ export function ThemeToggle() {
   );
 }
 
-export function Header() {
+export function Header({
+  nav = NAV,
+  cta,
+  homeHref = '#top',
+}: {
+  nav?: { href: string; label: string }[];
+  /** Replaces the GitHub button (e.g. a "Get API key" button). */
+  cta?: ReactNode;
+  homeHref?: string;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -69,12 +78,12 @@ export function Header() {
         Skip to content
       </a>
       <nav aria-label="Main" className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <a href="#top" aria-label="OTT24x7 AI home" className="shrink-0">
+        <a href={homeHref} aria-label="OTT24x7 AI home" className="shrink-0">
           <Logo />
         </a>
 
         <ul className="hidden items-center gap-1 md:flex">
-          {NAV.map((n) => (
+          {nav.map((n) => (
             <li key={n.href}>
               <a
                 href={n.href}
@@ -88,6 +97,7 @@ export function Header() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          {cta ?? (
           <a
             href={LINKS.repo}
             target="_blank"
@@ -97,6 +107,7 @@ export function Header() {
             <Github size={16} aria-hidden="true" />
             GitHub
           </a>
+          )}
           <button
             type="button"
             className="grid h-9 w-9 place-items-center rounded-lg border border-line md:hidden"
@@ -113,7 +124,7 @@ export function Header() {
       {open && (
         <div id="mobile-menu" className="border-t border-line px-4 pb-5 pt-2 md:hidden">
           <ul className="flex flex-col">
-            {NAV.map((n) => (
+            {nav.map((n) => (
               <li key={n.href}>
                 <a
                   href={n.href}

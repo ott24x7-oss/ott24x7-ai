@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -45,9 +46,13 @@ function heroPreload(base: string): Plugin {
   return {
     name: 'hero-preload',
     transformIndexHtml(_html, ctx) {
+      const credit = ctx.filename.endsWith('buy-api-credit.html');
       // Preload the fonts used above the fold so the headline does not re-render late.
+      const fontRe = credit
+        ? /(newsreader-latin-400-normal|plus-jakarta-sans-latin-wght-normal)[^/]*\.woff2$/
+        : /(space-grotesk-latin-700-normal|inter-latin-wght-normal)[^/]*\.woff2$/;
       const fonts = Object.keys(ctx.bundle ?? {})
-        .filter((f) => /(space-grotesk-latin-700-normal|inter-latin-wght-normal)[^/]*\.woff2$/.test(f))
+        .filter((f) => fontRe.test(f))
         .map((f) => ({
           tag: 'link',
           attrs: { rel: 'preload', as: 'font', type: 'font/woff2', href: `${b}/${f}`, crossorigin: '' },
@@ -57,6 +62,7 @@ function heroPreload(base: string): Plugin {
         string,
         { srcs: { w: number; url: string }[] }
       >;
+      if (credit) return fonts;
       return [...fonts, ...HERO.filter((h) => shots[h.key]).map((h) => ({
         tag: 'link',
         attrs: {
@@ -79,10 +85,22 @@ export default defineConfig(({ mode }) => {
   // Path the site is served under: "/ai/" inside the ott24x7.com shop, "/" on its own domain.
   const base = env.VITE_BASE || '/ai/';
   process.env.VITE_SITE_URL = siteUrl;
+  // Site origin (scheme + host), used by pages that live outside /ai (e.g. /buy-api-credit).
+  process.env.VITE_ORIGIN = new URL(siteUrl).origin;
   return {
     base,
     plugins: [react(), tailwindcss(), seoFiles(siteUrl), heroPreload(base)],
-    build: { target: 'es2020', cssMinify: true, assetsInlineLimit: 2048 },
+    build: {
+      target: 'es2020',
+      cssMinify: true,
+      assetsInlineLimit: 2048,
+      rollupOptions: {
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          credit: fileURLToPath(new URL('./buy-api-credit.html', import.meta.url)),
+        },
+      },
+    },
     preview: { allowedHosts: true },
   };
 });

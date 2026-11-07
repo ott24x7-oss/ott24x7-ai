@@ -116,10 +116,45 @@ async function brand(manifest) {
   console.log(`  og.png (${hasDesk ? 'desktop + phone' : 'phone only'})`);
 }
 
+
+// Share image for the Buy-API-Credit page (cream paper + gradient words).
+async function creditOg() {
+  const W = 1200, H = 630;
+  const chips = ['OpenAI', 'Claude', 'Gemini', 'Grok', 'DeepSeek', 'Kimi', 'Qwen', 'GLM', 'Image & Video'];
+  let x = 72;
+  const chipSvg = chips.map((c) => {
+    const w = 22 + c.length * 11.5;
+    const out = `<rect x="${x}" y="452" width="${w}" height="40" rx="20" fill="#fffdf8" stroke="#e4dccc"/>` +
+      `<text x="${x + w / 2}" y="478" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#5f574b">${c.replace('&', '&amp;')}</text>`;
+    x += w + 10;
+    return out;
+  }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+    <defs>
+      <radialGradient id="a" cx="0.15" cy="0.1" r="0.5"><stop offset="0" stop-color="#ffb3c7"/><stop offset="1" stop-color="#f6f1e7" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b" cx="0.9" cy="0.05" r="0.5"><stop offset="0" stop-color="#c9b8ff"/><stop offset="1" stop-color="#f6f1e7" stop-opacity="0"/></radialGradient>
+      <radialGradient id="c" cx="0.6" cy="0.75" r="0.5"><stop offset="0" stop-color="#ffd3a1"/><stop offset="1" stop-color="#f6f1e7" stop-opacity="0"/></radialGradient>
+      <linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#ff4d8d"/><stop offset="0.5" stop-color="#ff8a3d"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
+    </defs>
+    <rect width="100%" height="100%" fill="#f6f1e7"/>
+    <rect width="100%" height="100%" fill="url(#a)"/><rect width="100%" height="100%" fill="url(#b)"/><rect width="100%" height="100%" fill="url(#c)"/>
+    <text x="152" y="112" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" fill="#1f1b16">OTT24x7 <tspan fill="url(#g)">AI</tspan> <tspan font-size="22" font-weight="600" fill="#8a8173">· API</tspan></text>
+    <text x="72" y="250" font-family="Georgia, 'Times New Roman', serif" font-size="78" fill="#1f1b16" letter-spacing="-1.5">Every top AI.</text>
+    <text x="72" y="340" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="78" fill="url(#g)" letter-spacing="-1.5">One API key.</text>
+    <text x="72" y="405" font-family="Segoe UI, Arial, sans-serif" font-size="26" fill="#5f574b">Pay-as-you-go from ₹150 · No monthly fee · Free app included</text>
+    ${chipSvg}
+    <text x="72" y="566" font-family="Consolas, monospace" font-size="22" fill="#c2532f">api.ott24x7.com/v1</text>
+  </svg>`;
+  const logo = await sharp(path.join(root, 'brand', 'mark.svg')).resize(60, 60).png().toBuffer();
+  await sharp(Buffer.from(svg)).composite([{ input: logo, left: 72, top: 68 }]).png({ compressionLevel: 9 }).toFile(path.join(pub, 'og-credit.png'));
+  console.log('  og-credit.png');
+}
+
 console.log('Screenshots:');
 const manifest = await shots();
 console.log('Brand:');
 await brand(manifest);
+await creditOg();
 if (!manifest['desktop/01-compare-4-ai-answers']) {
   console.warn('\n! Desktop screenshots are missing. Add 01…07 PNGs to screenshots/desktop/ and run again.');
 }
