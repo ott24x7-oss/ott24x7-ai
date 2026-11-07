@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.14"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="225" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="225" fill="url(#sheen)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="52" stroke-linecap="round">
+    <path d="M300 300 C 380 380, 430 420, 462 452"/>
+    <path d="M724 300 C 644 380, 594 420, 562 452"/>
+    <path d="M512 256 L 512 428"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="300" cy="300" r="46"/>
+    <circle cx="724" cy="300" r="46"/>
+    <circle cx="512" cy="256" r="46"/>
+  </g>
+  <path fill="#FFFFFF" d="M512 452 C 540 540, 560 560, 648 588 C 560 616, 540 636, 512 724 C 484 636, 464 616, 376 588 C 464 560, 484 540, 512 452 Z"/>
+  <circle cx="512" cy="588" r="34" fill="#4F46E5"/>
+</svg>

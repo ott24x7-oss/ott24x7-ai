@@ -1,0 +1,362 @@
+{
+  "desktop/01-compare-4-ai-answers": {
+    "width": 1927,
+    "height": 1084,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/01-compare-4-ai-answers-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/01-compare-4-ai-answers-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/01-compare-4-ai-answers-1600.webp"
+      }
+    ]
+  },
+  "desktop/02-final-answer": {
+    "width": 1927,
+    "height": 1084,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/02-final-answer-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/02-final-answer-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/02-final-answer-1600.webp"
+      }
+    ]
+  },
+  "desktop/03-live-answers": {
+    "width": 1927,
+    "height": 1030,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/03-live-answers-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/03-live-answers-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/03-live-answers-1600.webp"
+      }
+    ]
+  },
+  "desktop/04-web-search-exa": {
+    "width": 1919,
+    "height": 1079,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/04-web-search-exa-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/04-web-search-exa-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/04-web-search-exa-1600.webp"
+      }
+    ]
+  },
+  "desktop/05-model-provider": {
+    "width": 1919,
+    "height": 1079,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/05-model-provider-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/05-model-provider-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/05-model-provider-1600.webp"
+      }
+    ]
+  },
+  "desktop/06-web-panels": {
+    "width": 1927,
+    "height": 1084,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/06-web-panels-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/06-web-panels-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/06-web-panels-1600.webp"
+      }
+    ]
+  },
+  "desktop/07-history-light": {
+    "width": 1927,
+    "height": 1084,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/07-history-light-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/07-history-light-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/07-history-light-1600.webp"
+      }
+    ]
+  },
+  "desktop/08-default-model": {
+    "width": 1918,
+    "height": 1075,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/08-default-model-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/08-default-model-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/08-default-model-1600.webp"
+      }
+    ]
+  },
+  "desktop/09-local-models": {
+    "width": 1919,
+    "height": 1079,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/09-local-models-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/09-local-models-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/09-local-models-1600.webp"
+      }
+    ]
+  },
+  "desktop/10-skills": {
+    "width": 1919,
+    "height": 1072,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/10-skills-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/10-skills-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/10-skills-1600.webp"
+      }
+    ]
+  },
+  "desktop/11-usage": {
+    "width": 1919,
+    "height": 1068,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/11-usage-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/11-usage-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/11-usage-1600.webp"
+      }
+    ]
+  },
+  "desktop/12-dependencies": {
+    "width": 1909,
+    "height": 1079,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/12-dependencies-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/12-dependencies-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/12-dependencies-1600.webp"
+      }
+    ]
+  },
+  "desktop/13-channels": {
+    "width": 1918,
+    "height": 1077,
+    "srcs": [
+      {
+        "w": 640,
+        "url": "/shots/desktop/13-channels-640.webp"
+      },
+      {
+        "w": 1024,
+        "url": "/shots/desktop/13-channels-1024.webp"
+      },
+      {
+        "w": 1600,
+        "url": "/shots/desktop/13-channels-1600.webp"
+      }
+    ]
+  },
+  "android/answers-dark": {
+    "width": 461,
+    "height": 1000,
+    "srcs": [
+      {
+        "w": 240,
+        "url": "/shots/android/answers-dark-240.webp"
+      },
+      {
+        "w": 360,
+        "url": "/shots/android/answers-dark-360.webp"
+      },
+      {
+        "w": 461,
+        "url": "/shots/android/answers-dark-461.webp"
+      }
+    ]
+  },
+  "android/answers-light": {
+    "width": 461,
+    "height": 1000,
+    "srcs": [
+      {
+        "w": 240,
+        "url": "/shots/android/answers-light-240.webp"
+      },
+      {
+        "w": 360,
+        "url": "/shots/android/answers-light-360.webp"
+      },
+      {
+        "w": 461,
+        "url": "/shots/android/answers-light-461.webp"
+      }
+    ]
+  },
+  "android/final-answer": {
+    "width": 461,
+    "height": 1000,
+    "srcs": [
+      {
+        "w": 240,
+        "url": "/shots/android/final-answer-240.webp"
+      },
+      {
+        "w": 360,
+        "url": "/shots/android/final-answer-360.webp"
+      },
+      {
+        "w": 461,
+        "url": "/shots/android/final-answer-461.webp"
+      }
+    ]
+  },
+  "android/history": {
+    "width": 461,
+    "height": 1000,
+    "srcs": [
+      {
+        "w": 240,
+        "url": "/shots/android/history-240.webp"
+      },
+      {
+        "w": 360,
+        "url": "/shots/android/history-360.webp"
+      },
+      {
+        "w": 461,
+        "url": "/shots/android/history-461.webp"
+      }
+    ]
+  },
+  "android/home": {
+    "width": 461,
+    "height": 1000,
+    "srcs": [
+      {
+        "w": 240,
+        "url": "/shots/android/home-240.webp"
+      },
+      {
+        "w": 360,
+        "url": "/shots/android/home-360.webp"
+      },
+      {
+        "w": 461,
+        "url": "/shots/android/home-461.webp"
+      }
+    ]
+  },
+  "android/model-picker": {
+    "width": 461,
+    "height": 1000,
+    "srcs": [
+      {
+        "w": 240,
+        "url": "/shots/android/model-picker-240.webp"
+      },
+      {
+        "w": 360,
+        "url": "/shots/android/model-picker-360.webp"
+      },
+      {
+        "w": 461,
+        "url": "/shots/android/model-picker-461.webp"
+      }
+    ]
+  },
+  "android/settings": {
+    "width": 461,
+    "height": 1000,
+    "srcs": [
+      {
+        "w": 240,
+        "url": "/shots/android/settings-240.webp"
+      },
+      {
+        "w": 360,
+        "url": "/shots/android/settings-360.webp"
+      },
+      {
+        "w": 461,
+        "url": "/shots/android/settings-461.webp"
+      }
+    ]
+  }
+}
