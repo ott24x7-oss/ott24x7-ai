@@ -166,6 +166,7 @@ export function FreeApp() {
 export function Footer() {
   const links = [
     { label: 'OTT24x7 AI app', href: '/ai' },
+    { label: 'Check API key balance', href: '/ai/balance' },
     { label: 'AI tools — ott24x7.com', href: LINKS.shop },
     { label: 'Windows & Office keys — keys24x7.com', href: LINKS.keys },
     { label: 'Contact', href: LINKS.contact },

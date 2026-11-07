@@ -12,6 +12,7 @@ export const API_NAV = [
   { href: '#developers', label: 'Developers' },
   { href: '#app', label: 'Free app' },
   { href: '#faq', label: 'FAQ' },
+  { href: '/ai/balance', label: 'Check balance' },
 ];
 
 export const MODEL_GROUPS: { name: string; icon: string; tone: 'red' | 'blue'; models: string[] }[] = [

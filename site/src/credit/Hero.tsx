@@ -156,6 +156,12 @@ export function Hero() {
           ))}
         </ul>
         <p className="mt-2 text-xs text-soft">*Pay-as-you-go credits.</p>
+        <p className="mt-3 text-sm text-muted">
+          Already have a key?{' '}
+          <a href="/ai/balance" className="font-semibold text-terra underline underline-offset-4">
+            Check your balance and expiry
+          </a>
+        </p>
 
         <KeyHub />
       </div>
