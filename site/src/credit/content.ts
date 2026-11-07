@@ -8,6 +8,7 @@ export const buyUrl = (plan: string) => `/ai/buy?plan=${encodeURIComponent(plan)
 export const API_NAV = [
   { href: '#models', label: 'Models' },
   { href: '#pricing', label: 'Pricing' },
+  { href: '#usage', label: 'Credit usage' },
   { href: '#developers', label: 'Developers' },
   { href: '#app', label: 'Free app' },
   { href: '#faq', label: 'FAQ' },
@@ -37,34 +38,34 @@ export type Plan = {
 };
 
 export const PAYG: Plan[] = [
-  { id: 'payg-300', value: 40, name: 'Credits', inr: '₹300', usd: '$3.00', credits: '40 credits' },
-  { id: 'payg-750', value: 100, name: 'Credits', inr: '₹750', usd: '$7.50', credits: '100 credits' },
-  { id: 'payg-1500', value: 200, name: 'Credits', inr: '₹1,500', usd: '$15', credits: '200 credits', badge: 'Popular' },
-  { id: 'payg-3000', value: 400, name: 'Credits', inr: '₹3,000', usd: '$30', credits: '400 credits' },
-  { id: 'payg-7500', value: 1000, name: 'Credits', inr: '₹7,500', usd: '$75', credits: '1,000 credits' },
+  { id: 'payg-300', value: 40, name: 'Credits', inr: '₹300', usd: '$3.00', credits: '$40 credit', note: 'worth ₹4,000' },
+  { id: 'payg-750', value: 100, name: 'Credits', inr: '₹750', usd: '$7.50', credits: '$100 credit', note: 'worth ₹10,000' },
+  { id: 'payg-1500', value: 200, name: 'Credits', inr: '₹1,500', usd: '$15', credits: '$200 credit', note: 'worth ₹20,000', badge: 'Popular' },
+  { id: 'payg-3000', value: 400, name: 'Credits', inr: '₹3,000', usd: '$30', credits: '$400 credit', note: 'worth ₹40,000' },
+  { id: 'payg-7500', value: 1000, name: 'Credits', inr: '₹7,500', usd: '$75', credits: '$1,000 credit', note: 'worth ₹1,00,000' },
 ];
 
 export const WEEK: Plan[] = [
-  { id: 'week-starter', value: 50, name: 'Starter', inr: '₹375', usd: '$3.75', credits: '50 credits' },
-  { id: 'week-developer', value: 100, name: 'Developer', inr: '₹675', usd: '$6.75', credits: '100 credits', badge: 'Popular' },
-  { id: 'week-pro', value: 200, name: 'Pro', inr: '₹1,349', usd: '$13.49', credits: '200 credits' },
-  { id: 'week-scale', value: 500, name: 'Scale', inr: '₹2,999', usd: '$29.99', credits: '500 credits' },
+  { id: 'week-starter', value: 50, name: 'Starter', inr: '₹375', usd: '$3.75', credits: '$50 credit', note: 'worth ₹5,000' },
+  { id: 'week-developer', value: 100, name: 'Developer', inr: '₹675', usd: '$6.75', credits: '$100 credit', note: 'worth ₹10,000', badge: 'Popular' },
+  { id: 'week-pro', value: 200, name: 'Pro', inr: '₹1,349', usd: '$13.49', credits: '$200 credit', note: 'worth ₹20,000' },
+  { id: 'week-scale', value: 500, name: 'Scale', inr: '₹2,999', usd: '$29.99', credits: '$500 credit', note: 'worth ₹50,000' },
 ];
 
 export const MONTH: Plan[] = [
-  { id: 'month-essential', value: 360, name: 'Essential', inr: '₹1,500', usd: '$15', credits: '$12 credits daily', note: '$360 total' },
-  { id: 'month-plus', value: 900, name: 'Plus', inr: '₹3,600', usd: '$36', credits: '$30 credits daily', note: '$900 total' },
+  { id: 'month-essential', value: 360, name: 'Essential', inr: '₹1,500', usd: '$15', credits: '$12 credit daily', note: '$360 total · worth ₹36,000' },
+  { id: 'month-plus', value: 900, name: 'Plus', inr: '₹3,600', usd: '$36', credits: '$30 credit daily', note: '$900 total · worth ₹90,000' },
   {
     id: 'month-cruise', value: 3000,
     name: 'Cruise',
     inr: '₹13,500',
     usd: '$135',
-    credits: '$100 credits daily',
-    note: '$3,000 total',
+    credits: '$100 credit daily',
+    note: '$3,000 total · worth ₹3,00,000',
     badge: 'Best value',
   },
-  { id: 'month-business', value: 4500, name: 'Business', inr: '₹21,600', usd: '$216', credits: '$150 credits daily', note: '$4,500 total' },
-  { id: 'month-lightspeed', value: 9000, name: 'Lightspeed', inr: '₹43,200', usd: '$432', credits: '$300 credits daily', note: '$9,000 total' },
+  { id: 'month-business', value: 4500, name: 'Business', inr: '₹21,600', usd: '$216', credits: '$150 credit daily', note: '$4,500 total · worth ₹4,50,000' },
+  { id: 'month-lightspeed', value: 9000, name: 'Lightspeed', inr: '₹43,200', usd: '$432', credits: '$300 credit daily', note: '$9,000 total · worth ₹9,00,000' },
 ];
 
 export const PLAN_TABS = [
@@ -73,7 +74,7 @@ export const PLAN_TABS = [
     label: 'Pay-as-you-go',
     plans: PAYG,
     per: 'one-time',
-    points: ['Credits never expire', 'Custom amount: ₹150 ($1.50) = 20 credits'],
+    points: ['Credits never expire', 'Custom amount: ₹150 ($1.50) = $20 credit (worth ₹2,000)'],
   },
   { key: 'week', label: '7-day passes', plans: WEEK, per: 'for 7 days', points: ['Valid for 7 days'] },
   {
@@ -151,6 +152,10 @@ print(msg.content[0].text)`,
 ];
 
 export const API_FAQ: { q: string; a: string }[] = [
+  {
+    q: 'What does “$40 credit” mean?',
+    a: 'Credit is API usage counted in US dollars. For ₹300 you get $40 of credit — that is ₹4,000 worth of usage (at $1 = ₹100). Every plan works the same way.',
+  },
   {
     q: 'How do I get my API key?',
     a: 'Pick a plan and tap “Buy on WhatsApp”. Pay by UPI or bank transfer, and you get your key with the credits added.',

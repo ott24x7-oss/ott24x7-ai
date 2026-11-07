@@ -190,8 +190,8 @@ export function Pricing() {
             <p className="mt-1 text-sm text-soft">
               {p.usd} · {t.per}
             </p>
-            <p className="mt-4 font-bold">{p.credits}</p>
-            {p.note && <p className="text-sm text-muted">{p.note}</p>}
+            <p className="mt-4 text-lg font-extrabold">{p.credits}</p>
+            {p.note && <p className="text-sm font-semibold text-terra">{p.note}</p>}
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-chip" aria-hidden="true">
               <span className="block h-full rounded-full bg-grad" style={{ width: `${Math.max(8, (p.value / max) * 100)}%` }} />
             </div>
@@ -204,7 +204,7 @@ export function Pricing() {
           <li className="paper flex w-full flex-col justify-between border-dashed p-5 sm:flex-row sm:items-center">
             <div>
               <p className="font-bold">Custom amount</p>
-              <p className="text-sm text-muted">Any amount from ₹150 ($1.50) = 20 credits.</p>
+              <p className="text-sm text-muted">Any amount from ₹150 ($1.50) = $20 credit (worth ₹2,000).</p>
             </div>
             <a href={buyUrl('payg-custom')} className="btn btn-ghost mt-4 sm:mt-0">
               Ask for a custom top-up <ArrowRight size={16} aria-hidden="true" />
@@ -215,7 +215,7 @@ export function Pricing() {
       </div>
 
       <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted">
-        {[...t.points, 'UPI / Bank transfer accepted', 'Free OTT24x7 AI app with every plan'].map((x) => (
+        {[...t.points, 'Credit is in US dollars ($1 = ₹100)', 'UPI / Bank transfer accepted', 'Free OTT24x7 AI app with every plan'].map((x) => (
           <li key={x} className="flex items-center gap-1.5">
             <Check size={15} className="text-terra" aria-hidden="true" />
             {x}

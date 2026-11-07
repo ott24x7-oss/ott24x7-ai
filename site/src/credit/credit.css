@@ -261,6 +261,14 @@ button {
   transform: none;
 }
 
+/* Horizontal tab rows without a scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 details > summary {
   list-style: none;
 }

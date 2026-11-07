@@ -8,6 +8,7 @@ import './credit.css';
 import { Hero } from './Hero';
 import { CtaBand, Developers, Faq, Marquee, Models, Pricing, Steps, UseCases } from './Sections';
 import { Footer, FreeApp, Nav } from './Shell';
+import { Usage } from './Usage';
 
 document.documentElement.classList.add('js');
 
@@ -21,6 +22,7 @@ function BuyApiCredit() {
         <UseCases />
         <Models />
         <Pricing />
+        <Usage />
         <Steps />
         <Developers />
         <FreeApp />
