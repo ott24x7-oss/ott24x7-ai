@@ -1,7 +1,7 @@
 import type { VideoGenerationStatus } from '@shared/types/videoGeneration'
 
 import { VideoApiError } from '../videoApi'
-import { pollVideoTask } from '../videoPolling'
+import { pollVideoTask, submitVideoWithRetry } from '../videoPolling'
 
 describe('video task polling', () => {
   it('polls queued to in-progress to completed and returns each user-visible update', async () => {
@@ -82,5 +82,74 @@ describe('video task polling', () => {
 
     expect(polls).toBe(0)
     expect(result.status).toBe('in_progress')
+  })
+})
+
+describe('video submit retry', () => {
+  const unavailable = () => new VideoApiError(503, 'SERVICE_UNAVAILABLE', undefined, true, false)
+
+  it('retries a temporary 503 and returns the accepted task', async () => {
+    const waits: number[] = []
+    let calls = 0
+    const result = await submitVideoWithRetry({
+      signal: new AbortController().signal,
+      wait: async (delay) => {
+        waits.push(delay)
+      },
+      submit: async () => {
+        calls += 1
+        if (calls < 3) throw unavailable()
+        return 'task_1'
+      }
+    })
+    expect(result).toBe('task_1')
+    expect(waits).toEqual([5_000, 10_000])
+  })
+
+  it('gives up after the last retry with the provider error', async () => {
+    let calls = 0
+    await expect(
+      submitVideoWithRetry({
+        signal: new AbortController().signal,
+        wait: async () => {},
+        delaysMs: [1, 1],
+        submit: async () => {
+          calls += 1
+          throw unavailable()
+        }
+      })
+    ).rejects.toMatchObject({ errorCode: 'SERVICE_UNAVAILABLE' })
+    expect(calls).toBe(3)
+  })
+
+  it('does not retry errors that are not temporary', async () => {
+    let calls = 0
+    await expect(
+      submitVideoWithRetry({
+        signal: new AbortController().signal,
+        wait: async () => {},
+        submit: async () => {
+          calls += 1
+          throw new VideoApiError(402, 'NO_CREDITS', undefined, false, false)
+        }
+      })
+    ).rejects.toMatchObject({ errorCode: 'NO_CREDITS' })
+    expect(calls).toBe(1)
+  })
+
+  it('stops retrying once the user cancels', async () => {
+    const controller = new AbortController()
+    let calls = 0
+    await expect(
+      submitVideoWithRetry({
+        signal: controller.signal,
+        wait: async () => controller.abort(),
+        submit: async () => {
+          calls += 1
+          throw unavailable()
+        }
+      })
+    ).rejects.toBeInstanceOf(VideoApiError)
+    expect(calls).toBe(1)
   })
 })

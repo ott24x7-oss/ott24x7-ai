@@ -37,7 +37,7 @@ import {
   submitWithVideoApiFallback,
   VideoApiError
 } from './videoApi'
-import { pollVideoTask } from './videoPolling'
+import { pollVideoTask, submitVideoWithRetry } from './videoPolling'
 
 const logger = loggerService.withContext('VideoGenerationService')
 const VIDEO_TEMP_FILENAME = 'video-generations.tmp.json'
@@ -200,7 +200,11 @@ export class VideoGenerationService extends BaseService {
                 ...(record.errorCode ? { errorCode: record.errorCode } : {})
               }
             }
-          : await this.submit(record, resolved, inputReference, signal)
+          : await submitVideoWithRetry({
+              signal,
+              wait: waitForPoll,
+              submit: () => this.submit(record, resolved, inputReference, signal)
+            })
       record.apiStyle = submission.style
       record.taskId = submission.taskId
       record.status = submission.status.status === 'completed' ? 'in_progress' : submission.status.status

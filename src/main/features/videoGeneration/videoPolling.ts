@@ -49,3 +49,25 @@ export async function pollVideoTask<T extends { status: VideoGenerationStatus }>
   }
   return current
 }
+
+export const VIDEO_SUBMIT_RETRY_DELAYS_MS = [5_000, 10_000, 20_000]
+const MAX_SUBMIT_RETRY_AFTER_MS = 30_000
+
+/** Retries a submit that the provider rejected with a temporary error (429/502/503/504). */
+export async function submitVideoWithRetry<T>(input: {
+  signal: AbortSignal
+  wait: (delayMs: number, signal: AbortSignal) => Promise<void>
+  submit: () => Promise<T>
+  delaysMs?: readonly number[]
+}): Promise<T> {
+  const delays = input.delaysMs ?? VIDEO_SUBMIT_RETRY_DELAYS_MS
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await input.submit()
+    } catch (error) {
+      if (!isTransientVideoApiError(error) || attempt >= delays.length || input.signal.aborted) throw error
+      await input.wait(Math.min(error.retryAfterMs ?? delays[attempt], MAX_SUBMIT_RETRY_AFTER_MS), input.signal)
+      if (input.signal.aborted) throw error
+    }
+  }
+}
