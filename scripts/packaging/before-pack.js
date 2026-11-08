@@ -263,8 +263,8 @@ exports.default = async function (context) {
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
-  // Lite build: drop dev tooling users don't need (mise, bun, uv, MinGit); system copies still work.
-  const liteExcludes = ['mise*', 'bun*', 'uv*', 'git/**', '.mise-version', '.bun-version', '.uv-version', '.mingit-version'].map(
+  // Code CLI shims require mise, and Code CLI sessions use bundled MinGit as a PATH fallback.
+  const liteExcludes = ['bun*', 'uv*', '.bun-version', '.uv-version'].map(
     (name) => `!resources/binaries/${currentPlatformKey}/${name}`
   )
 

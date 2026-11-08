@@ -128,7 +128,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             onShowError={() => setShowInstallError(true)}
             launchDisabledHint={
               providerState.showSelectionHint
-                ? t('code.select_provider_before_launch', { toolName: activeMeta.label })
+                ? t('code.select_provider_or_model_before_launch', { toolName: activeMeta.label })
                 : undefined
             }
           />

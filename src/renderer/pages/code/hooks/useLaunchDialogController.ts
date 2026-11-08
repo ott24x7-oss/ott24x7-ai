@@ -101,8 +101,12 @@ export function useLaunchDialogController({
     // Provider-less tools (qoder/copilot) and the virtual "own login" option both
     // launch with a directory only — no Cherry provider/model is injected.
     const runWithoutProvider = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool) || isOwnLoginSelected
-    if (!directory || (!runWithoutProvider && !enabledProvider)) {
+    if (!directory) {
       toast.error(t('code.folder_placeholder'))
+      return
+    }
+    if (!runWithoutProvider && !enabledProvider) {
+      toast.error(t('code.select_provider_or_model_before_launch', { toolName }))
       return
     }
     if (runWithoutProvider) {
@@ -115,7 +119,7 @@ export function useLaunchDialogController({
           terminal: effectiveTerminal
         })
         if (!runResult.success) {
-          toast.error(runResult.message)
+          toast.error(runResult.code === 'mise_unavailable' ? t('code.launch.mise_unavailable') : runResult.message)
           return
         }
         setLaunchOpen(false)
@@ -230,7 +234,7 @@ export function useLaunchDialogController({
         terminal: effectiveTerminal
       })
       if (!runResult.success) {
-        toast.error(runResult.message)
+        toast.error(runResult.code === 'mise_unavailable' ? t('code.launch.mise_unavailable') : runResult.message)
       } else {
         setLaunchOpen(false)
       }
@@ -253,6 +257,7 @@ export function useLaunchDialogController({
     modelById,
     isModelsLoading,
     setCurrentProvider,
+    toolName,
     t
   ])
 

@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest'
 
 import { TerminalApp } from '@shared/types/codeCli'
 
-import { escapeForAppleScript, MACOS_TERMINALS_WITH_COMMANDS } from '../terminals'
+import { escapeForAppleScript, MACOS_TERMINALS_WITH_COMMANDS, WINDOWS_TERMINALS_WITH_COMMANDS } from '../terminals'
 
 function commandFor(id: TerminalApp) {
   const cfg = MACOS_TERMINALS_WITH_COMMANDS.find((t) => t.id === id)
+  if (!cfg) throw new Error(`no terminal builder for ${id}`)
+  return cfg.command
+}
+
+function windowsCommandFor(id: TerminalApp) {
+  const cfg = WINDOWS_TERMINALS_WITH_COMMANDS.find((t) => t.id === id)
   if (!cfg) throw new Error(`no terminal builder for ${id}`)
   return cfg.command
 }
@@ -57,4 +63,23 @@ describe('macOS inner-double-quote terminal builders neutralize directory and fu
       expect(args.join('\n')).toContain("'/tmp/o'\\''brien'")
     }
   )
+})
+
+describe('Windows terminal builders pass paths with spaces to cmd as one command', () => {
+  it.each([TerminalApp.CMD, TerminalApp.WINDOWS_TERMINAL, TerminalApp.ALACRITTY, TerminalApp.WEZTERM])(
+    'quotes the generated launcher path for %s',
+    (id) => {
+      const fullCommand = 'C:\\Users\\diwak\\AppData\\Roaming\\OTT24x7 AI\\Toolchain\\temp\\launch_kimi-code.bat'
+      const { args } = windowsCommandFor(id)('C:\\Users\\diwak\\project', fullCommand)
+
+      expect(args).toContain(`""${fullCommand}""`)
+    }
+  )
+
+  it('quotes the generated launcher path before invoking it from WSL', () => {
+    const fullCommand = 'C:\\Users\\diwak\\AppData\\Roaming\\OTT24x7 AI\\Toolchain\\temp\\launch_kimi-code.bat'
+    const { args } = windowsCommandFor(TerminalApp.WSL)('C:\\Users\\diwak\\project', fullCommand)
+
+    expect(args.at(-1)).toContain(`""${fullCommand}""`)
+  })
 })

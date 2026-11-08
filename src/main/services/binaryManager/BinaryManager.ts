@@ -402,6 +402,10 @@ export class BinaryManager extends BaseService {
     this.normalizationPromise = null
   }
 
+  public isMiseAvailable(): boolean {
+    return this.miseBin !== null
+  }
+
   /**
    * Subscribe to the install-affecting preferences (and proxy settings) so the
    * memoized isolated install env is rebuilt on the next mise invocation after a

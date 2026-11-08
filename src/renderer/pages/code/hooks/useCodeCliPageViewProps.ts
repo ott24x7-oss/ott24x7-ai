@@ -89,7 +89,6 @@ export function useCodeCliPageViewProps(
     resolveProviderMetaForTool,
     gatewayModelsById,
     modelById,
-    defaultGatewayModelId,
     isGatewayModelsLoading
   } = useConfigMetadata(selectedCliTool, providers, isProvidersLoading)
 
@@ -149,23 +148,16 @@ export function useCodeCliPageViewProps(
 
   const selectedProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
   const currentProviderIsPending = !!currentProviderId && !selectedProvider && isProvidersLoading
-  const defaultGatewayProvider =
-    !selectedProvider && !currentProviderIsPending && showGatewayCard ? apiGatewayBundle?.provider : undefined
-  const savedGatewayConfig = defaultGatewayProvider ? providerConfigs[defaultGatewayProvider.id] : undefined
-  const hasSavedGatewayContext = defaultGatewayProvider
-    ? !!resolveCliConfigApplyContext(selectedCliTool, defaultGatewayProvider.id, savedGatewayConfig, gatewayModelsById)
-    : false
-  const defaultGatewayConfig = useMemo(
-    () =>
-      hasSavedGatewayContext
-        ? savedGatewayConfig
-        : defaultGatewayModelId
-          ? { ...savedGatewayConfig, modelId: defaultGatewayModelId }
-          : null,
-    [hasSavedGatewayContext, savedGatewayConfig, defaultGatewayModelId]
-  )
-  const enabledProvider = selectedProvider ?? defaultGatewayProvider
-  const enabledProviderConfig = selectedProvider ? currentProviderConfig : defaultGatewayConfig
+  const enabledProvider = selectedProvider
+  const enabledProviderConfig = currentProviderConfig
+  const hasSelectedProviderModel =
+    !!enabledProvider &&
+    !!resolveCliConfigApplyContext(
+      selectedCliTool,
+      enabledProvider.id,
+      enabledProviderConfig ?? undefined,
+      isApiGatewayProviderId(enabledProvider.id) ? gatewayModelsById : undefined
+    )
   const {
     connection: currentCliConfigConnection,
     setConnection: setCurrentCliConfigConnection,
@@ -234,8 +226,7 @@ export function useCodeCliPageViewProps(
   }
   const canLaunch = isHermesDashboardTool
     ? versionStatus.installed
-    : (isProviderlessTool || isOwnLoginSelected || !!enabledProvider) &&
-      (!isDeepSeekHarnessTool || !!enabledProviderConfig?.modelId)
+    : isProviderlessTool || isOwnLoginSelected || hasSelectedProviderModel
   // Only surface install failures here — the dialog is labeled "install error"
   // and offers a retry-install action. Remove failures are reported by their own
   // toast in useBinaryActions, so gating on the action avoids mislabeling a
@@ -244,16 +235,13 @@ export function useCodeCliPageViewProps(
     versionStatus.operation?.status === 'failed' && versionStatus.operation.action === 'install'
       ? versionStatus.operation.error
       : undefined
-  // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
-  // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
-  const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
   const showProviderSelectionHint =
     versionStatus.installed &&
     !isProviderlessTool &&
-    hasRealSupportedProvider &&
-    !selectedProvider &&
+    !isHermesDashboardTool &&
+    !isOwnLoginSelected &&
     !currentProviderIsPending &&
-    !defaultGatewayProvider
+    !hasSelectedProviderModel
 
   const configPanel = useConfigPanelController({
     selectedCliTool,
@@ -394,13 +382,11 @@ export function useCodeCliPageViewProps(
           onLaunch: () =>
             isHermesDashboardTool
               ? void hermesDashboard.onLaunch()
-              : defaultGatewayProvider && !defaultGatewayConfig
-                ? configPanel.onToggleCurrent(defaultGatewayProvider)
-                : isOpenClawTool
-                  ? void openClawGateway.onLaunch()
-                  : isDeepSeekHarnessTool
-                    ? void deepSeekHarness.onLaunch()
-                    : launchDialog.openLaunchDialog(),
+              : isOpenClawTool
+                ? void openClawGateway.onLaunch()
+                : isDeepSeekHarnessTool
+                  ? void deepSeekHarness.onLaunch()
+                  : launchDialog.openLaunchDialog(),
           onStop: () =>
             isDeepSeekHarnessTool
               ? void deepSeekHarness.onStop()

@@ -677,6 +677,7 @@ export default defineConfig([
   },
   {
     ignores: [
+      '.context/**',
       'node_modules/**',
       'build/**',
       'dist/**',

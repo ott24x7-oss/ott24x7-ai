@@ -21,7 +21,7 @@ import {
   CODE_CLI_TOOL_PRESETS,
   type CodeCliToolPreset
 } from '@shared/data/presets/codeCliTools'
-import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type { CodeCliRunInput, CodeCliRunResult } from '@shared/ipc/schemas/codeCli'
 import type {
   BinaryInstallByNameRequest,
   BinaryRemoveRequest,
@@ -35,7 +35,6 @@ import {
   type TerminalConfig,
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
-import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
@@ -479,8 +478,9 @@ export class CodeCliService extends BaseService {
     return readCliConfigFiles(targets)
   }
 
-  async run(input: CodeCliRunInput): Promise<OperationResult> {
+  async run(input: CodeCliRunInput): Promise<CodeCliRunResult> {
     const { cliTool, directory } = input
+    const platform = process.platform
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Launch mode: ${input.mode}`)
     if (cliTool === CodeCli.OPENCLAW) {
@@ -541,6 +541,22 @@ export class CodeCliService extends BaseService {
     let snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
     let { availability } = snapshot
 
+    const managedShimPath =
+      platform === 'win32'
+        ? path.win32.join(application.getPath('feature.binary.data'), 'shims', `${executableName}.exe`)
+        : path.join(application.getPath('feature.binary.data'), 'shims', executableName)
+    const normalizedPath = (value: string) =>
+      platform === 'win32' ? path.win32.normalize(value).toLowerCase() : path.resolve(value)
+    if (
+      availability.source !== 'none' &&
+      normalizedPath(availability.path) === normalizedPath(managedShimPath) &&
+      !binaryManager.isMiseAvailable()
+    ) {
+      const message = `Cannot launch ${cliTool}: the bundled mise runtime is unavailable. Update or reinstall OTT24x7 AI.`
+      logger.error(message)
+      return { success: false, code: 'mise_unavailable', message }
+    }
+
     if (availability.source === 'none') {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
@@ -552,7 +568,13 @@ export class CodeCliService extends BaseService {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error(`Failed to install ${cliTool}:`, error as Error)
-        return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
+        return {
+          success: false,
+          message: `Failed to install ${cliTool}: ${errorMessage}`,
+          ...(errorMessage === 'Binary backend not available' || errorMessage === 'mise binary not available'
+            ? { code: 'mise_unavailable' as const }
+            : {})
+        }
       }
 
       snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
@@ -595,7 +617,6 @@ export class CodeCliService extends BaseService {
     logger.debug(`Environment variables:`, Object.keys(env))
 
     // Select different terminal based on operating system
-    const platform = process.platform
     let terminalCommand: string
     let terminalArgs: string[]
 

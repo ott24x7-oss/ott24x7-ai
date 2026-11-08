@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from 'react'
 
-import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
@@ -21,7 +20,6 @@ import { modelSupportsCliTool } from '../utils/modelSupport'
  */
 export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[], isProvidersLoading = false) {
   const { models: allModels, isLoading: isModelsLoading } = useModels({ enabled: true })
-  const [defaultModelId] = usePreference('chat.default_model_id')
   // `gatewayModelsById` is built from both queries, and each yields an empty list while in flight —
   // indistinguishable from "no routable model exists". Expose the combined flag so callers that
   // resolve gateway addresses can wait instead of reading a cold map as an answer.
@@ -45,8 +43,6 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       ),
     [allModels, gatewayProviderIds]
   )
-  const defaultGatewayModelId =
-    defaultModelId && gatewayModelsById.has(defaultModelId as Model['id']) ? (defaultModelId as Model['id']) : undefined
 
   const filterProvidersForTool = useCallback((toolId: CodeCli, providers: Provider[]): Provider[] => {
     const filterFn = CLI_TOOL_PROVIDER_MAP[toolId]
@@ -121,7 +117,6 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     resolveProviderMetaForTool,
     gatewayModelsById,
     modelById,
-    defaultGatewayModelId,
     isGatewayModelsLoading
   }
 }

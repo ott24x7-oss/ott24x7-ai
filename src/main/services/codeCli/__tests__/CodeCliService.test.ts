@@ -10,7 +10,8 @@ import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
   removeTool: vi.fn<(_request: BinaryRemoveRequest) => Promise<BinaryRemoveResult>>(),
-  getToolSnapshots: vi.fn()
+  getToolSnapshots: vi.fn(),
+  isMiseAvailable: vi.fn(() => true)
 }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const antigravityLaunchMock = vi.hoisted(() => vi.fn())
@@ -173,6 +174,7 @@ describe('CodeCliService', () => {
       )
     )
     binaryManagerMock.installByName.mockResolvedValue(undefined)
+    binaryManagerMock.isMiseAvailable.mockReturnValue(true)
     binaryManagerMock.removeTool.mockResolvedValue({ status: 'removed' })
     skillServiceMock.syncBuiltinSkill.mockResolvedValue(false)
     skillServiceMock.uninstallBuiltinSkill.mockResolvedValue(false)
@@ -221,7 +223,9 @@ describe('CodeCliService', () => {
       await codeCliService._doAllReady()
       expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(30_000)
-      await vi.waitFor(() => expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(CODE_CLI_TOOL_PRESETS.length))
+      await vi.waitFor(() =>
+        expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(CODE_CLI_TOOL_PRESETS.length)
+      )
       expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
         'code-mate-codex',
         path.join('/mock/binary-data', 'code-mate-codex'),
@@ -938,10 +942,15 @@ describe('CodeCliService', () => {
         const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
 
+        const shimPath = path.win32.join(
+          'C:\\Users\\me\\AppData\\Roaming\\OTT24x7 AI\\Toolchain\\mise',
+          'shims',
+          'claude.exe'
+        )
         binaryManagerMock.getToolSnapshots.mockResolvedValue({
           claude: {
             name: 'claude',
-            availability: { source: 'mise', path: 'C:\\Tools\\100% cli\\claude.exe', version: '1.0.0' }
+            availability: { source: 'mise', path: shimPath, version: '1.0.0' }
           }
         })
 
@@ -961,18 +970,41 @@ describe('CodeCliService', () => {
         expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
         expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
         // The executable path crosses the same boundary as the directory paths.
-        expect(batContent).toContain('"C:\\Tools\\100%% cli\\claude.exe"')
+        expect(batContent).toContain(
+          '"C:\\Users\\me\\AppData\\Roaming\\OTT24x7 AI\\Toolchain\\mise\\shims\\claude.exe"'
+        )
         // The temp script can embed injected credentials via the env prefix; keep it owner-only.
         expect(vi.mocked(fs.chmodSync)).toHaveBeenCalledWith(batPath, 0o600)
 
         const launch = vi.mocked(spawn).mock.calls.at(-1)
         expect(launch).toBeDefined()
         expect(launch![0]).toBe('cmd')
-        expect(launch![1]).toEqual(['/c', batPath])
+        expect(launch![1]).toEqual(['/d', '/s', '/c', `""${batPath}""`])
         expect(launch![2]).toMatchObject({ shell: true, detached: true })
       } finally {
         vi.useRealTimers()
       }
+    })
+
+    it('returns an in-app mise error instead of launching a stale managed shim', async () => {
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+      const shimPath = path.win32.join('/mock/binary-data', 'shims', 'kimi.exe')
+      binaryManagerMock.isMiseAvailable.mockReturnValue(false)
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        kimi: { name: 'kimi', availability: { source: 'system', path: shimPath } }
+      })
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.KIMI_CODE,
+        providerId: 'cherry:api-gateway',
+        model: 'kimi-k2.7-code',
+        directory: 'C:\\Users\\me\\project'
+      })
+
+      expect(result).toMatchObject({ success: false, code: 'mise_unavailable' })
+      expect(vi.mocked(spawn)).not.toHaveBeenCalled()
     })
 
     it('%-doubles the Antigravity isolated dir and carries a gateway model into the .bat verbatim', async () => {

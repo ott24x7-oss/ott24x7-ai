@@ -8,6 +8,7 @@ import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 const mocks = vi.hoisted(() => ({
   availableTerminals: [] as { id: string; name: string }[],
   requestMock: vi.fn(),
+  toastErrorMock: vi.fn(),
   resolveCliConfigApplyContext: vi.fn(),
   writeCliConfigDraft: vi.fn(),
   readCliConfigFiles: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock('@renderer/services/LoggerService', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { success: vi.fn(), error: vi.fn() }
+  toast: { success: vi.fn(), error: mocks.toastErrorMock }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -70,6 +71,33 @@ describe('useLaunchDialogController', () => {
       rawModelId: 'claude-sonnet-4-5',
       writePrimaryModel: true
     })
+  })
+
+  it('does not run a provider-backed CLI before a provider or own login is selected', async () => {
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.KIMI_CODE,
+        toolName: 'Kimi Code',
+        directory: '/tmp/project',
+        enabledProvider: undefined,
+        isOwnLoginSelected: false,
+        currentProviderConfig: null,
+        gatewayModelsById: new Map(),
+        modelById: new Map(),
+        isModelsLoading: false,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).not.toHaveBeenCalled()
+    expect(mocks.toastErrorMock).toHaveBeenCalledWith('code.select_provider_or_model_before_launch')
   })
 
   // Regression: the picker (CurrentConfigPanel) falls back to `terminals[0]` for display when the

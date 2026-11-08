@@ -50,13 +50,23 @@ const codeCliRunInputSchema = z.discriminatedUnion('mode', [
   })
 ])
 
+const codeCliRunResultSchema = z.discriminatedUnion('success', [
+  z.object({ success: z.literal(true) }),
+  z.object({
+    success: z.literal(false),
+    message: z.string(),
+    code: z.enum(['mise_unavailable']).optional()
+  })
+])
+
 export type CodeCliRunInput = z.infer<typeof codeCliRunInputSchema>
+export type CodeCliRunResult = z.infer<typeof codeCliRunResultSchema>
 
 // ── Request schemas ──
 export const codeCliRequestSchemas = {
   'code_cli.run': defineRoute({
     input: codeCliRunInputSchema,
-    output: operationResultSchema
+    output: codeCliRunResultSchema
   }),
   'code_cli.read_config': defineRoute({
     // Targets, not paths — the same enum allow-list as write_config. Duplicate

@@ -73,7 +73,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Command Prompt',
     command: (_: string, fullCommand: string) => ({
       command: 'cmd',
-      args: ['/c', fullCommand]
+      args: ['/d', '/s', '/c', `""${fullCommand}""`]
     })
   },
   {
@@ -89,7 +89,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Windows Terminal',
     command: (_: string, fullCommand: string) => ({
       command: 'wt',
-      args: ['--', 'cmd', '/c', fullCommand]
+      args: ['--', 'cmd', '/d', '/s', '/c', `""${fullCommand}""`]
     })
   },
   {
@@ -97,7 +97,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'WSL (Ubuntu/Debian)',
     command: (_: string, fullCommand: string) => ({
       command: 'wsl',
-      args: ['bash', '-c', `cmd.exe /c '${fullCommand}' ; read -p 'Press Enter to exit'`]
+      args: ['bash', '-c', `cmd.exe /d /s /c ${posixQuote(`""${fullCommand}""`)} ; read -p 'Press Enter to exit'`]
     })
   },
   {
@@ -105,7 +105,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Alacritty',
     command: (_: string, fullCommand: string) => ({
       command: 'alacritty',
-      args: ['-e', 'cmd', '/c', fullCommand]
+      args: ['-e', 'cmd', '/d', '/s', '/c', `""${fullCommand}""`]
     })
   },
   {
@@ -113,7 +113,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'WezTerm',
     command: (_: string, fullCommand: string) => ({
       command: 'wezterm',
-      args: ['start', '--', 'cmd', '/c', fullCommand]
+      args: ['start', '--', 'cmd', '/d', '/s', '/c', `""${fullCommand}""`]
     })
   }
 ]

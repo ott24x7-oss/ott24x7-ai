@@ -986,7 +986,7 @@ describe('CodeCliPage', () => {
     expect(reorderProvidersMock).not.toHaveBeenCalled()
   })
 
-  it('launches through the unified gateway with the default model when no provider is selected', async () => {
+  it('requires an explicit provider and model instead of using the chat default', () => {
     const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
     const defaultModel = {
       id: 'anthropic::claude-new',
@@ -1005,34 +1005,16 @@ describe('CodeCliPage', () => {
     render(<CodeCliPage />)
 
     const versionCard = screen.getByTestId('version-status-card')
-    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
-    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
-
-    fireEvent.click(screen.getByRole('button', { name: 'start tool' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'launch tool' }))
-
-    await waitFor(() => expect(getApiKey).toHaveBeenCalledOnce())
-    expect(ensureRunning).toHaveBeenCalledOnce()
-    expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
-      cliTool: CodeCli.OPEN_CODE,
-      modelId: defaultModel.id,
-      configBlob: undefined,
-      writePrimaryModel: true,
-      gateway: { provider: gatewayProvider, apiKey: 'cs-sk-default' }
-    })
-    expect(ipcRequestMock).toHaveBeenCalledWith('code_cli.run', {
-      mode: 'normal',
-      cliTool: CodeCli.OPEN_CODE,
-      model: 'claude-new',
-      providerId: 'anthropic',
-      gateway: true,
-      directory: '/tmp/project',
-      terminal: undefined
-    })
+    expect(versionCard).toHaveAttribute('data-can-launch', 'false')
+    expect(versionCard).toHaveAttribute('data-launch-disabled-hint', 'code.select_provider_or_model_before_launch')
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeDisabled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
+    expect(getApiKey).not.toHaveBeenCalled()
+    expect(ensureRunning).not.toHaveBeenCalled()
+    expect(writeCliConfigDraftMock).not.toHaveBeenCalled()
   })
 
-  it('launches through the unified gateway when the saved provider is no longer supported', async () => {
-    const user = userEvent.setup()
+  it('does not replace an unsupported saved provider with the unified gateway', () => {
     const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
     const defaultModel = {
       id: 'anthropic::claude-new',
@@ -1055,30 +1037,16 @@ describe('CodeCliPage', () => {
     render(<CodeCliPage />)
 
     const startButton = screen.getByRole('button', { name: 'start tool' })
-    expect(startButton).toBeEnabled()
+    expect(startButton).toBeDisabled()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute(
+      'data-launch-disabled-hint',
+      'code.select_provider_or_model_before_launch'
+    )
     expect(screen.queryByText('anthropic::kimi-k2.5')).not.toBeInTheDocument()
-
-    await user.click(startButton)
-    await user.click(await screen.findByRole('button', { name: 'launch tool' }))
-
-    await waitFor(() => expect(getApiKey).toHaveBeenCalledOnce())
-    expect(ensureRunning).toHaveBeenCalledOnce()
-    expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
-      cliTool: CodeCli.CLAUDE_CODE,
-      modelId: defaultModel.id,
-      configBlob: undefined,
-      writePrimaryModel: true,
-      gateway: { provider: gatewayProvider, apiKey: 'cs-sk-default' }
-    })
-    expect(ipcRequestMock).toHaveBeenCalledWith('code_cli.run', {
-      mode: 'normal',
-      cliTool: CodeCli.CLAUDE_CODE,
-      model: 'claude-new',
-      providerId: 'anthropic',
-      gateway: true,
-      directory: '/tmp/project',
-      terminal: undefined
-    })
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
+    expect(getApiKey).not.toHaveBeenCalled()
+    expect(ensureRunning).not.toHaveBeenCalled()
+    expect(writeCliConfigDraftMock).not.toHaveBeenCalled()
   })
 
   it('waits for provider loading before treating a saved provider as unsupported', () => {
@@ -1109,47 +1077,22 @@ describe('CodeCliPage', () => {
     expect(screen.getByRole('button', { name: 'start tool' })).toBeDisabled()
   })
 
-  it('does not re-read CLI config after fallback gateway connection state updates', async () => {
+  it('does not read gateway config until the user selects the gateway', () => {
     const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
-    const defaultModel = {
-      id: 'anthropic::claude-new',
-      providerId: 'anthropic',
-      modelId: 'claude-new',
-      apiModelId: 'claude-new',
-      name: 'Claude New'
-    }
-    let resolveFirstRead!: (files: CliConfigFileDraft[]) => void
-    const pendingRead = new Promise<CliConfigFileDraft[]>(() => {})
-    readCliConfigFilesMock
-      .mockImplementationOnce(
-        () =>
-          new Promise<CliConfigFileDraft[]>((resolve) => {
-            resolveFirstRead = resolve
-          })
-      )
-      .mockReturnValue(pendingRead)
-    extractConnectionFromCliConfigDraftMock.mockReturnValue({ model: 'other-provider:other-model' })
-    cliConfigConnectionMatchesProviderMock.mockReturnValue(false)
     gatewayState.bundle = {
       provider: gatewayProvider,
       apiKey: null,
       ensureRunning: vi.fn(),
       getApiKey: vi.fn()
     }
-    gatewayState.defaultModelId = defaultModel.id
-    gatewayState.modelsById.set(defaultModel.id, defaultModel)
     mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
 
     render(<CodeCliPage />)
-    expect(readCliConfigFilesMock).toHaveBeenCalledOnce()
-
-    resolveFirstRead(cliConfigFiles)
-    await waitFor(() => expect(extractConnectionFromCliConfigDraftMock).toHaveBeenCalledOnce())
-
-    expect(readCliConfigFilesMock).toHaveBeenCalledOnce()
+    expect(readCliConfigFilesMock).not.toHaveBeenCalled()
+    expect(extractConnectionFromCliConfigDraftMock).not.toHaveBeenCalled()
   })
 
-  it('opens unified gateway configuration when no routable default model is available', async () => {
+  it('opens gateway configuration only after the user selects it', async () => {
     const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
     gatewayState.bundle = {
       provider: gatewayProvider,
@@ -1162,9 +1105,13 @@ describe('CodeCliPage', () => {
     render(<CodeCliPage />)
 
     const startButton = screen.getByRole('button', { name: 'start tool' })
-    expect(startButton).toBeEnabled()
-    fireEvent.click(startButton)
+    expect(startButton).toBeDisabled()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute(
+      'data-launch-disabled-hint',
+      'code.select_provider_or_model_before_launch'
+    )
 
+    fireEvent.click(screen.getByText(`toggle ${CLI_API_GATEWAY_PROVIDER_ID}`))
     expect(await screen.findByTestId('config-panel')).toHaveAttribute('data-provider-id', CLI_API_GATEWAY_PROVIDER_ID)
     expect(screen.queryByRole('button', { name: 'launch tool' })).not.toBeInTheDocument()
   })
@@ -1202,7 +1149,7 @@ describe('CodeCliPage', () => {
     expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
   })
 
-  it('removes the launch hint once a current provider is selected', () => {
+  it('removes the launch hint once a provider with a model is selected', () => {
     mockCodeCliState({
       providerConfigs: {
         anthropic: { modelId: 'anthropic::claude-new', config: {} }
@@ -1215,6 +1162,21 @@ describe('CodeCliPage', () => {
     const versionCard = screen.getByTestId('version-status-card')
     expect(versionCard).toHaveAttribute('data-can-launch', 'true')
     expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
+  })
+
+  it('keeps launch disabled when a provider is selected without a model', () => {
+    mockCodeCliState({
+      providerConfigs: { anthropic: { modelId: null, config: {} } },
+      currentProviderId: 'anthropic'
+    })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeDisabled()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute(
+      'data-launch-disabled-hint',
+      'code.select_provider_or_model_before_launch'
+    )
   })
 
   it('does not add a provider selection hint for provider-less tools', () => {
@@ -1230,17 +1192,37 @@ describe('CodeCliPage', () => {
     expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
-  it('offers the own-login entry (and no selection hint) when no real providers exist', () => {
+  it('offers own login without requiring an API-key provider', () => {
     mockProviders.splice(0, mockProviders.length)
     mockCodeCliState()
 
     render(<CodeCliPage />)
 
     // Login-capable tools always surface the virtual own-login row, so there is no empty state and
-    // the "select a provider" hint is suppressed (own-login is the only option, nothing to nag about).
+    // the user can launch through their account after selecting the own-login row.
     expect(screen.queryByTestId('empty-config-list')).not.toBeInTheDocument()
     expect(screen.getByText(`toggle ${CLI_OWN_LOGIN_PROVIDER_ID}`)).toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute(
+      'data-launch-disabled-hint',
+      'code.select_provider_or_model_before_launch'
+    )
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeDisabled()
+  })
+
+  it('allows launching with the selected own login and no API key provider', async () => {
+    mockProviders.splice(0, mockProviders.length)
+    mockCodeCliState({ currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeEnabled()
     expect(screen.getByTestId('version-status-card')).not.toHaveAttribute('data-launch-disabled-hint')
+    fireEvent.click(screen.getByRole('button', { name: 'start tool' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'launch tool' }))
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'own-login' }))
+    )
   })
 
   it('warns that credentials may remain when clearing the CLI config fails during tool removal', async () => {

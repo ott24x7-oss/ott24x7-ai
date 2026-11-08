@@ -428,7 +428,7 @@ describe('desktop Pi Durable connection', () => {
       expect(text(events)).not.toContain('child continued answer')
       expect(events.filter((event) => event.type === 'error')).toEqual([])
       if (scenario === 'retry archive flush') {
-        const shutdown = vi.spyOn(connection['runtime']!, 'shutdown')
+        const shutdown = vi.spyOn(connection['runtime'], 'shutdown')
         vi.spyOn(contexts, 'saveProjectionTx').mockImplementationOnce(() => {
           throw new Error('archive temporarily unavailable')
         })
