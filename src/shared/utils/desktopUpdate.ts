@@ -1,4 +1,4 @@
-export const OTT_DESKTOP_BUILD = 4
+export const OTT_DESKTOP_BUILD = 5
 export const DESKTOP_UPDATE_MANIFEST_URL =
   'https://github.com/ott24x7-oss/ott24x7-ai/releases/latest/download/desktop-version.json'
 

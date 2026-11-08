@@ -6,7 +6,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import { application } from '@application'
 import { registerKnowledgeFunctions } from '@data/db/knowledgeFunctions'
-import { backupDatabaseOnStartup } from '@data/db/startupBackup'
+import { guardDatabaseOnStartup } from '@data/db/startupBackup'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
@@ -49,9 +49,12 @@ export class DbService extends BaseService {
     super()
     try {
       try {
-        backupDatabaseOnStartup(application.getPath('app.database.file'))
+        const guard = guardDatabaseOnStartup(application.getPath('app.database.file'))
+        if (guard.action === 'recovered' || guard.action === 'unrecoverable') {
+          logger.warn('Startup database guard replaced the live database', guard)
+        }
       } catch (error) {
-        logger.warn('Startup database backup failed', error as Error)
+        logger.warn('Startup database guard failed', error as Error)
       }
       this.ensureDatabaseIntegrity()
       // better-sqlite3 opens a bare filesystem path (not a file: URL) and keeps a single
@@ -146,6 +149,15 @@ export class DbService extends BaseService {
     this.configurePragmas()
     this.migrateDb()
     new SeedRunner(this.db).runAll(seeders)
+  }
+
+  /** Fold the WAL into the main file on quit so a lost or stale -wal can never hide the user's data. */
+  protected onDestroy(): void {
+    try {
+      this.sqlite.pragma('wal_checkpoint(TRUNCATE)')
+    } catch (error) {
+      logger.warn('Database checkpoint on shutdown failed', error as Error)
+    }
   }
 
   /**
