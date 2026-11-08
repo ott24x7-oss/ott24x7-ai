@@ -31,6 +31,7 @@ import { miniAppHandlers } from './miniApp'
 import { navigationHandlers } from './navigation'
 import { notificationHandlers } from './notification'
 import { oauthHandlers } from './oauth'
+import { ollamaHandlers } from './ollama'
 import { openclawHandlers } from './openclaw'
 import { openrouterHandlers } from './openrouter'
 import { ovmsHandlers } from './ovms'
@@ -49,8 +50,8 @@ import { tabHandlers } from './tab'
 import { toolResultHandlers } from './toolResult'
 import { translateHandlers } from './translate'
 import { trashHandlers } from './trash'
-import { voiceHandlers } from './voice'
 import { videoGenerationHandlers } from './videoGeneration'
+import { voiceHandlers } from './voice'
 import { webSearchHandlers } from './webSearch'
 import { webviewHandlers } from './webview'
 import { windowHandlers } from './window'
@@ -96,6 +97,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...miniAppHandlers,
   ...navigationHandlers,
   ...notificationHandlers,
+  ...ollamaHandlers,
   ...oauthHandlers,
   ...openclawHandlers,
   ...openrouterHandlers,

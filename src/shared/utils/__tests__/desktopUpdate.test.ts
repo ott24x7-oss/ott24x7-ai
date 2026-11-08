@@ -22,7 +22,7 @@ const manifest = {
 
 describe('desktop update manifest', () => {
   it('keeps the product version independent from the desktop build number', () => {
-    expect(OTT_DESKTOP_BUILD).toBe(7)
+    expect(OTT_DESKTOP_BUILD).toBe(9)
     expect(DESKTOP_UPDATE_MANIFEST_URL).toBe('https://api.ott24x7.com/update/desktop-version.json')
     expect(DESKTOP_UPDATE_FALLBACK_MANIFEST_URL).toBe(
       'https://github.com/ott24x7-oss/ott24x7-ai/releases/latest/download/desktop-version.json'

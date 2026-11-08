@@ -36,15 +36,14 @@ import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { BrowserSessionService } from '@main/features/browser'
 import { CompareCliService } from '@main/features/compare/CompareCliService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
-import { VideoGenerationService } from '@main/features/videoGeneration'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
 import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
+import { VideoGenerationService } from '@main/features/videoGeneration'
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
-import { DesktopUpdateService } from '@main/services/DesktopUpdateService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
@@ -55,6 +54,7 @@ import { CommandService } from '@main/services/CommandService'
 import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
+import { DesktopUpdateService } from '@main/services/DesktopUpdateService'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
@@ -65,6 +65,7 @@ import { MediaProtocolService } from '@main/services/mediaProtocol'
 import { NetworkService } from '@main/services/network'
 import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
+import { OllamaService } from '@main/services/ollama'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
@@ -173,6 +174,7 @@ export const services = {
   OAuthRuntimeService,
   MainWindowService,
   NotificationService,
+  OllamaService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,

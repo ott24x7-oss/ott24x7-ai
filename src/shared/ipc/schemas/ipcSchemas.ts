@@ -29,6 +29,7 @@ import { type MiniAppEventSchemas, miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
 import { oauthRequestSchemas } from './oauth'
+import { type OllamaEventSchemas, ollamaRequestSchemas } from './ollama'
 import { openclawRequestSchemas } from './openclaw'
 import { openrouterRequestSchemas } from './openrouter'
 import { ovmsRequestSchemas } from './ovms'
@@ -47,8 +48,8 @@ import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { toolResultRequestSchemas } from './toolResult'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
 import { trashRequestSchemas } from './trash'
-import { type VoiceEventSchemas, voiceRequestSchemas } from './voice'
 import { type VideoGenerationEventSchemas, videoGenerationRequestSchemas } from './videoGeneration'
+import { type VoiceEventSchemas, voiceRequestSchemas } from './voice'
 import { type WebSearchEventSchemas, webSearchRequestSchemas } from './webSearch'
 import { type WebviewEventSchemas, webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -92,6 +93,7 @@ export const ipcRequestSchemas = {
   ...miniAppRequestSchemas,
   ...navigationRequestSchemas,
   ...notificationRequestSchemas,
+  ...ollamaRequestSchemas,
   ...oauthRequestSchemas,
   ...openclawRequestSchemas,
   ...openrouterRequestSchemas,
@@ -139,6 +141,7 @@ export type IpcEventSchemas = AiEventSchemas &
   MiniAppEventSchemas &
   NavigationEventSchemas &
   NotificationEventSchemas &
+  OllamaEventSchemas &
   QuickAssistantEventSchemas &
   ScreenshotEventSchemas &
   ScreenshotChatEventSchemas &

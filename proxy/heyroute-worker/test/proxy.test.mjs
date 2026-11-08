@@ -2,14 +2,14 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import worker, { isAllowedPath, upstreamRequestHeaders } from '../src/index.js'
 
-void test('only API paths are forwarded', () => {
+test('only API paths are forwarded', () => {
   assert.equal(isAllowedPath('/v1/chat/completions'), true)
   assert.equal(isAllowedPath('/v1beta/models'), true)
   assert.equal(isAllowedPath('/admin'), false)
   assert.equal(isAllowedPath('/v10/x'), false)
 })
 
-void test('client auth is forwarded but Cloudflare and hop headers are not', () => {
+test('client auth is forwarded but Cloudflare and hop headers are not', () => {
   const h = upstreamRequestHeaders(new Headers({ authorization: 'Bearer x', 'cf-connecting-ip': '1.2.3.4', host: 'api.ott24x7.com', 'content-type': 'application/json' }))
   assert.equal(h.get('authorization'), 'Bearer x')
   assert.equal(h.get('content-type'), 'application/json')
@@ -17,7 +17,7 @@ void test('client auth is forwarded but Cloudflare and hop headers are not', () 
   assert.equal(h.get('host'), null)
 })
 
-void test('forwards method, path, query and body, and rewrites self redirects', async () => {
+test('forwards method, path, query and body, and rewrites self redirects', async () => {
   const seen = []
   globalThis.fetch = async (url, init) => {
     seen.push({ url, method: init.method, body: init.body ? await new Response(init.body).text() : null })
@@ -29,13 +29,13 @@ void test('forwards method, path, query and body, and rewrites self redirects', 
   assert.equal(res.headers.get('set-cookie'), null)
 })
 
-void test('unknown paths are rejected without calling upstream', async () => {
+test('unknown paths are rejected without calling upstream', async () => {
   globalThis.fetch = async () => assert.fail('should not call upstream')
   const res = await worker.fetch(new Request('https://api.ott24x7.com/console'))
   assert.equal(res.status, 404)
 })
 
-void test('download links redirect to the signed GitHub asset found through the API', async () => {
+test('download links redirect to the signed GitHub asset found through the API', async () => {
   const calls = []
   globalThis.fetch = async (url) => {
     calls.push(String(url))
@@ -50,7 +50,7 @@ void test('download links redirect to the signed GitHub asset found through the 
   assert.ok(calls.every((url) => !url.includes('github.com/ott24x7-oss/ott24x7-ai/releases/download')))
 })
 
-void test('update manifest is served from our domain', async () => {
+test('update manifest is served from our domain', async () => {
   globalThis.fetch = async (url) => {
     if (String(url).endsWith('/releases/tags/v1.1.0')) {
       return Response.json({ assets: [{ name: 'desktop-version.json', url: 'https://api.github.com/assets/7' }] })
@@ -63,18 +63,18 @@ void test('update manifest is served from our domain', async () => {
   assert.deepEqual(await res.json(), { latestBuild: 7 })
 })
 
-void test('download falls back to the GitHub link when the API is unavailable', async () => {
+test('download falls back to the GitHub link when the API is unavailable', async () => {
   globalThis.fetch = async () => new Response('down', { status: 503 })
   const res = await worker.fetch(new Request('https://api.ott24x7.com/download/OTT24x7-AI.apk'))
   assert.equal(res.headers.get('location'), 'https://github.com/ott24x7-oss/ott24x7-ai/releases/latest/download/OTT24x7-AI.apk')
 })
 
-void test('only known release files are served', async () => {
+test('only known release files are served', async () => {
   globalThis.fetch = async () => assert.fail('should not fetch')
   assert.equal((await worker.fetch(new Request('https://api.ott24x7.com/download/secret.txt'))).status, 404)
 })
 
-void test('update manifest comes from KV without calling GitHub', async () => {
+test('update manifest comes from KV without calling GitHub', async () => {
   globalThis.fetch = async () => assert.fail('should not call GitHub')
   const env = { UPDATES: { get: async (key) => (key === 'version.json' ? '{"latestVersionCode":5}' : null) } }
   const res = await worker.fetch(new Request('https://api.ott24x7.com/update/version.json'), env)
