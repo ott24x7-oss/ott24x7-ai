@@ -46,6 +46,9 @@ vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: mocks.theme, setTheme: mocks.setTheme }) }))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettingsTab }))
 vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ openTab: mocks.openTab }) }))
+vi.mock('@renderer/hooks/useTopic', () => ({
+  useTopicMutations: () => ({ createTopic: async () => ({ id: 'topic-new' }) })
+}))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
 vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({ useOpenReleaseNotes: () => vi.fn() }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
@@ -227,13 +230,15 @@ describe('app Sidebar', () => {
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
 
-  it('opens a fresh Compare chat from the sidebar New Chat action', async () => {
+  it('opens a fresh single chat, not Compare, from the sidebar New Chat action', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)
 
     await user.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/compare', { forceNew: true })
+    await vi.waitFor(() =>
+      expect(mocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-new', { forceNew: true })
+    )
   })
 
   it('keeps pointer focus on the avatar and focuses the first account action for keyboard access', async () => {

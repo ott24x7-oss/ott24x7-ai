@@ -29,6 +29,24 @@ afterEach(() => {
 })
 
 describe('resolveChatEntryTopicId', () => {
+  const persisted = (values: Record<string, unknown>) =>
+    mocks.getPersist.mockImplementation((key: string) => values[key] ?? null)
+
+  it('skips a remembered Compare conversation so Chat does not open Compare', async () => {
+    persisted({ 'ui.chat.last_used_topic_id': 'topic-compare', 'ui.compare.topic_ids': ['topic-compare'] })
+    mocks.get.mockResolvedValueOnce({ topic: { id: 'topic-chat' } })
+
+    await expect(resolveChatEntryTopicId()).resolves.toBe('topic-chat')
+    expect(mocks.get).toHaveBeenCalledWith('/topics/latest')
+  })
+
+  it('starts a fresh chat when the latest conversation is a Compare one', async () => {
+    persisted({ 'ui.compare.topic_ids': ['topic-compare'] })
+    mocks.get.mockResolvedValueOnce({ topic: { id: 'topic-compare' } })
+
+    await expect(resolveChatEntryTopicId()).resolves.toBeNull()
+  })
+
   it('resolves the last-used topic when it still exists', async () => {
     mocks.getPersist.mockReturnValue('topic-last')
     mocks.get.mockResolvedValue({ id: 'topic-last' })

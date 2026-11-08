@@ -20,8 +20,10 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
  */
 
 export async function resolveChatEntryTopicId(): Promise<string | null> {
+  // Compare conversations live under /app/compare; resuming one here would bounce Chat into Compare.
+  const compareTopicIds = new Set(cacheService.getPersist('ui.compare.topic_ids') ?? [])
   const lastUsedTopicId = cacheService.getPersist('ui.chat.last_used_topic_id')
-  if (lastUsedTopicId) {
+  if (lastUsedTopicId && !compareTopicIds.has(lastUsedTopicId)) {
     try {
       await dataApiService.get(`/topics/${lastUsedTopicId}`)
       return lastUsedTopicId
@@ -31,7 +33,7 @@ export async function resolveChatEntryTopicId(): Promise<string | null> {
   }
 
   const { topic } = await dataApiService.get('/topics/latest')
-  return topic?.id ?? null
+  return topic && !compareTopicIds.has(topic.id) ? topic.id : null
 }
 
 export async function resolveAgentEntrySessionId(): Promise<string | null> {

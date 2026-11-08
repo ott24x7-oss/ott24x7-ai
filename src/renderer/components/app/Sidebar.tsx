@@ -30,6 +30,7 @@ import { SidebarPromoCard } from '@renderer/components/app/PromoCard'
 import { useTabs } from '@renderer/hooks/tab'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isMac } from '@renderer/utils/platform'
@@ -80,6 +81,7 @@ export default function Sidebar({
   const { t } = useTranslation()
   const showUserInFooter = isMac && !isFullscreen
   const { openTab } = useTabs()
+  const { createTopic } = useTopicMutations()
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
   const registry = useSidebarShortcutRegistry()
   const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
@@ -366,9 +368,12 @@ export default function Sidebar({
     emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
     topAction: (footerLayout: SidebarVisibleLayout, onDismiss?: () => void) => {
+      // New Chat is a single-model conversation; Compare has its own entry.
       const startNewChat = () => {
-        openTab('/app/compare', { forceNew: true })
         onDismiss?.()
+        createTopic({})
+          .then((topic) => openTab(`/app/chat?topicId=${topic.id}`, { forceNew: true }))
+          .catch((error: unknown) => toast.error(error instanceof Error ? error.message : String(error)))
       }
       const label = t('chat.conversation.new')
 
