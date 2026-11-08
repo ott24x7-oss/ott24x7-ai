@@ -1,12 +1,43 @@
-export const OTT_DESKTOP_BUILD = 6
-export const DESKTOP_UPDATE_MANIFEST_URL =
+export const OTT_DESKTOP_BUILD = 7
+export const DESKTOP_UPDATE_MANIFEST_URL = 'https://api.ott24x7.com/update/desktop-version.json'
+export const DESKTOP_UPDATE_FALLBACK_MANIFEST_URL =
   'https://github.com/ott24x7-oss/ott24x7-ai/releases/latest/download/desktop-version.json'
+export const DESKTOP_UPDATE_INSTALLER_URL = 'https://api.ott24x7.com/download/OTT24x7-AI-Setup.exe'
 
 const ALLOWED_INSTALLER_HOSTS = new Set([
+  'api.ott24x7.com',
   'github.com',
   'objects.githubusercontent.com',
   'release-assets.githubusercontent.com'
 ])
+
+export function getDesktopUpdateManifestUrls(overrideUrl?: string): string[] {
+  return [...new Set([overrideUrl?.trim() || DESKTOP_UPDATE_MANIFEST_URL, DESKTOP_UPDATE_FALLBACK_MANIFEST_URL])]
+}
+
+export async function fetchDesktopUpdateManifest(
+  fetcher: typeof fetch,
+  overrideUrl?: string
+): Promise<DesktopUpdateManifest | null> {
+  for (const url of getDesktopUpdateManifestUrls(overrideUrl)) {
+    try {
+      const response = await fetcher(url, {
+        headers: { 'Cache-Control': 'no-cache' },
+        signal: AbortSignal.timeout(8_000)
+      })
+      if (!response.ok) continue
+      const manifest = parseDesktopUpdateManifest(await response.text())
+      if (manifest) return manifest
+    } catch {
+      // Try the next manifest source.
+    }
+  }
+  return null
+}
+
+export function getDesktopInstallerUrls(manifestUrl: string): string[] {
+  return [...new Set([DESKTOP_UPDATE_INSTALLER_URL, manifestUrl])]
+}
 
 export interface DesktopUpdateManifest {
   latestBuild: number

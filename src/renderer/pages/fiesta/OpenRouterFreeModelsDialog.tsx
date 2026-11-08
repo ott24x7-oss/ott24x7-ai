@@ -1,3 +1,4 @@
+import { Crown } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +13,7 @@ import {
   DialogTitle,
   Input
 } from '@cherrystudio/ui'
+import { useDesktopUpdate } from '@renderer/components/app/DesktopUpdateProvider'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useGuideChecklist } from '@renderer/hooks/useGuideChecklist'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
@@ -21,12 +23,13 @@ import { openExternalWebsite } from '@renderer/services/website'
 import { GUIDE_AUTO_CHECKLIST_ITEMS } from '@renderer/utils/guide'
 import type { OpenRouterFreeModel } from '@shared/types/openRouter'
 
-import { useDesktopUpdate } from '@renderer/components/app/DesktopUpdateProvider'
 import {
   addOpenRouterModelsToCompare,
   getOpenRouterCompareModelId,
   toOpenRouterCreateModelDto
 } from './openRouterFreeModelSelection'
+
+const PREMIUM_API_URL = 'https://ott24x7.com'
 
 type DialogError =
   | 'invalid_key'
@@ -49,11 +52,7 @@ const ERROR_TRANSLATION_KEYS: Record<DialogError, string> = {
 
 export function OpenRouterFreeModelsDialog() {
   const { t } = useTranslation()
-  const {
-    canShowOpenRouterPrompt,
-    freeModelsOpen,
-    setFreeModelsOpen
-  } = useDesktopUpdate()
+  const { canShowOpenRouterPrompt, freeModelsOpen, setFreeModelsOpen } = useDesktopUpdate()
   const { addApiKey, enableProvider } = useProvider('openrouter')
   const { models: configuredModels, isLoading: configuredModelsLoading } = useModels({ providerId: 'openrouter' })
   const { createModels, updateModels } = useModelMutations()
@@ -251,11 +250,36 @@ export function OpenRouterFreeModelsDialog() {
             </a>
           </div>
 
-          <Button type="button" className="w-full" disabled={isChecking || isAdding} onClick={() => void handleCheckAndFetch()}>
+          <Button
+            type="button"
+            className="w-full"
+            disabled={isChecking || isAdding}
+            onClick={() => void handleCheckAndFetch()}>
             {isChecking ? t('openrouter.free_models.checking') : t('openrouter.free_models.check_fetch')}
           </Button>
 
-          {errorText && <p role="alert" className="text-sm text-destructive">{errorText}</p>}
+          {errorText && (
+            <p role="alert" className="text-sm text-destructive">
+              {errorText}
+            </p>
+          )}
+
+          <section
+            aria-label={t('openrouter.premium.title')}
+            className="flex items-center gap-3 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 to-primary/5 p-3">
+            <Crown className="size-5 shrink-0 text-primary" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-sm">{t('openrouter.premium.title')}</p>
+              <p className="text-muted-foreground text-xs">{t('openrouter.premium.description')}</p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="shrink-0"
+              onClick={() => void openExternalWebsite(PREMIUM_API_URL)}>
+              {t('openrouter.premium.buy')}
+            </Button>
+          </section>
 
           {models.length > 0 && (
             <section aria-label={t('openrouter.free_models.model_list')} className="space-y-3 border-t pt-4">
@@ -270,7 +294,9 @@ export function OpenRouterFreeModelsDialog() {
               </p>
               <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border p-2">
                 {filteredModels.map((model) => (
-                  <label key={model.id} className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-muted">
+                  <label
+                    key={model.id}
+                    className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-muted">
                     <Checkbox
                       checked={selectedIds.includes(model.id)}
                       onCheckedChange={(checked) => toggleModel(model.id, checked === true)}
@@ -288,7 +314,11 @@ export function OpenRouterFreeModelsDialog() {
                     )}
                   </label>
                 ))}
-                {filteredModels.length === 0 && <p className="px-2 py-4 text-center text-sm text-muted-foreground">{t('openrouter.free_models.no_matches')}</p>}
+                {filteredModels.length === 0 && (
+                  <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    {t('openrouter.free_models.no_matches')}
+                  </p>
+                )}
               </div>
             </section>
           )}
@@ -308,7 +338,10 @@ export function OpenRouterFreeModelsDialog() {
               {t('openrouter.free_models.not_now')}
             </Button>
             {models.length > 0 && (
-              <Button type="button" disabled={selectedIds.length === 0 || configuredModelsLoading || isAdding} onClick={() => void handleAddToCompare()}>
+              <Button
+                type="button"
+                disabled={selectedIds.length === 0 || configuredModelsLoading || isAdding}
+                onClick={() => void handleAddToCompare()}>
                 {isAdding
                   ? t('openrouter.free_models.adding')
                   : t('openrouter.free_models.add_to_compare', { count: selectedIds.length })}

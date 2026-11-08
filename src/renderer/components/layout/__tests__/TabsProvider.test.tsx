@@ -370,6 +370,19 @@ function ForceNewSameUrlOpener() {
   return <TabSnapshot />
 }
 
+function OpenChatFromCompare() {
+  const { openTab } = useTabsContext()
+  const didOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/chat')
+  }, [openTab])
+
+  return <TabSnapshot />
+}
+
 // Materializes a pinned tab from "init" the way a detached sub-window re-creates its tab.
 function PinnedTabMaterializer() {
   const { tabs, openTab } = useTabsContext()
@@ -873,6 +886,28 @@ describe('TabsProvider', () => {
     const ids = (screen.getByTestId('tab-ids').textContent ?? '').split(',')
     expect(ids).toHaveLength(2)
     expect(new Set(ids).size).toBe(2)
+  })
+
+  it('does not reuse a Compare tab when Chat opens', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'compare',
+          type: 'route',
+          url: '/app/compare?topicId=compare-topic',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <OpenChatFromCompare />
+      </TabsProvider>
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/compare?topicId=compare-topic,/app/chat')
+    )
+    expect(screen.getByTestId('active-tab-id')).not.toHaveTextContent('compare')
   })
 })
 

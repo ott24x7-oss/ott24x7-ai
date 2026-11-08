@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openExternalWebsite: vi.fn(),
+  checkForUpdates: vi.fn(),
   request: vi.fn(),
   search: {} as Record<string, unknown>,
   showDoctor: vi.fn()
@@ -14,6 +15,9 @@ const mocks = vi.hoisted(() => ({
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/components/doctor', () => ({ DoctorPopup: { show: mocks.showDoctor } }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+vi.mock('@renderer/components/app/DesktopUpdateProvider', () => ({
+  useDesktopUpdate: () => ({ checkForUpdates: mocks.checkForUpdates })
+}))
 vi.mock('@renderer/services/website', () => ({ openExternalWebsite: mocks.openExternalWebsite }))
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ pathname: '/settings/about' }),
@@ -24,7 +28,16 @@ vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }
 vi.mock('@renderer/components/icons/LogoAvatar', () => ({
   default: ({ logo, alt }: { logo: string; alt?: string }) => <img src={logo} alt={alt} />
 }))
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: { version?: string; build?: number }) =>
+      values?.version
+        ? `${key} ${values.version}${values.build ? ` ${values.build}` : ''}`
+        : values?.build
+          ? `${key} ${values.build}`
+          : key
+  })
+}))
 
 import { AboutSettings } from '..'
 
@@ -38,6 +51,7 @@ describe('AboutSettings', () => {
     vi.clearAllMocks()
     mocks.search = {}
     mocks.request.mockResolvedValue({ isPortable: false, version: '2.0.0' })
+    mocks.checkForUpdates.mockResolvedValue({ decision: 'NONE', currentBuild: 7 })
     mocks.openExternalWebsite.mockResolvedValue(undefined)
   })
 
@@ -104,5 +118,38 @@ describe('AboutSettings', () => {
       previous: Record<string, unknown>
     ) => Record<string, unknown>
     expect(updateSearch({ doctor: 'report', focusId: 'support' })).toEqual({ focusId: 'support' })
+  })
+
+  it('shows the build and reports an available update after a manual check', async () => {
+    const user = userEvent.setup()
+    mocks.checkForUpdates.mockResolvedValue({
+      decision: 'OPTIONAL',
+      currentBuild: 7,
+      manifest: {
+        latestBuild: 8,
+        minBuild: 7,
+        version: '1.8',
+        url: 'https://api.ott24x7.com/download/OTT24x7-AI-Setup.exe',
+        notes: 'Fixes'
+      }
+    })
+    await renderAboutSettings()
+
+    expect(screen.getByText('desktop_update.version_and_build 2.0.0 7')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'desktop_update.check_for_updates' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('desktop_update.available 1.8')
+    expect(mocks.checkForUpdates).toHaveBeenCalledOnce()
+  })
+
+  it('offers Retry after a manual update check fails', async () => {
+    const user = userEvent.setup()
+    mocks.checkForUpdates.mockRejectedValueOnce(new Error('offline'))
+    await renderAboutSettings()
+
+    await user.click(screen.getByRole('button', { name: 'desktop_update.check_for_updates' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('desktop_update.check_error')
+    expect(screen.getByRole('button', { name: 'desktop_update.retry' })).toBeEnabled()
   })
 })

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge, Button, Divider } from '@cherrystudio/ui'
 import AppLogo from '@renderer/assets/images/logo.png'
+import { useDesktopUpdate } from '@renderer/components/app/DesktopUpdateProvider'
 import { PromoDetails, PromoExternalLink } from '@renderer/components/app/PromoCard'
 import { usePromos } from '@renderer/components/app/PromosProvider'
 import { DoctorPopup } from '@renderer/components/doctor'
@@ -19,6 +20,7 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { SOURCE_CODE_URL } from '@renderer/utils/promos'
+import { OTT_DESKTOP_BUILD } from '@shared/utils/desktopUpdate'
 import { DOCTOR_OPEN_QUERY_PARAM, type DoctorPanel } from '@shared/utils/doctor'
 
 import { OpenSourceLicensesDialog } from './OpenSourceLicensesDialog'
@@ -26,7 +28,11 @@ import { OpenSourceLicensesDialog } from './OpenSourceLicensesDialog'
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [licensesOpen, setLicensesOpen] = useState(false)
+  const [updateCheck, setUpdateCheck] = useState<
+    { state: 'idle' | 'checking' | 'latest' | 'error' } | { state: 'available'; version: string }
+  >({ state: 'idle' })
   const { t } = useTranslation()
+  const { checkForUpdates } = useDesktopUpdate()
   const promos = usePromos()
   const { theme } = useTheme()
   const location = useLocation()
@@ -37,6 +43,18 @@ const AboutSettings: FC = () => {
   useEffect(() => {
     void ipcApi.request('app.get_info').then((appInfo) => setVersion(appInfo.version))
   }, [])
+
+  const handleUpdateCheck = async () => {
+    setUpdateCheck({ state: 'checking' })
+    try {
+      const status = await checkForUpdates()
+      setUpdateCheck(
+        status.decision === 'NONE' ? { state: 'latest' } : { state: 'available', version: status.manifest.version }
+      )
+    } catch {
+      setUpdateCheck({ state: 'error' })
+    }
+  }
 
   useEffect(() => {
     const initialPanel = search[DOCTOR_OPEN_QUERY_PARAM]
@@ -72,6 +90,46 @@ const AboutSettings: FC = () => {
             </Badge>
           </div>
         </div>
+        <Divider className="my-3" />
+        <SettingRow className="items-start gap-3">
+          <div className="space-y-1">
+            <SettingRowTitle>{t('desktop_update.check_for_updates')}</SettingRowTitle>
+            <p className="text-sm text-muted-foreground">
+              {t('desktop_update.version_and_build', { version, build: OTT_DESKTOP_BUILD })}
+            </p>
+            {updateCheck.state === 'checking' && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {t('desktop_update.checking')}
+              </p>
+            )}
+            {updateCheck.state === 'latest' && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {t('desktop_update.latest')}
+              </p>
+            )}
+            {updateCheck.state === 'available' && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {t('desktop_update.available', { version: updateCheck.version })}
+              </p>
+            )}
+            {updateCheck.state === 'error' && (
+              <p role="alert" className="text-sm text-destructive">
+                {t('desktop_update.check_error')}
+              </p>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={updateCheck.state === 'checking'}
+            onClick={() => void handleUpdateCheck()}>
+            {updateCheck.state === 'checking'
+              ? t('desktop_update.checking')
+              : updateCheck.state === 'error'
+                ? t('desktop_update.retry')
+                : t('desktop_update.check_for_updates')}
+          </Button>
+        </SettingRow>
         <Divider className="my-3" />
         <AboutActionRow
           id="setting-about-debug-tools"

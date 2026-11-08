@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
+import type { ComparePageConfig } from '@renderer/types/compare'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
@@ -2047,6 +2048,45 @@ describe('HomePage', () => {
     expect(homeMocks.navigate).toHaveBeenCalledWith({
       to: '/app/chat',
       search: { topicId: 'topic-next' },
+      replace: true
+    })
+  })
+
+  it('keeps a Compare-tagged topic on Chat when Chat is the selected route', async () => {
+    homeMocks.routeSearch = { topicId: 'topic-compare' }
+    homeMocks.persistCacheValues.set('ui.compare.topic_ids', ['topic-compare'])
+
+    await act(async () => {
+      render(<HomePage />)
+    })
+
+    await act(async () => {
+      homeMocks.activeTopicOptions?.setActiveTopicId?.('topic-compare')
+    })
+
+    expect(homeMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: { topicId: 'topic-compare' },
+      replace: true
+    })
+    expect(homeMocks.navigate).not.toHaveBeenCalledWith(expect.objectContaining({ to: '/app/compare' }))
+  })
+
+  it('keeps a normal topic on Compare when Compare is the selected route', async () => {
+    homeMocks.routeSearch = { topicId: 'topic-normal' }
+    const compare = { onTopicIdChange: vi.fn() } as unknown as ComparePageConfig
+
+    await act(async () => {
+      render(<HomePage compare={compare} />)
+    })
+
+    await act(async () => {
+      homeMocks.activeTopicOptions?.setActiveTopicId?.('topic-normal')
+    })
+
+    expect(homeMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/compare',
+      search: { topicId: 'topic-normal' },
       replace: true
     })
   })

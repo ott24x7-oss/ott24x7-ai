@@ -642,7 +642,8 @@ fun FiestaApp(activity: MainActivity) {
     if (showOpenRouterPrompt && onboardingSeen && !activity.updateBlocking) {
         OpenRouterPromptDialog(
             onDismiss = { showOpenRouterPrompt = false },
-            onNever = { settings.saveOpenRouterPromptNever(); showOpenRouterPrompt = false }
+            onNever = { settings.saveOpenRouterPromptNever(); showOpenRouterPrompt = false },
+            onOpenPremium = activity::openExternal
         ) {
             OpenRouterSection(
                 apiKey = openRouterKey,

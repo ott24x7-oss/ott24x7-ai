@@ -1,0 +1,10 @@
+name = "ott24x7-api-proxy"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+routes = [{ pattern = "api.ott24x7.com", custom_domain = true }]
+observability = { enabled = false }
+
+[[kv_namespaces]]
+binding = "UPDATES"
+id = "568c46dd5beb4f9aa4cf3d14d5ad914c"

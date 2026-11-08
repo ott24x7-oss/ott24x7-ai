@@ -251,6 +251,20 @@ describe('sidebar conversation navigation', () => {
     expect(state.tabs.find((tab) => tab.id === 'other-agent')?.url).toBe('/app/agents?sessionId=session-1')
   })
 
+  it('opens Chat from a Compare tab without reusing a Compare conversation tab', async () => {
+    const { context, state } = statefulTabContext([
+      { id: 'compare', type: 'route', url: '/app/compare?topicId=compare-topic', title: 'Compare' },
+      { id: 'old-chat', type: 'route', url: '/app/chat?topicId=compare-topic', title: 'Conversations' }
+    ])
+
+    await activateShortcut(context, 'core.app', 'assistants')
+
+    expect(state.activeTabId).toBe('compare')
+    expect(state.tabs).toHaveLength(2)
+    expect(state.tabs.find((tab) => tab.id === 'compare')?.url).toBe('/app/chat')
+    expect(state.tabs.find((tab) => tab.id === 'old-chat')?.url).toBe('/app/chat?topicId=compare-topic')
+  })
+
   it.each(['translate', 'notes'])(
     'repurposes the active tab for the %s app shortcut even when a sibling tab has its exact URL',
     async (appId) => {

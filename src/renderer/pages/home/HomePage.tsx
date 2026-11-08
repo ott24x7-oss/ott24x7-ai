@@ -180,13 +180,13 @@ const HomePage: FC<{ compare?: ComparePageConfig }> = ({ compare }) => {
       setActiveTopicIdState(id)
       if (id) {
         void navigate({
-          to: isCompareMode || compareTopicIdSet.has(id) ? '/app/compare' : '/app/chat',
+          to: isCompareMode ? '/app/compare' : '/app/chat',
           search: { topicId: id },
           replace: true
         })
       }
     },
-    [compareTopicIdSet, isCompareMode, navigate]
+    [isCompareMode, navigate]
   )
 
   useLayoutEffect(() => {
@@ -223,15 +223,6 @@ const HomePage: FC<{ compare?: ComparePageConfig }> = ({ compare }) => {
     void navigate({ to: '/app/chat', search: {}, replace: true })
   }, [activeTopicId, routeTopicId, clearActiveTopic, isCompareMode, navigate])
 
-  useEffect(() => {
-    if (!routeTopicId) return
-    const isCompareTopic = compareTopicIdSet.has(routeTopicId)
-    if (isCompareMode && !isCompareTopic) {
-      void navigate({ to: '/app/chat', search: { topicId: routeTopicId }, replace: true })
-    } else if (!isCompareMode && isCompareTopic) {
-      void navigate({ to: '/app/compare', search: { topicId: routeTopicId }, replace: true })
-    }
-  }, [isCompareMode, compareTopicIdSet, navigate, routeTopicId])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -432,15 +423,17 @@ const HomePage: FC<{ compare?: ComparePageConfig }> = ({ compare }) => {
     async (payload?: AddNewTopicPayload, options?: NewTopicAssistantTargetOptions): Promise<Topic> => {
       const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
       const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
+      const createNormalTopic = () =>
+        createTopic({ ...(selection.assistantId ? { assistantId: selection.assistantId } : {}) }).then((topic) => ({
+          topic,
+          created: true
+        }))
       const result =
         isCompareMode || reuseTargetAssistantId === undefined
-          ? {
-              topic: await createTopic({
-                ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
-              }),
-              created: true
-            }
-          : await reuseOrCreateTopic(reuseTargetAssistantId)
+          ? await createNormalTopic()
+          : await reuseOrCreateTopic(reuseTargetAssistantId).then((result) =>
+              compareTopicIdSet.has(result.topic.id) ? createNormalTopic() : result
+            )
 
       if (result.created) {
         void refreshTopics().catch((err) => {
@@ -449,7 +442,7 @@ const HomePage: FC<{ compare?: ComparePageConfig }> = ({ compare }) => {
       }
       return mapApiTopicToRendererTopic(result.topic)
     },
-    [createTopic, isCompareMode, refreshTopics, resolveNewTopicAssistantTarget, reuseOrCreateTopic]
+    [compareTopicIdSet, createTopic, isCompareMode, refreshTopics, resolveNewTopicAssistantTarget, reuseOrCreateTopic]
   )
 
   const createAndActivateEmptyTopic = useCallback(

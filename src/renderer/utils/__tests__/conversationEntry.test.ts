@@ -135,18 +135,26 @@ describe('resolveChatEntryTopicIdForAssistant', () => {
     expect(mocks.get).toHaveBeenCalledTimes(1)
   })
 
+  it('does not resume a Compare topic from an assistant Chat shortcut', async () => {
+    mocks.getPersist.mockImplementation((key: string) => (key === 'ui.compare.topic_ids' ? ['topic-compare'] : null))
+    mocks.get.mockResolvedValue({ topic: { id: 'topic-compare' } })
+
+    await expect(resolveChatEntryTopicIdForAssistant('assistant-1')).resolves.toBeNull()
+  })
+
   it('returns null when the assistant has no topics', async () => {
     mocks.get.mockResolvedValue({ topic: null })
 
     await expect(resolveChatEntryTopicIdForAssistant('assistant-1')).resolves.toBeNull()
   })
 
-  it('never consults the global last-focused topic cache', async () => {
+  it('checks Compare membership without consulting the global last-focused topic cache', async () => {
     mocks.getPersist.mockReturnValue('topic-global')
     mocks.get.mockResolvedValue({ topic: { id: 'topic-assistant' } })
 
     await expect(resolveChatEntryTopicIdForAssistant('assistant-1')).resolves.toBe('topic-assistant')
-    expect(mocks.getPersist).not.toHaveBeenCalled()
+    expect(mocks.getPersist).toHaveBeenCalledWith('ui.compare.topic_ids')
+    expect(mocks.getPersist).not.toHaveBeenCalledWith('ui.chat.last_used_topic_id')
   })
 })
 

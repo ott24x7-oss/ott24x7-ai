@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -149,13 +150,32 @@ fun OpenRouterSection(
 
 /** Launch popup that invites the user to add a free OpenRouter key. */
 @Composable
-fun OpenRouterPromptDialog(onDismiss: () -> Unit, onNever: () -> Unit, content: @Composable () -> Unit) {
+fun OpenRouterPromptDialog(
+    onDismiss: () -> Unit,
+    onNever: () -> Unit,
+    onOpenPremium: (String) -> Unit,
+    content: @Composable () -> Unit
+) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.openrouter_prompt_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(stringResource(R.string.openrouter_prompt_body), fontSize = 13.sp)
+                Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.premium_api_title), style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.premium_api_description), style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = { onOpenPremium("https://ott24x7.com") }) {
+                            Text(stringResource(R.string.premium_api_action))
+                        }
+                    }
+                }
                 content()
             }
         },

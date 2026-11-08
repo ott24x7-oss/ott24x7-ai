@@ -11,6 +11,7 @@ import {
   getVisibleSidebarShortcutItems,
   normalizeSidebarShortcutItems,
   removeSidebarShortcut,
+  resolveSidebarActiveItem,
   reorderSidebarShortcuts,
   SIDEBAR_FAVORITE_ORDER
 } from '../sidebar'
@@ -100,6 +101,11 @@ describe('sidebar shortcut storage transforms', () => {
 })
 
 describe('lite build sidebar', () => {
+  it('highlights Chat rather than Compare when a normal chat route is open', () => {
+    expect(resolveSidebarActiveItem('/app/chat?topicId=topic-1')).toBe('assistants')
+    expect(resolveSidebarActiveItem('/app/compare?topicId=topic-2')).toBe('compare')
+  })
+
   it('hides the Agents app, whose runtime is not shipped, from saved sidebars', () => {
     const items = [shortcut('core.app', 'compare'), shortcut('core.app', 'agents'), shortcut('core.app', 'notes')]
     expect(getVisibleSidebarShortcutItems(items).map((item) => item.target.locator.resourceId)).toEqual([

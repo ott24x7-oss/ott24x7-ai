@@ -126,6 +126,7 @@ export const appRequestSchemas = {
   }),
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() }),
   'app.desktop_update.status.get': defineRoute({ input: z.void(), output: desktopUpdateStatusSchema }),
+  'app.desktop_update.check': defineRoute({ input: z.void(), output: desktopUpdateStatusSchema }),
   'app.desktop_update.download_install': defineRoute({ input: z.void(), output: z.boolean() }),
   'app.desktop_update.open_in_browser': defineRoute({ input: z.void(), output: z.void() })
 }

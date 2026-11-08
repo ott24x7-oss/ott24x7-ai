@@ -14,10 +14,11 @@ import { WindowType } from '@main/core/window/types'
 import type { OutputFor } from '@shared/ipc/types'
 import {
   decideDesktopUpdate,
-  DESKTOP_UPDATE_MANIFEST_URL,
+  fetchDesktopUpdateManifest,
+  getDesktopInstallerUrls,
   isAllowedDesktopInstallerUrl,
   OTT_DESKTOP_BUILD,
-  parseDesktopUpdateManifest
+  type parseDesktopUpdateManifest
 } from '@shared/utils/desktopUpdate'
 
 const logger = loggerService.withContext('DesktopUpdateService')
@@ -40,11 +41,20 @@ export class DesktopUpdateService extends BaseService {
     return { decision, currentBuild: OTT_DESKTOP_BUILD, manifest }
   }
 
+  async checkForUpdates(): Promise<DesktopUpdateStatus> {
+    const manifest = await this.loadManifest()
+    if (!manifest) throw new Error('Desktop update information is unavailable')
+    this.manifestPromise = Promise.resolve(manifest)
+    const decision = decideDesktopUpdate(OTT_DESKTOP_BUILD, manifest)
+    if (decision === 'NONE') return { decision, currentBuild: OTT_DESKTOP_BUILD }
+    return { decision, currentBuild: OTT_DESKTOP_BUILD, manifest }
+  }
+
   async downloadAndInstall(): Promise<boolean> {
     const status = await this.getStatus()
     if (status.decision === 'NONE') return false
     if (!isWin || !app.isPackaged) {
-      await this.openInstallerInBrowser(status.manifest.url)
+      await this.openLatestInstallerInBrowser(status.manifest.url)
       return false
     }
     if (this.installInProgress) return false
@@ -52,7 +62,7 @@ export class DesktopUpdateService extends BaseService {
     this.installInProgress = true
     const installerPath = application.getPath('app.temp', `ott24x7-ai-update-${status.manifest.latestBuild}.exe`)
     try {
-      await this.downloadInstaller(status.manifest.url, installerPath)
+      await this.downloadInstallerWithFallback(status.manifest.url, installerPath)
       await this.startInstaller(installerPath)
       application.quit()
       return true
@@ -60,7 +70,7 @@ export class DesktopUpdateService extends BaseService {
       logger.warn('Desktop update install failed; opening the installer in the browser', {
         errorType: error instanceof Error ? error.name : typeof error
       })
-      await this.openInstallerInBrowser(status.manifest.url)
+      await this.openLatestInstallerInBrowser(status.manifest.url)
       return false
     } finally {
       this.installInProgress = false
@@ -69,25 +79,29 @@ export class DesktopUpdateService extends BaseService {
 
   async openLatestInBrowser(): Promise<void> {
     const manifest = await (this.manifestPromise ??= this.loadManifest())
-    if (manifest) await this.openInstallerInBrowser(manifest.url)
+    if (manifest) await this.openLatestInstallerInBrowser(manifest.url)
   }
 
   private async loadManifest() {
-    const manifestUrl = !app.isPackaged
-      ? process.env.OTT_UPDATE_MANIFEST_URL?.trim() || DESKTOP_UPDATE_MANIFEST_URL
-      : DESKTOP_UPDATE_MANIFEST_URL
-
-    try {
-      const response = await fetch(manifestUrl, {
-        headers: { 'Cache-Control': 'no-cache' },
-        signal: AbortSignal.timeout(8_000)
-      })
-      if (!response.ok) return null
-      return parseDesktopUpdateManifest(await response.text())
-    } catch {
+    const overrideUrl = !app.isPackaged ? process.env.OTT_UPDATE_MANIFEST_URL : undefined
+    const manifest = await fetchDesktopUpdateManifest(fetch, overrideUrl)
+    if (!manifest) {
       logger.warn('Desktop update manifest could not be loaded')
-      return null
     }
+    return manifest
+  }
+
+  private async downloadInstallerWithFallback(manifestUrl: string, installerPath: string): Promise<void> {
+    let lastError: unknown
+    for (const url of getDesktopInstallerUrls(manifestUrl)) {
+      try {
+        await this.downloadInstaller(url, installerPath)
+        return
+      } catch (error) {
+        lastError = error
+      }
+    }
+    throw lastError ?? new Error('Installer download failed')
   }
 
   private async downloadInstaller(url: string, installerPath: string): Promise<void> {
@@ -134,11 +148,19 @@ export class DesktopUpdateService extends BaseService {
     })
   }
 
-  private async openInstallerInBrowser(url: string): Promise<void> {
+  private async openInstallerInBrowser(url: string): Promise<boolean> {
     try {
       await shell.openExternal(url)
+      return true
     } catch {
-      logger.warn('Desktop update installer link could not be opened')
+      return false
     }
+  }
+
+  private async openLatestInstallerInBrowser(manifestUrl: string): Promise<void> {
+    for (const url of getDesktopInstallerUrls(manifestUrl)) {
+      if (await this.openInstallerInBrowser(url)) return
+    }
+    logger.warn('Desktop update installer link could not be opened')
   }
 }

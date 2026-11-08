@@ -61,6 +61,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     application.get('AppUpdaterService').quitAndInstall()
   },
   'app.desktop_update.status.get': async () => application.get('DesktopUpdateService').getStatus(),
+  'app.desktop_update.check': async () => application.get('DesktopUpdateService').checkForUpdates(),
   'app.desktop_update.download_install': async () => application.get('DesktopUpdateService').downloadAndInstall(),
   'app.desktop_update.open_in_browser': async () => application.get('DesktopUpdateService').openLatestInBrowser()
 }

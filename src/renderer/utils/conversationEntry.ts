@@ -58,8 +58,9 @@ export async function resolveAgentEntrySessionId(): Promise<string | null> {
  * whatever was last focused elsewhere.
  */
 export async function resolveChatEntryTopicIdForAssistant(assistantId: string): Promise<string | null> {
+  const compareTopicIds = new Set(cacheService.getPersist('ui.compare.topic_ids') ?? [])
   const { topic } = await dataApiService.get('/topics/latest', { query: { assistantId } })
-  return topic?.id ?? null
+  return topic && !compareTopicIds.has(topic.id) ? topic.id : null
 }
 
 export async function resolveAgentEntrySessionIdForAgent(agentId: string): Promise<string | null> {

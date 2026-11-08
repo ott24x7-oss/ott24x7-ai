@@ -2,7 +2,15 @@ import { createContext, use, useCallback, useEffect, useMemo, useState } from 'r
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cherrystudio/ui'
 import desktopLogo from '@renderer/assets/images/logo.png'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { EventPayload, OutputFor } from '@shared/ipc/types'
@@ -19,6 +27,7 @@ interface DesktopUpdateContextValue {
   openFreeModels: () => void
   closeFreeModels: () => void
   setFreeModelsOpen: (open: boolean) => void
+  checkForUpdates: () => Promise<DesktopUpdateStatus>
   optionalUpdateOpen: boolean
   setOptionalUpdateOpen: (open: boolean) => void
   downloading: boolean
@@ -98,6 +107,14 @@ export function DesktopUpdateProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const checkForUpdates = useCallback(async () => {
+    const nextStatus = await ipcApi.request('app.desktop_update.check')
+    setStatus(nextStatus)
+    setOptionalPromptResolved(true)
+    setOptionalUpdateOpen(nextStatus.decision === 'OPTIONAL')
+    return nextStatus
+  }, [])
+
   const openUpdateInBrowser = useCallback(async () => {
     try {
       await ipcApi.request('app.desktop_update.open_in_browser')
@@ -135,6 +152,7 @@ export function DesktopUpdateProvider({ children }: { children: ReactNode }) {
       openFreeModels,
       closeFreeModels,
       setFreeModelsOpen: setFreeModelsOpenSafely,
+      checkForUpdates,
       optionalUpdateOpen,
       setOptionalUpdateOpen: handleOptionalOpenChange,
       downloading,
@@ -147,6 +165,7 @@ export function DesktopUpdateProvider({ children }: { children: ReactNode }) {
     }),
     [
       closeFreeModels,
+      checkForUpdates,
       downloadAndInstall,
       downloadFailed,
       downloadProgress,
@@ -192,9 +211,7 @@ export function DesktopUpdatePrompt() {
   const progress = downloadProgress?.progress
 
   return (
-    <Dialog
-      open={forced || optionalUpdateOpen}
-      onOpenChange={forced ? undefined : setOptionalUpdateOpen}>
+    <Dialog open={forced || optionalUpdateOpen} onOpenChange={forced ? undefined : setOptionalUpdateOpen}>
       <DialogContent
         aria-describedby="desktop-update-notes"
         aria-labelledby="desktop-update-title"
@@ -209,11 +226,16 @@ export function DesktopUpdatePrompt() {
             ? '!fixed !inset-0 !top-0 !left-0 !z-[10000] !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 !gap-0 !rounded-none !border-0 !bg-background p-8 sm:p-12'
             : 'max-h-[88vh] overflow-y-auto'
         }>
-        <div className={forced ? 'mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center text-center' : ''}>
+        <div
+          className={
+            forced ? 'mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center text-center' : ''
+          }>
           {forced && <img src={desktopLogo} alt="" className="mb-8 size-20" />}
           <DialogHeader className={forced ? 'items-center text-center' : ''}>
             <DialogTitle id="desktop-update-title">
-              {forced ? t('desktop_update.required_title') : t('desktop_update.available_title', { version: manifest.version })}
+              {forced
+                ? t('desktop_update.required_title')
+                : t('desktop_update.available_title', { version: manifest.version })}
             </DialogTitle>
             <DialogDescription id="desktop-update-notes" className="whitespace-pre-wrap text-left leading-6">
               {manifest.notes}
@@ -239,7 +261,11 @@ export function DesktopUpdatePrompt() {
               </div>
             </div>
           )}
-          {downloadFailed && <p role="alert" className="mt-4 text-sm text-destructive">{t('desktop_update.download_failed')}</p>}
+          {downloadFailed && (
+            <p role="alert" className="mt-4 text-sm text-destructive">
+              {t('desktop_update.download_failed')}
+            </p>
+          )}
           <DialogFooter className={forced ? 'mt-8 w-full flex-col-reverse sm:flex-col' : 'mt-2'}>
             <Button type="button" disabled={downloading} onClick={() => void downloadAndInstall()}>
               {downloading ? t('desktop_update.downloading') : t('desktop_update.update_now')}

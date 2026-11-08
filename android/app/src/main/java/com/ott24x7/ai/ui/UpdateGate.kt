@@ -166,7 +166,7 @@ private fun UpdateProgress(activity: MainActivity, info: UpdateInfo, onFailed: (
         scope.launch {
             val apk = activity.updateApkFile()
             val ok = withContext(Dispatchers.IO) {
-                runCatching { AppUpdate.download(info.apkUrl, apk) { progress = it } }.isSuccess
+                runCatching { AppUpdate.downloadWithFallback(info.apkUrl, apk) { progress = it } }.isSuccess
             }
             if (ok && activity.installApk(apk)) onFailed() else failed = true
         }

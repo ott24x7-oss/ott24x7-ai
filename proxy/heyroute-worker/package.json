@@ -1,0 +1,1 @@
+{ "name": "ott24x7-api-proxy", "private": true, "type": "module", "scripts": { "test": "node --test test/proxy.test.mjs" } }

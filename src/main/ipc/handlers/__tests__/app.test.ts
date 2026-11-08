@@ -55,6 +55,12 @@ const appUpdaterService = {
   getReleaseHistory: vi.fn(),
   quitAndInstall: vi.fn()
 }
+const desktopUpdateService = {
+  checkForUpdates: vi.fn(),
+  getStatus: vi.fn(),
+  downloadAndInstall: vi.fn(),
+  openLatestInBrowser: vi.fn()
+}
 const preferenceService = {
   get: vi.fn()
 }
@@ -66,6 +72,7 @@ beforeEach(() => {
   inspectTargetMock.mockReturnValue({ valid: true, targetEmpty: true })
   appGetMock.mockImplementation((name: string) => {
     if (name === 'AppUpdaterService') return appUpdaterService
+    if (name === 'DesktopUpdateService') return desktopUpdateService
     if (name === 'PreferenceService') return preferenceService
     throw new Error(`Unexpected application.get(${name})`)
   })
@@ -136,6 +143,14 @@ describe('appHandlers', () => {
 
     expect(appUpdaterService.checkForUpdates).toHaveBeenCalledTimes(1)
     expect(result).toBeUndefined()
+  })
+
+  it('runs a fresh desktop update check through the dedicated update service', async () => {
+    const status = { decision: 'NONE' as const, currentBuild: 7 }
+    desktopUpdateService.checkForUpdates.mockResolvedValue(status)
+
+    await expect(appHandlers['app.desktop_update.check'](undefined, ctx)).resolves.toEqual(status)
+    expect(desktopUpdateService.checkForUpdates).toHaveBeenCalledOnce()
   })
 
   it('gets release notes through AppUpdaterService', async () => {
