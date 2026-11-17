@@ -1,0 +1,11 @@
+{
+  "name": "OTT24x7 AI",
+  "short_name": "OTT24x7 AI",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#050609",
+  "background_color": "#050609",
+  "display": "browser"
+}
