@@ -105,6 +105,12 @@ export function Demo() {
               />
             </div>
             <p className="mt-4 text-sm leading-relaxed text-muted lg:hidden">{demo.text}</p>
+            <a
+              href={`${base}watch`}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-fg/90 transition-colors duration-200 hover:border-red/50"
+            >
+              ▶ Watch the full 3-minute tour with voice
+            </a>
           </div>
         </Reveal>
       </div>
