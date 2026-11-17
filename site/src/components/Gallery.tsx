@@ -84,7 +84,7 @@ export function Gallery() {
   return (
     <section id="gallery" aria-labelledby="gallery-title" className="border-t border-line bg-surface/30">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-        <SectionHead index="04" id="gallery-title" eyebrow="Screenshots" title="See it in action" />
+        <SectionHead index="05" id="gallery-title" eyebrow="Screenshots" title="See it in action" />
 
         <div className="mb-8 flex items-center justify-between gap-4">
           <div role="tablist" aria-label="Screenshot platform" className="flex rounded-xl border border-line bg-surface p-1">

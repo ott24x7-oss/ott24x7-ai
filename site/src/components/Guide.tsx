@@ -68,7 +68,7 @@ export function Guide() {
   return (
     <section id="guide" aria-labelledby="guide-title" className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-28">
       <SectionHead
-        index="03"
+        index="04"
         id="guide-title"
         eyebrow="User guide"
         title="How to use, step by step"

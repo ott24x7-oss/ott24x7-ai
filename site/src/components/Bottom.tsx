@@ -29,7 +29,7 @@ export function Download() {
     <section id="download" aria-labelledby="download-title" className="relative overflow-hidden border-t border-line">
       <div className="hero-glow opacity-60" aria-hidden="true" />
       <div className="relative mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-28">
-        <SectionHead index="05" id="download-title" eyebrow="Download" title="Get OTT24x7 AI" sub="Free forever. No account needed." />
+        <SectionHead index="06" id="download-title" eyebrow="Download" title="Get OTT24x7 AI" sub="Free forever. No account needed." />
         <div className="grid gap-5 md:grid-cols-2">
           {cards.map((c, i) => (
             <Reveal key={c.title} delay={i * 80} className="tech-card relative flex flex-col p-6 sm:p-8">
@@ -70,7 +70,7 @@ export function Faq() {
   return (
     <section id="faq" aria-labelledby="faq-title" className="border-t border-line bg-surface/30">
       <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 sm:py-28">
-        <SectionHead index="06" id="faq-title" eyebrow="FAQ" title="Questions, answered" />
+        <SectionHead index="07" id="faq-title" eyebrow="FAQ" title="Questions, answered" />
         <Reveal className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
           {FAQ.map((f) => (
             <details key={f.q} className="group">

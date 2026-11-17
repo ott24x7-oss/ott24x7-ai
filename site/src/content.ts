@@ -64,6 +64,7 @@ export const ALT: Record<ShotId, string> = {
 
 export const NAV = [
   { href: '#features', label: 'Features' },
+  { href: '#demo', label: 'Demo' },
   { href: '#how', label: 'How it works' },
   { href: '#guide', label: 'User guide' },
   { href: '#download', label: 'Download' },
@@ -243,4 +244,17 @@ export const FAQ: { q: string; a: string }[] = [
     q: 'Does it work on Mac?',
     a: 'Not yet. Right now it runs on Windows 10/11 (64-bit) and Android 8 or newer.',
   },
+];
+
+/** Short screen recordings of the real Windows app (public/demo/<id>.webm + .jpg poster). */
+export const DEMOS: { id: string; title: string; text: string }[] = [
+  { id: 'compare', title: 'Compare 4 AIs at once', text: 'One question goes to Kimi, DeepSeek, Claude and GPT side by side. Answers stream in together.' },
+  { id: 'combine', title: 'Final answer', text: 'A judge model merges every reply into one best answer, and shows where the models agree and differ.' },
+  { id: 'chat', title: 'Single chat', text: 'Chat with one model when you just need a quick answer, like drafting a polite WhatsApp message.' },
+  { id: 'local-llm', title: 'Offline AI with Ollama', text: 'Pick a local model like Qwen 2.5 Coder and get answers with no internet and no API key.' },
+  { id: 'code', title: 'Code', text: 'Claude Code, OpenAI Codex and Kimi Code open right inside the app.' },
+  { id: 'studio', title: 'Studio: images', text: 'Type a prompt, pick a style and get an image in seconds. Video, Gemini and ChatGPT Images are one tab away.' },
+  { id: 'apps', title: 'All AI apps', text: 'ChatGPT, Gemini, Claude, Perplexity and more in one grid. Sign in once and use them like tabs.' },
+  { id: 'free-models', title: 'Free models', text: 'Turn on free models in one click, or add a premium key later if you want more.' },
+  { id: 'updates', title: 'Automatic updates', text: 'Check for updates from Settings. New versions install themselves and keep your settings.' },
 ];

@@ -118,7 +118,7 @@ export function HowItWorks() {
   return (
     <section id="how" aria-labelledby="how-title" className="relative border-t border-line bg-surface/30">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-        <SectionHead index="02" id="how-title" eyebrow="How it works" title="Three steps. That’s it." />
+        <SectionHead index="03" id="how-title" eyebrow="How it works" title="Three steps. That’s it." />
         <ol className="grid gap-10 lg:grid-cols-3 lg:gap-6">
           {HOW.map((s, i) => {
             const id = pick(s.shot, s.fallback);

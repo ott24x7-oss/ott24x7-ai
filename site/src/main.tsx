@@ -8,6 +8,7 @@ import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { Features, HowItWorks, TrustStrip } from './components/Sections';
 import { Guide } from './components/Guide';
+import { Demo } from './components/Demo';
 import { Gallery } from './components/Gallery';
 import { Download, Faq, Footer, Promo } from './components/Bottom';
 
@@ -22,6 +23,7 @@ function App() {
         <Hero />
         <TrustStrip />
         <Features />
+        <Demo />
         <HowItWorks />
         <Guide />
         <Gallery />
