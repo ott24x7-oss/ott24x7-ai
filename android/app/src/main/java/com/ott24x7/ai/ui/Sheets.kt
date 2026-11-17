@@ -205,7 +205,7 @@ fun SettingsSheet(
     onThemeMode: (String) -> Unit,
     onReadWebAnswers: (Boolean) -> Unit,
     onEndpointsChanged: (List<ApiEndpoint>) -> Unit,
-    onClearLogin: (PanelDefinition) -> Unit,
+    onManageAccounts: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -310,8 +310,8 @@ fun SettingsSheet(
                 }
             }
             SettingsSection(stringResource(R.string.panel_logins)) {
-                panels.filter { it.kind == PanelKind.WEB }.forEach { panel ->
-                    SettingsRow(panel.name) { TextButton(onClick = { onClearLogin(panel) }) { Text(stringResource(R.string.clear_login), fontSize = 12.sp) } }
+                SettingsRow(stringResource(R.string.manage_accounts), stringResource(R.string.accounts_subtitle)) {
+                    TextButton(onClick = onManageAccounts) { Text(stringResource(R.string.open), fontSize = 12.sp) }
                 }
             }
             SettingsSection(stringResource(R.string.about)) {

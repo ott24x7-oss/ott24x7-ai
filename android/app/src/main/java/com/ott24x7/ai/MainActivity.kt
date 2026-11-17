@@ -13,6 +13,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.view.KeyEvent
+import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
@@ -22,6 +23,8 @@ import androidx.core.view.WindowCompat
 import com.ott24x7.ai.data.PanelDefinition
 import com.ott24x7.ai.data.WebPanelScripts
 import com.ott24x7.ai.data.WebSendStatus
+import com.ott24x7.ai.data.LoginCheckResult
+import com.ott24x7.ai.data.PanelLoginStatus
 import com.ott24x7.ai.data.SecureSettings
 import com.ott24x7.ai.data.HistoryRepository
 import com.ott24x7.ai.data.UPDATE_MANIFEST_URL
@@ -37,6 +40,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import java.net.URI
 import org.json.JSONObject
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 class MainActivity : ComponentActivity() {
     lateinit var secureSettings: SecureSettings
@@ -51,6 +56,7 @@ class MainActivity : ComponentActivity() {
     private var attachmentCallback: ((Uri?) -> Unit)? = null
     private val webViews = mutableMapOf<String, WebView>()
     private val pendingWebPrompts = mutableMapOf<String, PendingWebPrompt>()
+    private val pendingLoginChecks = mutableMapOf<String, (LoginCheckResult) -> Unit>()
     private val googleSignInUrls = mutableMapOf<String, String>()
     var onGoogleSignInRequired: ((String) -> Unit)? = null
     var onSpeechResult: ((String) -> Unit)? = null
@@ -194,6 +200,10 @@ class MainActivity : ComponentActivity() {
                 override fun onPageFinished(view: WebView, url: String?) {
                     super.onPageFinished(view, url)
                     pendingWebPrompts[panel.id]?.let { injectPrompt(view, it) }
+                    pendingLoginChecks.remove(panel.id)?.let { callback ->
+                        val script = WebPanelScripts.buildLoginCheckScript(WebPanelScripts.adapterFor(panel.id))
+                        view.evaluateJavascript(script) { raw -> callback(WebPanelScripts.parseLoginCheckResult(raw)) }
+                    }
                 }
             }
             webChromeClient = object : WebChromeClient() {
@@ -208,6 +218,36 @@ class MainActivity : ComponentActivity() {
             }
             loadUrl(panel.url)
         }
+    }
+
+    fun preparePanelLogin(panel: PanelDefinition): WebView {
+        val view = webViewFor(panel)
+        (view.parent as? ViewGroup)?.removeView(view)
+        if (view.url != panel.loginUrl) view.loadUrl(panel.loginUrl)
+        return view
+    }
+
+    fun restorePanelWebView(panel: PanelDefinition) {
+        val view = webViews[panel.id] ?: return
+        (view.parent as? ViewGroup)?.removeView(view)
+        if (view.url?.contains(panel.loginUrl, ignoreCase = true) == true) view.loadUrl(panel.url)
+    }
+
+    fun checkPanelLogin(panel: PanelDefinition, onResult: (LoginCheckResult) -> Unit) {
+        val view = webViewFor(panel)
+        val evaluate = {
+            val script = WebPanelScripts.buildLoginCheckScript(WebPanelScripts.adapterFor(panel.id))
+            view.evaluateJavascript(script) { raw -> onResult(WebPanelScripts.parseLoginCheckResult(raw)) }
+        }
+        if (view.progress >= 100 && !view.url.isNullOrBlank()) evaluate()
+        else pendingLoginChecks[panel.id] = { evaluate() }
+    }
+
+    suspend fun checkPanelLogin(panel: PanelDefinition): LoginCheckResult = suspendCancellableCoroutine { continuation ->
+        checkPanelLogin(panel) { result ->
+            if (continuation.isActive) continuation.resume(result)
+        }
+        continuation.invokeOnCancellation { pendingLoginChecks.remove(panel.id) }
     }
 
     fun sendPromptToWebPanel(panel: PanelDefinition, prompt: String, onResult: (WebSendStatus) -> Unit) {
@@ -242,6 +282,7 @@ class MainActivity : ComponentActivity() {
     }
 
     fun clearPanelLogin(panel: PanelDefinition) {
+        secureSettings.savePanelLoginStatus(panel.id, PanelLoginStatus.SIGNED_OUT)
         val host = runCatching { URI(panel.url).host }.getOrNull() ?: return
         val cookieManager = CookieManager.getInstance()
         val cookieDomain = if (host.endsWith(".google.com", ignoreCase = true)) ".google.com" else ".$host"
@@ -277,6 +318,7 @@ class MainActivity : ComponentActivity() {
         webViews.values.forEach { it.destroy() }
         webViews.clear()
         pendingWebPrompts.clear()
+        pendingLoginChecks.clear()
         googleSignInUrls.clear()
     }
 }

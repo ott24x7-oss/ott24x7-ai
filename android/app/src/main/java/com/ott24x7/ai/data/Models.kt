@@ -7,6 +7,7 @@ data class PanelDefinition(
     val name: String,
     val url: String,
     val description: String,
+    val loginUrl: String = url,
     val kind: PanelKind = PanelKind.WEB,
     val endpoint: ApiEndpoint? = null
 )
@@ -39,10 +40,10 @@ enum class DeliveryStatus { IDLE, SENT, LOGIN_NEEDED, COPIED, TYPING, ERROR }
 
 object PanelCatalog {
     val webPanels = listOf(
-        PanelDefinition("chatgpt", "ChatGPT", "https://chatgpt.com/", "OpenAI · Web"),
-        PanelDefinition("claude", "Claude", "https://claude.ai/", "Anthropic · Web"),
+        PanelDefinition("chatgpt", "ChatGPT", "https://chatgpt.com/", "OpenAI · Web", "https://chatgpt.com/auth/login"),
+        PanelDefinition("claude", "Claude", "https://claude.ai/", "Anthropic · Web", "https://claude.ai/login"),
         PanelDefinition("gemini", "Gemini", "https://gemini.google.com/app", "Google · Web"),
-        PanelDefinition("deepseek", "DeepSeek", "https://chat.deepseek.com/", "DeepSeek · Web"),
+        PanelDefinition("deepseek", "DeepSeek", "https://chat.deepseek.com/", "DeepSeek · Web", "https://chat.deepseek.com/sign_in"),
         PanelDefinition("grok", "Grok", "https://grok.com/", "xAI · Web"),
         PanelDefinition("copilot", "Copilot", "https://copilot.microsoft.com/", "Microsoft · Web"),
         PanelDefinition("perplexity", "Perplexity", "https://www.perplexity.ai/", "Perplexity · Web"),

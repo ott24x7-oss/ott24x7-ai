@@ -78,6 +78,7 @@ fun PanelCard(
     onCopy: () -> Unit,
     onRegenerate: () -> Unit,
     onExpand: () -> Unit,
+    onSignIn: () -> Unit,
     onClearLogin: () -> Unit,
     onOpenGoogleCustomTab: () -> Unit,
     googleSignInRequired: Boolean,
@@ -124,7 +125,7 @@ fun PanelCard(
             if (panel.kind == PanelKind.WEB) {
                 Box(Modifier.fillMaxWidth().height(bodyHeight).background(Color(0xFF0B0D11))) {
                     AndroidView(
-                        factory = { context -> activity.webViewFor(if (expanded) panel.copy(id = "${panel.id}:expanded") else panel) },
+                        factory = { activity.webViewFor(panel) },
                         modifier = Modifier.fillMaxSize(),
                         update = { view: WebView -> view.onResume() }
                     )
@@ -140,6 +141,9 @@ fun PanelCard(
                                 }
                             } else {
                                 Text(stringResource(R.string.sign_in_to_panel, panel.name), color = FiestaDarkText, fontSize = 13.sp)
+                                TextButton(onClick = onSignIn) {
+                                    Text(stringResource(R.string.sign_in), color = Color(0xFFB9A9FF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
                     }

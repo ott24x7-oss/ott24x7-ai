@@ -119,6 +119,7 @@ import androidx.core.view.WindowCompat
 import com.ott24x7.ai.MainActivity
 import com.ott24x7.ai.R
 import com.ott24x7.ai.data.ApiAttachment
+import com.ott24x7.ai.data.AccountsWelcomeState
 import com.ott24x7.ai.data.ApiChatMessage
 import com.ott24x7.ai.data.ApiClient
 import com.ott24x7.ai.data.ApiEndpoint
@@ -168,9 +169,10 @@ fun FiestaApp(activity: MainActivity) {
     var readWebAnswers by remember { mutableStateOf(settings.readWebAnswers()) }
     var exaKey by remember { mutableStateOf(settings.exaApiKey()) }
     var openRouterKey by remember { mutableStateOf(settings.openRouterKey()) }
-    var showOpenRouterPrompt by remember { mutableStateOf(settings.openRouterKey().isBlank() && !settings.openRouterPromptNever()) }
+    var showOpenRouterPrompt by remember { mutableStateOf(false) }
     var webSearchEnabled by remember { mutableStateOf(settings.defaultWebSearch()) }
-    var onboardingSeen by remember { mutableStateOf(settings.onboardingSeen()) }
+    var onboardingSeen by remember { mutableStateOf(true) }
+    var accountsWelcomeSeen by remember { mutableStateOf(settings.accountsWelcomeSeen()) }
     var guideDone by remember { mutableStateOf(settings.guideChecklist()) }
     var selectedTab by remember { mutableStateOf(MainTab.HOME) }
     var compareStack by remember { mutableStateOf(false) }
@@ -206,6 +208,7 @@ fun FiestaApp(activity: MainActivity) {
         endpoints = updated
     }
     var googleSignInPanel by remember { mutableStateOf<String?>(null) }
+    var pendingAccountPanelId by remember { mutableStateOf<String?>(null) }
     var activeTurn by remember { mutableIntStateOf(0) }
     val answers = remember { mutableStateMapOf<String, PanelAnswer>() }
     val conversationTurns = remember { mutableStateListOf<ChatTurnSummary>() }
@@ -222,6 +225,7 @@ fun FiestaApp(activity: MainActivity) {
     }
 
     LaunchedEffect(Unit) {
+        if (!settings.onboardingSeen()) settings.saveOnboardingSeen(true)
         if (activity.historyRepository.hasStoredTurns.first()) {
             historyTurns.clear()
             historyTurns.addAll(activity.historyRepository.turns.first())
@@ -249,6 +253,14 @@ fun FiestaApp(activity: MainActivity) {
     fun saveSelection(value: List<String>) {
         selectedIds = value.take(8)
         settings.saveSelectedPanels(selectedIds)
+    }
+
+    fun openAccountSignIn(panel: PanelDefinition) {
+        accountsWelcomeSeen = true
+        settings.saveAccountsWelcomeSeen()
+        pendingAccountPanelId = panel.id
+        googleSignInPanel = null
+        selectedTab = MainTab.ACCOUNTS
     }
 
     fun updateAnswer(id: String, update: (PanelAnswer) -> PanelAnswer) {
@@ -457,7 +469,7 @@ fun FiestaApp(activity: MainActivity) {
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.background,
                 snackbarHost = { SnackbarHost(snackbar) },
-                bottomBar = { if (onboardingSeen && expandedPanelId == null) AppBottomBar(selectedTab) { selectedTab = it } },
+                bottomBar = { if (onboardingSeen && expandedPanelId == null && selectedTab != MainTab.ACCOUNTS) AppBottomBar(selectedTab) { selectedTab = it } },
                 contentWindowInsets = WindowInsets(0, 0, 0, 0)
             ) { innerPadding ->
                 Column(
@@ -488,6 +500,7 @@ fun FiestaApp(activity: MainActivity) {
                                 onCopy = { copyPanelAnswer(panel) },
                                 onRegenerate = { sendOne(panel, currentPrompt, attachment, activeTurn) },
                                 onExpand = { expandedPanelId = null },
+                                onSignIn = { openAccountSignIn(panel) },
                                 onClearLogin = { activity.clearPanelLogin(panel); googleSignInPanel = null },
                                 onOpenGoogleCustomTab = { activity.openGoogleSignIn(activity.googleSignInUrl(panel.id, panel.url)) },
                                 googleSignInRequired = googleSignInPanel == panel.id,
@@ -534,7 +547,17 @@ fun FiestaApp(activity: MainActivity) {
                                         if (savedTurn != null) { selectedHistoryTurn = savedTurn; selectedTab = MainTab.HISTORY }
                                         else { prompt = value; selectedTab = MainTab.COMPARE }
                                     },
-                                    onHistory = { selectedTab = MainTab.HISTORY }
+                                    onHistory = { selectedTab = MainTab.HISTORY },
+                                    showAccountsWelcome = AccountsWelcomeState.shouldShow(accountsWelcomeSeen),
+                                    onOpenAccounts = {
+                                        accountsWelcomeSeen = true
+                                        settings.saveAccountsWelcomeSeen()
+                                        selectedTab = MainTab.ACCOUNTS
+                                    },
+                                    onDismissAccountsWelcome = {
+                                        accountsWelcomeSeen = true
+                                        settings.saveAccountsWelcomeSeen()
+                                    }
                                 )
                                 MainTab.COMPARE -> if (currentPrompt.isBlank()) {
                                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(context.getString(R.string.prompt_to_compare), color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -548,6 +571,7 @@ fun FiestaApp(activity: MainActivity) {
                                     onCopy = ::copyPanelAnswer,
                                     onRegenerate = { panel -> sendOne(panel, currentPrompt, attachment, activeTurn) },
                                     onExpand = { panel -> expandedPanelId = panel.id },
+                                    onSignIn = ::openAccountSignIn,
                                     onClearLogin = { panel -> activity.clearPanelLogin(panel); googleSignInPanel = null },
                                     onOpenGoogle = { panel -> activity.openGoogleSignIn(activity.googleSignInUrl(panel.id, panel.url)) },
                                     stack = compareStack,
@@ -565,6 +589,18 @@ fun FiestaApp(activity: MainActivity) {
                                         settings.saveGuideChecklist(guideDone)
                                     },
                                     onMarkDone = { index -> guideDone = GuideChecklist.complete(guideDone, index); settings.saveGuideChecklist(guideDone) }
+                                )
+                                MainTab.ACCOUNTS -> AccountsScreen(
+                                    activity = activity,
+                                    initialPanelId = pendingAccountPanelId,
+                                    googleSignInPanel = googleSignInPanel,
+                                    onOpenGoogleSignIn = { panel -> activity.openGoogleSignIn(activity.googleSignInUrl(panel.id, panel.url)) },
+                                    onBack = { pendingAccountPanelId = null; googleSignInPanel = null; selectedTab = MainTab.HOME },
+                                    onSignInOpened = {
+                                        pendingAccountPanelId = null
+                                        accountsWelcomeSeen = true
+                                        settings.saveAccountsWelcomeSeen()
+                                    }
                                 )
                                 MainTab.SETTINGS -> SettingsScreenV2(
                                     panels = panels, selectedIds = selectedIds, endpoints = endpoints, themeMode = themeMode,
@@ -585,7 +621,7 @@ fun FiestaApp(activity: MainActivity) {
                                         }
                                     },
                                     onJudge = { judgeId = it; settings.saveJudgeModelId(it); guideDone = GuideChecklist.complete(guideDone, 4); settings.saveGuideChecklist(guideDone) },
-                                    onClearLogins = { PanelCatalog.webPanels.forEach(activity::clearPanelLogin) },
+                                    onManageAccounts = { selectedTab = MainTab.ACCOUNTS },
                                     onOpenUrl = activity::openExternal,
                                     openRouter = {
                                         OpenRouterSection(
@@ -687,7 +723,7 @@ fun FiestaApp(activity: MainActivity) {
             onThemeMode = { themeMode = it; settings.saveThemeMode(it) },
             onReadWebAnswers = { readWebAnswers = it; settings.saveReadWebAnswers(it) },
             onEndpointsChanged = applyEndpoints,
-            onClearLogin = activity::clearPanelLogin,
+            onManageAccounts = { showSettings = false; pendingAccountPanelId = null; selectedTab = MainTab.ACCOUNTS },
             onOpenUrl = activity::openExternal,
             onDismiss = { showSettings = false }
         )
@@ -871,6 +907,7 @@ private fun AnswerTurn(
     onCopy: (PanelDefinition) -> Unit,
     onRegenerate: (PanelDefinition) -> Unit,
     onExpand: (PanelDefinition) -> Unit,
+    onSignIn: (PanelDefinition) -> Unit,
     onClearLogin: (PanelDefinition) -> Unit,
     onOpenGoogle: (PanelDefinition) -> Unit,
     modifier: Modifier = Modifier,
@@ -929,6 +966,7 @@ private fun AnswerTurn(
                                 PanelCard(
                                     activity, panel, answers[panel.id] ?: PanelAnswer(), bodyHeight, false,
                                     onCopy = { onCopy(panel) }, onRegenerate = { onRegenerate(panel) }, onExpand = { onExpand(panel) },
+                                    onSignIn = { onSignIn(panel) },
                                     onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
                                     googleSignInRequired = googleSignInPanel == panel.id,
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -946,6 +984,7 @@ private fun AnswerTurn(
                         PanelCard(
                             activity, panel, answers[panel.id] ?: PanelAnswer(), 300.dp, false,
                             onCopy = { onCopy(panel) }, onRegenerate = { onRegenerate(panel) }, onExpand = { onExpand(panel) },
+                            onSignIn = { onSignIn(panel) },
                             onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
                             googleSignInRequired = googleSignInPanel == panel.id,
                             modifier = Modifier.fillMaxWidth().height(380.dp),
@@ -967,6 +1006,7 @@ private fun AnswerTurn(
                     PanelCard(
                         activity, panel, answers[panel.id] ?: PanelAnswer(), bodyHeight, false,
                         onCopy = { onCopy(panel) }, onRegenerate = { onRegenerate(panel) }, onExpand = { onExpand(panel) },
+                        onSignIn = { onSignIn(panel) },
                         onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
                         googleSignInRequired = googleSignInPanel == panel.id,
                         modifier = Modifier.fillMaxSize(),

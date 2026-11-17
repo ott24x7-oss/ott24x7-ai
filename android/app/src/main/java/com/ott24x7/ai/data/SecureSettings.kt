@@ -15,6 +15,10 @@ class SecureSettings(context: Context) {
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
+    private val panelLoginStatuses = PanelLoginStatusStore(
+        read = { key -> preferences.getString(key, null) },
+        write = { key, value -> preferences.edit().putString(key, value).apply() }
+    )
 
     private fun snapshot(): AppSettingsSnapshot {
         preferences.getString("app_settings_v2", null)?.let { return AppSettingsCodec.decode(it) }
@@ -56,6 +60,10 @@ class SecureSettings(context: Context) {
     fun saveJudgeModelId(value: String) = updateSnapshot { it.copy(judgeModelId = value) }
     fun guideChecklist(): List<Boolean> = snapshot().guideDone
     fun saveGuideChecklist(value: List<Boolean>) = updateSnapshot { it.copy(guideDone = value) }
+    fun panelLoginStatus(panelId: String): PanelLoginStatus = panelLoginStatuses.load(panelId)
+    fun savePanelLoginStatus(panelId: String, status: PanelLoginStatus) = panelLoginStatuses.save(panelId, status)
+    fun accountsWelcomeSeen(): Boolean = preferences.getBoolean("accounts_welcome_seen", false)
+    fun saveAccountsWelcomeSeen(value: Boolean = true) = preferences.edit().putBoolean("accounts_welcome_seen", value).apply()
     fun history(): List<String> = runCatching {
         val array = JSONArray(preferences.getString("history", "[]"))
         (0 until array.length()).map { array.optString(it) }.filter(String::isNotBlank)

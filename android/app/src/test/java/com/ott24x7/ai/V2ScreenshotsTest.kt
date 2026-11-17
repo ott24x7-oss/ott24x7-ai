@@ -75,7 +75,7 @@ class V2ScreenshotsTest {
             endpoints = endpoints, themeMode = if (dark) "dark" else "light", accentColor = 0xFF7C5CFF,
             exaKey = "", webDefault = false, judgeId = "preview", testMessage = "", testing = false,
             onPickModels = {}, onManageEndpoints = {}, onTheme = {}, onAccent = {}, onExaKey = {},
-            onWebDefault = {}, onTestExa = {}, onJudge = {}, onClearLogins = {}, onOpenUrl = {}
+            onWebDefault = {}, onTestExa = {}, onJudge = {}, onManageAccounts = {}, onOpenUrl = {}
         )
     }
 

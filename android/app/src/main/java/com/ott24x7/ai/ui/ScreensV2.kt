@@ -44,6 +44,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
@@ -128,7 +129,7 @@ import java.io.File
 import java.net.URL
 import java.util.Base64
 
-enum class MainTab { HOME, COMPARE, STUDIO, GUIDE, SETTINGS, HISTORY }
+enum class MainTab { HOME, COMPARE, STUDIO, GUIDE, ACCOUNTS, SETTINGS, HISTORY }
 
 @Composable
 fun AppBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit) {
@@ -137,6 +138,7 @@ fun AppBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit) {
         Triple(MainTab.COMPARE, R.string.nav_compare, Icons.Default.CompareArrows),
         Triple(MainTab.STUDIO, R.string.nav_studio, Icons.Default.AutoAwesome),
         Triple(MainTab.GUIDE, R.string.nav_guide, Icons.Default.Book),
+        Triple(MainTab.ACCOUNTS, R.string.nav_accounts, Icons.Default.AccountCircle),
         Triple(MainTab.SETTINGS, R.string.nav_settings, Icons.Default.Settings)
     )
     NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
@@ -231,12 +233,32 @@ fun HomeDashboard(
     onOpenPicker: () -> Unit,
     onSuggestion: (String) -> Unit,
     onRecent: (String) -> Unit,
-    onHistory: () -> Unit
+    onHistory: () -> Unit,
+    showAccountsWelcome: Boolean = false,
+    onOpenAccounts: () -> Unit = {},
+    onDismissAccountsWelcome: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
         Text(stringResource(R.string.home_greeting), color = colors.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
         Text(stringResource(R.string.home_title), fontSize = 27.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 3.dp, bottom = 13.dp))
+        if (showAccountsWelcome) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 13.dp),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant),
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline)
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(stringResource(R.string.accounts_welcome_title), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text(stringResource(R.string.accounts_welcome_body), Modifier.padding(top = 5.dp), color = colors.onSurfaceVariant, fontSize = 12.sp, lineHeight = 18.sp)
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismissAccountsWelcome) { Text(stringResource(R.string.later)) }
+                        Button(onClick = onOpenAccounts) { Text(stringResource(R.string.sign_in)) }
+                    }
+                }
+            }
+        }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             panels.forEach { panel ->
                 Surface(onClick = onOpenPicker, shape = CircleShape, color = colors.surface, border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline)) {
@@ -414,7 +436,7 @@ fun SettingsScreenV2(
     onWebDefault: (Boolean) -> Unit,
     onTestExa: (String) -> Unit,
     onJudge: (String) -> Unit,
-    onClearLogins: () -> Unit,
+    onManageAccounts: () -> Unit,
     onOpenUrl: (String) -> Unit,
     openRouter: @Composable () -> Unit = {}
 ) {
@@ -430,6 +452,8 @@ fun SettingsScreenV2(
         }
         SettingsGroup(stringResource(R.string.settings_ai)) {
             SettingsActionRow(stringResource(R.string.settings_ai), stringResource(R.string.selected_count, selectedIds.size), Icons.Default.SmartToy) { onPickModels() }
+            Divider(color = colors.outline)
+            SettingsActionRow(stringResource(R.string.panel_logins), stringResource(R.string.manage_accounts), Icons.Default.AccountCircle) { onManageAccounts() }
             Divider(color = colors.outline)
             SettingsActionRow(stringResource(R.string.settings_api), stringResource(R.string.endpoint_count, endpoints.size), Icons.Default.Tune) { onManageEndpoints() }
             Divider(color = colors.outline)
@@ -463,8 +487,6 @@ fun SettingsScreenV2(
         }
         SettingsGroup(stringResource(R.string.language)) {
             SettingsActionRow(stringResource(R.string.language), stringResource(R.string.english), Icons.Default.Book) {}
-            Divider(color = colors.outline)
-                    SettingsActionRow(stringResource(R.string.clear_logins), stringResource(R.string.clear), Icons.Default.Delete) { onClearLogins() }
             Divider(color = colors.outline)
             SettingsActionRow(stringResource(R.string.about), stringResource(R.string.app_version), Icons.Default.SmartToy) {}
             SettingsActionRow(stringResource(R.string.open_source), "GitHub", Icons.Default.Share) { onOpenUrl("https://github.com/ott24x7-oss/ott24x7-ai") }

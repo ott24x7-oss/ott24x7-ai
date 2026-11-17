@@ -8,10 +8,13 @@ data class WebPanelAdapter(
     val readySelectors: List<String> = inputSelectors,
     val lastAnswerSelector: String? = null,
     val stopSelector: String? = null,
-    val enterToSend: Boolean = true
+    val enterToSend: Boolean = true,
+    val loginSelectors: List<String> = listOf("a", "button", "[role=\"button\"]")
 )
 
 enum class WebSendStatus { SENT, LOGIN_NEEDED, INPUT_NOT_FOUND, FAILED }
+
+enum class LoginCheckResult { SIGNED_IN, SIGNED_OUT, UNKNOWN }
 
 object WebPanelScripts {
     private val generic = WebPanelAdapter(
@@ -74,6 +77,47 @@ object WebPanelScripts {
         WebSendStatus.LOGIN_NEEDED -> DeliveryStatus.LOGIN_NEEDED
         WebSendStatus.INPUT_NOT_FOUND, WebSendStatus.FAILED -> DeliveryStatus.COPIED
     }
+
+    fun buildLoginCheckScript(adapter: WebPanelAdapter): String {
+        val composerSelectors = (adapter.inputSelectors + adapter.readySelectors + generic.inputSelectors).distinct()
+        return """(() => {
+  const composerSelectors = ${jsonArray(composerSelectors)};
+  const loginSelectors = ${jsonArray(adapter.loginSelectors)};
+  const queryDeep = (root, selector) => {
+    const direct = root.querySelector(selector);
+    if (direct) return direct;
+    for (const element of root.querySelectorAll('*')) {
+      if (element.shadowRoot) {
+        const nested = queryDeep(element.shadowRoot, selector);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  };
+  const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|auth)(?:\/|$)/i.test(location.pathname);
+  const loginText = /(?:log\s*in|sign\s*in|sign\s*up|log\s*on)/i;
+  const hasLoginControl = loginSelectors.some((selector) =>
+    Array.from(document.querySelectorAll(selector)).some((element) => loginText.test((element.innerText || element.textContent || '').trim()))
+  );
+  if (loginPath || hasLoginControl) return { status: "signed-out" };
+  if (composerSelectors.some((selector) => queryDeep(document, selector))) return { status: "signed-in" };
+  return { status: "unknown" };
+})()"""
+    }
+
+    fun parseLoginCheckResult(raw: String): LoginCheckResult = runCatching {
+        val value = org.json.JSONTokener(raw).nextValue()
+        val json = when (value) {
+            is JSONObject -> value
+            is String -> JSONObject(value)
+            else -> return@runCatching LoginCheckResult.UNKNOWN
+        }
+        when (json.optString("status")) {
+            "signed-in" -> LoginCheckResult.SIGNED_IN
+            "signed-out" -> LoginCheckResult.SIGNED_OUT
+            else -> LoginCheckResult.UNKNOWN
+        }
+    }.getOrDefault(LoginCheckResult.UNKNOWN)
 
     fun buildInsertPromptScript(adapter: WebPanelAdapter, prompt: String): String {
         val input = (adapter.inputSelectors + generic.inputSelectors).distinct()
