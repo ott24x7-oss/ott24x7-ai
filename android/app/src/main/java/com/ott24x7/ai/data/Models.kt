@@ -18,7 +18,8 @@ data class ApiEndpoint(
     val baseUrl: String,
     val apiKey: String,
     val modelId: String,
-    val imageModelId: String = ""
+    val imageModelId: String = "",
+    val pairedDeviceId: String? = null
 )
 
 data class PanelAnswer(
@@ -47,6 +48,7 @@ object PanelCatalog {
         PanelDefinition("grok", "Grok", "https://grok.com/", "xAI · Web"),
         PanelDefinition("copilot", "Copilot", "https://copilot.microsoft.com/", "Microsoft · Web"),
         PanelDefinition("perplexity", "Perplexity", "https://www.perplexity.ai/", "Perplexity · Web"),
+        PanelDefinition("iask", "iAsk AI", "https://iask.ai/", "iAsk · Web", "https://iask.ai/users/log_in"),
         PanelDefinition("meta", "Meta AI", "https://www.meta.ai/", "Meta · Web"),
         PanelDefinition("kimi", "Kimi", "https://www.kimi.com/", "Moonshot · Web"),
         PanelDefinition("qwen", "Qwen", "https://chat.qwen.ai/", "Alibaba · Web")

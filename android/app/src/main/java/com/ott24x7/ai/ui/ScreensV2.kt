@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -129,7 +130,7 @@ import java.io.File
 import java.net.URL
 import java.util.Base64
 
-enum class MainTab { HOME, COMPARE, STUDIO, GUIDE, ACCOUNTS, SETTINGS, HISTORY }
+enum class MainTab { HOME, COMPARE, STUDIO, GUIDE, ACCOUNTS, PAIRING, SETTINGS, HISTORY }
 
 @Composable
 fun AppBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit) {
@@ -139,6 +140,7 @@ fun AppBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit) {
         Triple(MainTab.STUDIO, R.string.nav_studio, Icons.Default.AutoAwesome),
         Triple(MainTab.GUIDE, R.string.nav_guide, Icons.Default.Book),
         Triple(MainTab.ACCOUNTS, R.string.nav_accounts, Icons.Default.AccountCircle),
+        Triple(MainTab.PAIRING, R.string.nav_connect_pc, Icons.Default.Link),
         Triple(MainTab.SETTINGS, R.string.nav_settings, Icons.Default.Settings)
     )
     NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
@@ -299,6 +301,30 @@ fun HomeDashboard(
 }
 
 @Composable
+fun EmptyCompareState(onConnectPc: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(stringResource(R.string.prompt_to_compare), color = colors.onSurfaceVariant, fontSize = 14.sp)
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline)
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text(stringResource(R.string.pc_pair_title), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text(stringResource(R.string.pc_pair_body), Modifier.padding(top = 5.dp), color = colors.onSurfaceVariant, fontSize = 12.sp, lineHeight = 18.sp)
+                Button(onClick = onConnectPc, Modifier.padding(top = 10.dp)) { Text(stringResource(R.string.connect_to_pc)) }
+            }
+        }
+    }
+}
+
+@Composable
 private fun QuickPromptCard(title: Int, subtitle: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Card(onClick = onClick, modifier = modifier.height(104.dp), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surface), border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline)) {
@@ -437,6 +463,7 @@ fun SettingsScreenV2(
     onTestExa: (String) -> Unit,
     onJudge: (String) -> Unit,
     onManageAccounts: () -> Unit,
+    onConnectPc: () -> Unit = {},
     onOpenUrl: (String) -> Unit,
     openRouter: @Composable () -> Unit = {}
 ) {
@@ -454,6 +481,8 @@ fun SettingsScreenV2(
             SettingsActionRow(stringResource(R.string.settings_ai), stringResource(R.string.selected_count, selectedIds.size), Icons.Default.SmartToy) { onPickModels() }
             Divider(color = colors.outline)
             SettingsActionRow(stringResource(R.string.panel_logins), stringResource(R.string.manage_accounts), Icons.Default.AccountCircle) { onManageAccounts() }
+            Divider(color = colors.outline)
+            SettingsActionRow(stringResource(R.string.nav_connect_pc), stringResource(R.string.pc_pair_subtitle), Icons.Default.Link) { onConnectPc() }
             Divider(color = colors.outline)
             SettingsActionRow(stringResource(R.string.settings_api), stringResource(R.string.endpoint_count, endpoints.size), Icons.Default.Tune) { onManageEndpoints() }
             Divider(color = colors.outline)

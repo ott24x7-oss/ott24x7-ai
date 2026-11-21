@@ -39,4 +39,14 @@ class WebStatusMappingTest {
         assertEquals(DeliveryStatus.COPIED, WebPanelScripts.mapStatus(WebSendStatus.INPUT_NOT_FOUND))
         assertEquals(DeliveryStatus.COPIED, WebPanelScripts.mapStatus(WebSendStatus.FAILED))
     }
+
+    @Test
+    fun iAskPanelHasLoginPageAndAdapter() {
+        val panel = com.ott24x7.ai.data.PanelCatalog.webPanels.single { it.id == "iask" }
+        assertEquals("https://iask.ai/", panel.url)
+        val script = WebPanelScripts.buildInsertPromptScript(WebPanelScripts.adapterFor("iask"), "hello")
+        assertTrue(script.contains("#q-followup"))
+        assertTrue(script.contains("#main-ask-button"))
+        assertTrue(WebPanelScripts.buildLoginCheckScript(WebPanelScripts.adapterFor("iask")).contains("log_in"))
+    }
 }

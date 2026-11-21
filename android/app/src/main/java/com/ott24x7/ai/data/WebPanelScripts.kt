@@ -65,6 +65,11 @@ object WebPanelScripts {
             lastAnswerSelector = "[data-testid=\"answer\"]",
             stopSelector = "button[aria-label*=\"Stop\"]"
         ),
+        "iask" to WebPanelAdapter(
+            listOf("#q-followup", "#q-main", "textarea[name=\"q\"]"),
+            listOf("#followup-ask-button", "#main-ask-button", "button[aria-label=\"iAsk AI Submit\"]"),
+            lastAnswerSelector = "#output #text"
+        ),
         "meta" to generic,
         "kimi" to generic,
         "qwen" to generic
@@ -94,7 +99,7 @@ object WebPanelScripts {
     }
     return null;
   };
-  const loginPath = /(?:^|\/)(?:login|log-in|signin|sign-in|auth)(?:\/|$)/i.test(location.pathname);
+  const loginPath = /(?:^|\/)(?:login|log-in|log_in|signin|sign-in|sign_in|auth)(?:\/|$)/i.test(location.pathname);
   const loginText = /(?:log\s*in|sign\s*in|sign\s*up|log\s*on)/i;
   const hasLoginControl = loginSelectors.some((selector) =>
     Array.from(document.querySelectorAll(selector)).some((element) => loginText.test((element.innerText || element.textContent || '').trim()))
@@ -139,7 +144,7 @@ object WebPanelScripts {
     }
     return null;
   };
-  const loginPage = /(?:^|\/)(?:login|log-in|signin|sign-in|auth)(?:\/|$)/i.test(location.pathname) ||
+  const loginPage = /(?:^|\/)(?:login|log-in|log_in|signin|sign-in|sign_in|auth)(?:\/|$)/i.test(location.pathname) ||
     Boolean(document.querySelector('input[type="password"], input[autocomplete="current-password"]'));
   if (!readySelectors.some((selector) => queryDeep(document, selector)))
     return { status: loginPage ? "login-needed" : "input-not-found" };

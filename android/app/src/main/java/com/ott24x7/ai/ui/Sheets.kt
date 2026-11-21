@@ -206,6 +206,7 @@ fun SettingsSheet(
     onReadWebAnswers: (Boolean) -> Unit,
     onEndpointsChanged: (List<ApiEndpoint>) -> Unit,
     onManageAccounts: () -> Unit,
+    onConnectPc: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -312,6 +313,9 @@ fun SettingsSheet(
             SettingsSection(stringResource(R.string.panel_logins)) {
                 SettingsRow(stringResource(R.string.manage_accounts), stringResource(R.string.accounts_subtitle)) {
                     TextButton(onClick = onManageAccounts) { Text(stringResource(R.string.open), fontSize = 12.sp) }
+                }
+                SettingsRow(stringResource(R.string.nav_connect_pc), stringResource(R.string.pc_pair_subtitle)) {
+                    TextButton(onClick = onConnectPc) { Text(stringResource(R.string.open), fontSize = 12.sp) }
                 }
             }
             SettingsSection(stringResource(R.string.about)) {

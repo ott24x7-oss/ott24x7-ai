@@ -469,7 +469,7 @@ fun FiestaApp(activity: MainActivity) {
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.background,
                 snackbarHost = { SnackbarHost(snackbar) },
-                bottomBar = { if (onboardingSeen && expandedPanelId == null && selectedTab != MainTab.ACCOUNTS) AppBottomBar(selectedTab) { selectedTab = it } },
+                bottomBar = { if (onboardingSeen && expandedPanelId == null && selectedTab != MainTab.ACCOUNTS && selectedTab != MainTab.PAIRING) AppBottomBar(selectedTab) { selectedTab = it } },
                 contentWindowInsets = WindowInsets(0, 0, 0, 0)
             ) { innerPadding ->
                 Column(
@@ -560,7 +560,7 @@ fun FiestaApp(activity: MainActivity) {
                                     }
                                 )
                                 MainTab.COMPARE -> if (currentPrompt.isBlank()) {
-                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(context.getString(R.string.prompt_to_compare), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    EmptyCompareState { selectedTab = MainTab.PAIRING }
                                 } else AnswerTurn(
                                     panels = selectedPanels,
                                     currentPrompt = currentPrompt,
@@ -602,6 +602,16 @@ fun FiestaApp(activity: MainActivity) {
                                         settings.saveAccountsWelcomeSeen()
                                     }
                                 )
+                                MainTab.PAIRING -> PairingScreen(
+                                    activity = activity,
+                                    onBack = { selectedTab = MainTab.HOME },
+                                    onImported = { imported ->
+                                        val deviceId = imported.firstOrNull()?.pairedDeviceId
+                                        val merged = endpoints.filterNot { endpoint -> deviceId != null && endpoint.pairedDeviceId == deviceId } + imported
+                                        applyEndpoints(merged)
+                                    },
+                                    onForgotten = { deviceId -> applyEndpoints(endpoints.filterNot { it.pairedDeviceId == deviceId }) }
+                                )
                                 MainTab.SETTINGS -> SettingsScreenV2(
                                     panels = panels, selectedIds = selectedIds, endpoints = endpoints, themeMode = themeMode,
                                     accentColor = accentColor, exaKey = exaKey, webDefault = webSearchEnabled, judgeId = judgeId,
@@ -622,6 +632,7 @@ fun FiestaApp(activity: MainActivity) {
                                     },
                                     onJudge = { judgeId = it; settings.saveJudgeModelId(it); guideDone = GuideChecklist.complete(guideDone, 4); settings.saveGuideChecklist(guideDone) },
                                     onManageAccounts = { selectedTab = MainTab.ACCOUNTS },
+                                    onConnectPc = { selectedTab = MainTab.PAIRING },
                                     onOpenUrl = activity::openExternal,
                                     openRouter = {
                                         OpenRouterSection(
@@ -724,6 +735,7 @@ fun FiestaApp(activity: MainActivity) {
             onReadWebAnswers = { readWebAnswers = it; settings.saveReadWebAnswers(it) },
             onEndpointsChanged = applyEndpoints,
             onManageAccounts = { showSettings = false; pendingAccountPanelId = null; selectedTab = MainTab.ACCOUNTS },
+            onConnectPc = { showSettings = false; selectedTab = MainTab.PAIRING },
             onOpenUrl = activity::openExternal,
             onDismiss = { showSettings = false }
         )

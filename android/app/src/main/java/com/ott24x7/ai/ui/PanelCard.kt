@@ -211,6 +211,7 @@ fun ModelAvatar(name: String, modifier: Modifier = Modifier) {
         "grok" -> Color(0xFF1D1D20)
         "copilot" -> Color(0xFF2476CE)
         "perplexity" -> Color(0xFF27A890)
+        "iask ai" -> Color(0xFF6D4AFF)
         "meta ai" -> Color(0xFF4777E8)
         else -> FiestaAccent
     }

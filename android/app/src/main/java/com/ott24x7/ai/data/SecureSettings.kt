@@ -83,15 +83,43 @@ class SecureSettings(context: Context) {
         val array = JSONArray(preferences.getString("api_endpoints", "[]"))
         (0 until array.length()).map { index ->
             val row = array.getJSONObject(index)
-            ApiEndpoint(row.getString("id"), row.getString("name"), row.getString("baseUrl"), row.getString("apiKey"), row.getString("modelId"), row.optString("imageModelId"))
+            ApiEndpoint(
+                row.getString("id"),
+                row.getString("name"),
+                row.getString("baseUrl"),
+                row.getString("apiKey"),
+                row.getString("modelId"),
+                row.optString("imageModelId"),
+                row.optString("pairedDeviceId").takeIf(String::isNotBlank)
+            )
         }
     }.getOrDefault(emptyList())
 
     fun saveEndpoints(values: List<ApiEndpoint>) {
         val array = JSONArray()
         values.forEach { row ->
-            array.put(JSONObject().put("id", row.id).put("name", row.name).put("baseUrl", row.baseUrl).put("apiKey", row.apiKey).put("modelId", row.modelId).put("imageModelId", row.imageModelId))
+            array.put(JSONObject().put("id", row.id).put("name", row.name).put("baseUrl", row.baseUrl).put("apiKey", row.apiKey).put("modelId", row.modelId).put("imageModelId", row.imageModelId).apply {
+                row.pairedDeviceId?.let { put("pairedDeviceId", it) }
+            })
         }
         preferences.edit().putString("api_endpoints", array.toString()).apply()
+    }
+
+    fun pairingIdentity(): PairingIdentity {
+        val stored = preferences.getString("pairing_identity_seed", null)
+        return runCatching { stored?.let { PairingIdentity.fromSeed(base64Decode(it)) } }.getOrNull() ?: PairingIdentity.create().also {
+            preferences.edit().putString("pairing_identity_seed", base64Encode(it.seedBytes())).apply()
+        }
+    }
+
+    fun pairedPcs(): List<PairedPc> = PairedPcCodec.decode(preferences.getString("paired_pcs", "[]").orEmpty())
+
+    fun savePairedPc(value: PairedPc) {
+        val next = pairedPcs().filterNot { it.id == value.id || it.deviceId == value.deviceId } + value
+        preferences.edit().putString("paired_pcs", PairedPcCodec.encode(next)).apply()
+    }
+
+    fun forgetPairedPc(id: String) {
+        preferences.edit().putString("paired_pcs", PairedPcCodec.encode(pairedPcs().filterNot { it.id == id || it.deviceId == id })).apply()
     }
 }
