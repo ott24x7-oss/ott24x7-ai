@@ -16,6 +16,7 @@ const WEB_TILES = [
   { appId: 'grok', name: 'Grok', logo: 'grok', aliases: ['grok'] },
   { appId: 'microsoft-copilot', name: 'Copilot', logo: 'application', aliases: ['microsoft-copilot', 'copilot'] },
   { appId: 'perplexity', name: 'Perplexity', logo: 'perplexity', aliases: ['perplexity'] },
+  { appId: 'iask', name: 'iAsk AI', logo: 'application', aliases: ['iask', 'iask ai'] },
   { appId: 'meta-ai', name: 'Meta AI', logo: 'application', aliases: ['meta-ai', 'meta ai'] },
   { appId: 'moonshot', name: 'Kimi', logo: 'Moonshot', aliases: ['kimi', 'moonshot'] },
   { appId: 'qwenlm', name: 'Qwen', logo: 'qwen', aliases: ['qwen', 'dashscope'] }

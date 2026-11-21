@@ -534,17 +534,35 @@ function ComparePage() {
         judgeId: resolvedJudgeId,
         judgeName
       })
+      // If the chosen judge fails (e.g. a model the signed-in plan does not
+      // include), fall back to the models that just answered this question.
+      const judgeCandidates: UniqueModelId[] = [
+        resolvedJudgeId,
+        ...answerSources
+          .map((source) => source.sourceId as CompareColumnId)
+          .filter((sourceId): sourceId is UniqueModelId => sourceId !== resolvedJudgeId && isApiColumnId(sourceId))
+      ]
       try {
-        const { text } = await ipcApi.request('ai.text.generate', {
-          requestId,
-          uniqueModelId: resolvedJudgeId,
-          prompt: synthesisPrompt,
-          reasoningEffort: 'none'
-        })
-        if (activeModelCombineRequests.current.has(requestId)) {
-          completeCombine(topicId, question, text, resolvedJudgeId, judgeName)
+        for (const candidateId of judgeCandidates) {
+          if (!activeModelCombineRequests.current.has(requestId)) return
+          const candidateName =
+            candidateId === resolvedJudgeId ? judgeName : getJudgeName(candidateId, columns, availableModelsById, t)
+          try {
+            const { text } = await ipcApi.request('ai.text.generate', {
+              requestId,
+              uniqueModelId: candidateId,
+              prompt: synthesisPrompt,
+              reasoningEffort: 'none'
+            })
+            if (!text.trim()) continue
+            if (activeModelCombineRequests.current.has(requestId)) {
+              completeCombine(topicId, question, text, candidateId, candidateName)
+            }
+            return
+          } catch {
+            // try the next candidate
+          }
         }
-      } catch {
         if (activeModelCombineRequests.current.has(requestId)) {
           setCombineError(topicId, question, resolvedJudgeId, judgeName)
         }

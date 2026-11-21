@@ -20,7 +20,8 @@ describe('web panel send adapters', () => {
       'deepseek',
       'grok',
       'copilot',
-      'perplexity'
+      'perplexity',
+      'iask'
     ])
     for (const adapter of WEB_PANEL_ADAPTERS) {
       expect(adapter.inputSelectors.length).toBeGreaterThan(0)
@@ -31,6 +32,7 @@ describe('web panel send adapters', () => {
     expect(getWebPanelAdapter('openai')).toBe(getWebPanelAdapter('chatgpt'))
     expect(getWebPanelAdapter('grok-x')).toBe(getWebPanelAdapter('grok'))
     expect(getWebPanelAdapter('github-copilot')).toBe(getWebPanelAdapter('copilot'))
+    expect(getWebPanelAdapter('iask').inputSelectors[0]).toBe('#q-followup')
     expect(getWebPanelAdapter('user-custom-site').inputSelectors).toContain('textarea')
   })
 

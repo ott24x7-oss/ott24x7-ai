@@ -280,6 +280,14 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
     supportedRegions: ['Global']
   },
   {
+    id: 'iask',
+    name: 'iAsk AI',
+    logo: 'application',
+    url: 'https://iask.ai/',
+    bordered: true,
+    supportedRegions: ['Global']
+  },
+  {
     id: 'devv',
     name: 'DEVV_',
     logo: 'devv',

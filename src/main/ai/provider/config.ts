@@ -49,7 +49,13 @@ import {
   routeToEndpoint
 } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
-import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
+import {
+  buildCodexRequestHeaders,
+  coerceCodexRequestBody,
+  forceCodexStreamingBody,
+  isNonStreamingCodexBody,
+  toNonStreamingCodexResponse
+} from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
@@ -492,8 +498,11 @@ function buildCodexFetch() {
   // Token fetch + not-signed-in guard + 401 force-refresh retry live in
   // OAuthRuntimeService.authenticatedFetch; this wrapper only shapes the codex
   // request (headers + body coercion), re-applied with the fresh token on retry.
-  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
-    application.get('OAuthRuntimeService').authenticatedFetch(
+  // The codex backend only accepts streaming calls, so one-shot requests
+  // (Combine, titles, translation) are sent streaming and folded back to JSON.
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const oneShot = isNonStreamingCodexBody(init?.body)
+    const response = await application.get('OAuthRuntimeService').authenticatedFetch(
       OPENAI_CODEX_PROVIDER_ID,
       (creds) => ({
         input,
@@ -503,12 +512,14 @@ function buildCodexFetch() {
             accessToken: creds.accessToken,
             accountId: creds.accountId ?? null
           }),
-          body: coerceCodexRequestBody(init?.body)
+          body: coerceCodexRequestBody(oneShot ? forceCodexStreamingBody(init?.body) : init?.body)
         }
       }),
       customFetch,
       { notSignedInMessage: 'Not signed in to OpenAI Codex. Open the provider settings and sign in again.' }
     )
+    return oneShot ? toNonStreamingCodexResponse(response) : response
+  }
 }
 
 /**

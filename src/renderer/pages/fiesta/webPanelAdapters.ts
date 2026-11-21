@@ -88,6 +88,14 @@ export const WEB_PANEL_ADAPTERS: readonly WebPanelAdapter[] = [
     lastAnswerSelector: '[data-testid="answer"]',
     stopSelector: 'button[aria-label*="Stop"]',
     enterToSend: true
+  },
+  {
+    appIds: ['iask'],
+    inputSelectors: ['#q-followup', '#q-main', 'textarea[name="q"]'],
+    sendSelectors: ['#followup-ask-button', '#main-ask-button', 'button[aria-label="iAsk AI Submit"]'],
+    readySelectors: ['#q-followup', '#q-main', 'textarea[name="q"]'],
+    lastAnswerSelector: '#output #text',
+    enterToSend: true
   }
 ]
 
@@ -280,7 +288,7 @@ export function buildInsertPromptScript(adapter: WebPanelAdapter, prompt: string
       }
       return null;
     };
-    const loginPage = /(?:^|\\/)(?:login|log-in|signin|sign-in|auth)(?:\\/|$)/i.test(location.pathname) ||
+    const loginPage = /(?:^|\\/)(?:login|log-in|log_in|signin|sign-in|sign_in|auth)(?:\\/|$)/i.test(location.pathname) ||
       Boolean(document.querySelector('input[type="password"], input[autocomplete="current-password"]'));
     if (!readySelectors.some((selector) => queryDeep(document, selector))) {
       return { status: loginPage ? "login-needed" : "input-not-found" };
