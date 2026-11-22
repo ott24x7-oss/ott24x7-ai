@@ -42,6 +42,7 @@ files:
   - "!local"
   - "!docs"
   - "!packages"
+  - "!android"
   - "!.swc"
   - "!.bin"
   - "!._*"

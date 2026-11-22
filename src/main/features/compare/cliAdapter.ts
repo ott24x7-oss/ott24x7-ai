@@ -22,7 +22,10 @@ export function buildCompareCliArgs(cliId: CompareCliId, prompt: string, cwd: st
         '--include-partial-messages',
         '--tools',
         '',
-        '--no-session-persistence'
+        '--no-session-persistence',
+        // Skip ~/.claude/settings.json: a gateway env/model left there must not replace the user's own login.
+        '--setting-sources',
+        'project,local'
       ]
     case 'agy':
       return ['-p', prompt, '--output-format', 'stream-json', '--mode', 'plan', '--sandbox', '--disable-slash-commands']
@@ -106,6 +109,7 @@ function extractClaudeText(event: any, state: CliParserState): string[] {
     state.sawDelta = true
     return [delta]
   }
+  if (event?.is_error || event?.error) return []
   if (!state.sawDelta && event?.type === 'result' && typeof event.result === 'string') return [event.result]
   if (!state.sawDelta && event?.type === 'assistant') return collectText(event.message?.content)
   return []

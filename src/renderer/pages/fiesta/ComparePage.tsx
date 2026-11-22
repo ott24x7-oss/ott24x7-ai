@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { useDesktopUpdate } from '@renderer/components/app/DesktopUpdateProvider'
 import { GuideBanner } from '@renderer/components/app/GuideBanner'
 import { ComparePromoFooter } from '@renderer/components/app/PromoCard'
-import { useDesktopUpdate } from '@renderer/components/app/DesktopUpdateProvider'
 import { getModelDisplayTags } from '@renderer/components/tags/Model'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useTabs } from '@renderer/hooks/tab'
@@ -66,8 +66,8 @@ import {
   setCompareModelEnabled
 } from './compareState'
 import { CompareToolbar } from './CompareToolbar'
-import { OpenRouterFreeModelsDialog } from './OpenRouterFreeModelsDialog'
 import { CompareWelcomeCard } from './CompareWelcomeCard'
+import { OpenRouterFreeModelsDialog } from './OpenRouterFreeModelsDialog'
 import { buildSynthesisPrompt, type SynthesisAnswer } from './synthesisPrompt'
 import {
   getWebPanelAdapter,
@@ -90,6 +90,7 @@ interface ActiveCombineRequest {
   judgeId: CompareJudgeId
   judgeName: string
   content: string
+  resolve: (text: string | null) => void
 }
 
 interface ActiveModelCombineRequest {
@@ -158,6 +159,7 @@ function ComparePage() {
   const webviewRefs = useRef(new Map<string, WebviewTag>())
   const activeCliRequests = useRef(new Map<string, ActiveCliRequest>())
   const activeCombineRequests = useRef(new Map<string, ActiveCombineRequest>())
+  const combineRuns = useRef(new Map<string, string>())
   const activeModelCombineRequests = useRef(new Map<string, ActiveModelCombineRequest>())
   const webWaitControllers = useRef(new Map<string, ActiveWebWait>())
   const lastAutoCombineSignature = useRef<string | undefined>(undefined)
@@ -495,9 +497,10 @@ function ComparePage() {
       ([, request]) => request.topicId === topicId
     )
     if (existingCombine) {
-      const [requestId] = existingCombine
+      const [requestId, request] = existingCombine
       void ipcApi.request('compare_cli.cancel', { requestId }).catch(() => {})
       activeCombineRequests.current.delete(requestId)
+      request.resolve(null)
     }
     for (const [requestId, request] of activeModelCombineRequests.current) {
       if (request.topicId !== topicId) continue
@@ -509,110 +512,113 @@ function ComparePage() {
       [topicId]: { question, content: '', status: 'streaming', judgeId: resolvedJudgeId, judgeName }
     }))
 
-    if (resolvedJudgeId.startsWith('cli::')) {
-      const cliId = resolvedJudgeId.slice('cli::'.length) as CompareCliId
-      const requestId = crypto.randomUUID()
-      activeCombineRequests.current.set(requestId, {
-        topicId,
-        question,
-        judgeId: resolvedJudgeId,
-        judgeName,
-        content: ''
-      })
-      void ipcApi.request('compare_cli.run', { id: cliId, requestId, prompt: synthesisPrompt }).catch(() => {
-        activeCombineRequests.current.delete(requestId)
-        setCombineError(topicId, question, resolvedJudgeId, judgeName)
-      })
-      return
-    }
+    const runId = crypto.randomUUID()
+    combineRuns.current.set(topicId, runId)
+    const isCurrent = () => combineRuns.current.get(topicId) === runId
 
-    if (isApiColumnId(resolvedJudgeId)) {
+    const runCliJudge = (cliId: CompareCliId, candidateId: CompareJudgeId, candidateName: string) =>
+      new Promise<string | null>((resolve) => {
+        const requestId = crypto.randomUUID()
+        activeCombineRequests.current.set(requestId, {
+          topicId,
+          question,
+          judgeId: candidateId,
+          judgeName: candidateName,
+          content: '',
+          resolve
+        })
+        void ipcApi.request('compare_cli.run', { id: cliId, requestId, prompt: synthesisPrompt }).catch(() => {
+          activeCombineRequests.current.delete(requestId)
+          resolve(null)
+        })
+      })
+
+    const runApiJudge = async (candidateId: UniqueModelId, candidateName: string) => {
       const requestId = crypto.randomUUID()
       activeModelCombineRequests.current.set(requestId, {
         topicId,
         question,
-        judgeId: resolvedJudgeId,
-        judgeName
+        judgeId: candidateId,
+        judgeName: candidateName
       })
-      // If the chosen judge fails (e.g. a model the signed-in plan does not
-      // include), fall back to the models that just answered this question.
-      const judgeCandidates: UniqueModelId[] = [
-        resolvedJudgeId,
-        ...answerSources
-          .map((source) => source.sourceId as CompareColumnId)
-          .filter((sourceId): sourceId is UniqueModelId => sourceId !== resolvedJudgeId && isApiColumnId(sourceId))
-      ]
       try {
-        for (const candidateId of judgeCandidates) {
-          if (!activeModelCombineRequests.current.has(requestId)) return
-          const candidateName =
-            candidateId === resolvedJudgeId ? judgeName : getJudgeName(candidateId, columns, availableModelsById, t)
-          try {
-            const { text } = await ipcApi.request('ai.text.generate', {
-              requestId,
-              uniqueModelId: candidateId,
-              prompt: synthesisPrompt,
-              reasoningEffort: 'none'
-            })
-            if (!text.trim()) continue
-            if (activeModelCombineRequests.current.has(requestId)) {
-              completeCombine(topicId, question, text, candidateId, candidateName)
-            }
-            return
-          } catch {
-            // try the next candidate
-          }
-        }
-        if (activeModelCombineRequests.current.has(requestId)) {
-          setCombineError(topicId, question, resolvedJudgeId, judgeName)
-        }
+        const { text } = await ipcApi.request('ai.text.generate', {
+          requestId,
+          uniqueModelId: candidateId,
+          prompt: synthesisPrompt,
+          reasoningEffort: 'none'
+        })
+        return activeModelCombineRequests.current.has(requestId) ? text : null
+      } catch {
+        return null
       } finally {
         activeModelCombineRequests.current.delete(requestId)
       }
-      return
     }
 
-    const webColumn = columns.find(
-      (column): column is Extract<CompareColumn, { kind: 'web' }> =>
-        column.kind === 'web' && column.id === resolvedJudgeId && (!focusedModelId || focusedModelId === column.id)
-    )
-    const webview = webColumn ? webviewRefs.current.get(webColumn.appId) : undefined
-    if (!webColumn || !webview || !getWebPanelAdapter(webColumn.appId).lastAnswerSelector) {
-      setCombineError(topicId, question, resolvedJudgeId, judgeName)
-      return
+    const runWebJudge = async (candidateId: CompareJudgeId, candidateName: string) => {
+      const webColumn = columns.find(
+        (column): column is Extract<CompareColumn, { kind: 'web' }> =>
+          column.kind === 'web' && column.id === candidateId && (!focusedModelId || focusedModelId === column.id)
+      )
+      const webview = webColumn ? webviewRefs.current.get(webColumn.appId) : undefined
+      if (!webColumn || !webview || !getWebPanelAdapter(webColumn.appId).lastAnswerSelector) return null
+
+      const waitKey = `combine:${topicId}`
+      const controller = new AbortController()
+      webWaitControllers.current.get(waitKey)?.controller.abort()
+      webWaitControllers.current.set(waitKey, { appId: webColumn.appId, topicId, controller })
+      try {
+        const previousText = await readVisibleLastAnswer(webview, webColumn.appId)
+        if (controller.signal.aborted) return null
+        if ((await sendPromptToWebPanel(webview, webColumn.appId, synthesisPrompt)) !== 'sent') return null
+        const answer = await waitForVisibleLastAnswer(
+          webview,
+          webColumn.appId,
+          previousText,
+          (content) => {
+            if (!isCurrent()) return
+            setCombineOutputs((current) => ({
+              ...current,
+              [topicId]: { question, content, status: 'streaming', judgeId: candidateId, judgeName: candidateName }
+            }))
+          },
+          { signal: controller.signal }
+        )
+        return controller.signal.aborted ? null : answer
+      } catch {
+        return null
+      } finally {
+        if (webWaitControllers.current.get(waitKey)?.controller === controller)
+          webWaitControllers.current.delete(waitKey)
+      }
     }
 
-    const waitKey = `combine:${topicId}`
-    const controller = new AbortController()
-    webWaitControllers.current.get(waitKey)?.controller.abort()
-    webWaitControllers.current.set(waitKey, { appId: webColumn.appId, topicId, controller })
-    try {
-      const previousText = await readVisibleLastAnswer(webview, webColumn.appId)
-      if (controller.signal.aborted) return
-      const sent = await sendPromptToWebPanel(webview, webColumn.appId, synthesisPrompt)
-      if (sent !== 'sent') {
-        setCombineError(topicId, question, resolvedJudgeId, judgeName)
+    // When the chosen judge fails (signed out, model not on the plan, ...), let a model
+    // that just answered write the final answer instead.
+    const judgeCandidates = [
+      ...new Set<CompareJudgeId>([resolvedJudgeId, ...answerSources.map((source) => source.sourceId as CompareJudgeId)])
+    ]
+    for (const candidateId of judgeCandidates) {
+      if (!isCurrent()) return
+      const candidateName =
+        candidateId === resolvedJudgeId ? judgeName : getJudgeName(candidateId, columns, availableModelsById, t)
+      setCombineOutputs((current) => ({
+        ...current,
+        [topicId]: { question, content: '', status: 'streaming', judgeId: candidateId, judgeName: candidateName }
+      }))
+      const text = candidateId.startsWith('cli::')
+        ? await runCliJudge(candidateId.slice('cli::'.length) as CompareCliId, candidateId, candidateName)
+        : isApiColumnId(candidateId as CompareColumnId)
+          ? await runApiJudge(candidateId as UniqueModelId, candidateName)
+          : await runWebJudge(candidateId, candidateName)
+      if (!isCurrent()) return
+      if (text?.trim()) {
+        completeCombine(topicId, question, text, candidateId, candidateName)
         return
       }
-      const answer = await waitForVisibleLastAnswer(
-        webview,
-        webColumn.appId,
-        previousText,
-        (content) =>
-          setCombineOutputs((current) => ({
-            ...current,
-            [topicId]: { question, content, status: 'streaming', judgeId: resolvedJudgeId, judgeName }
-          })),
-        { signal: controller.signal }
-      )
-      if (controller.signal.aborted) return
-      if (answer) completeCombine(topicId, question, answer, resolvedJudgeId, judgeName)
-      else setCombineError(topicId, question, resolvedJudgeId, judgeName)
-    } catch {
-      if (!controller.signal.aborted) setCombineError(topicId, question, resolvedJudgeId, judgeName)
-    } finally {
-      webWaitControllers.current.delete(waitKey)
     }
+    if (isCurrent()) setCombineError(topicId, question, resolvedJudgeId, judgeName)
   }, [
     activeTopicId,
     activeTurn,
@@ -645,21 +651,8 @@ function ComparePage() {
               judgeName: combineRequest.judgeName
             }
           }))
-        } else if (event.type === 'done') {
-          completeCombine(
-            combineRequest.topicId,
-            combineRequest.question,
-            combineRequest.content,
-            combineRequest.judgeId,
-            combineRequest.judgeName
-          )
         } else {
-          setCombineError(
-            combineRequest.topicId,
-            combineRequest.question,
-            combineRequest.judgeId,
-            combineRequest.judgeName
-          )
+          combineRequest.resolve(event.type === 'done' ? combineRequest.content : null)
         }
         if (event.type !== 'delta') activeCombineRequests.current.delete(event.requestId)
         return
@@ -731,7 +724,7 @@ function ComparePage() {
       }
       activeCliRequests.current.delete(event.requestId)
     },
-    [columns, completeCombine, setCombineError, t]
+    [columns, t]
   )
   useIpcOn('compare_cli.stream', handleCliEvent)
   const handleFocusShortcut = useCallback(
@@ -1285,6 +1278,7 @@ function ComparePage() {
       for (const wait of webWaitControllers.current.values()) wait.controller.abort()
       activeCliRequests.current.clear()
       activeCombineRequests.current.clear()
+      combineRuns.current.clear()
       activeModelCombineRequests.current.clear()
       webWaitControllers.current.clear()
     },

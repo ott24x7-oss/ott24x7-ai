@@ -11,6 +11,8 @@ describe('Compare CLI adapters', () => {
 
     expect(claude).toContain(prompt)
     expect(claude).toContain('') // `--tools ""` disables Claude Code tools.
+    // User settings may route Claude to a stale gateway model instead of the signed-in account.
+    expect(claude[claude.indexOf('--setting-sources') + 1]).toBe('project,local')
     expect(agy).toContain(prompt)
     expect(agy).toContain('--mode')
     expect(agy).toContain('plan')
@@ -51,5 +53,24 @@ describe('Compare CLI adapters', () => {
     expect(extractCliText(cliId, JSON.stringify(sample), createCliParserState())).toEqual([
       cliId === 'claude' ? 'Claude final' : cliId === 'agy' ? 'Antigravity final' : 'Codex final'
     ])
+  })
+
+  it('does not show Claude API errors as the answer', () => {
+    const state = createCliParserState()
+    const error = 'API Error: 400 Model "x:claude" is not available through the API gateway'
+    expect(
+      extractCliText(
+        'claude',
+        JSON.stringify({
+          type: 'assistant',
+          error: 'invalid_request',
+          message: { content: [{ type: 'text', text: error }] }
+        }),
+        state
+      )
+    ).toEqual([])
+    expect(extractCliText('claude', JSON.stringify({ type: 'result', is_error: true, result: error }), state)).toEqual(
+      []
+    )
   })
 })
