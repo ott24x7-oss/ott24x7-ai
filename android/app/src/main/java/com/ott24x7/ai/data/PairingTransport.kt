@@ -7,8 +7,13 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okio.ByteString
@@ -22,7 +27,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -34,6 +41,7 @@ class PairingUnavailableException : Exception()
 class PairingRejectedException : Exception()
 class PairingExpiredException : Exception()
 class PairingProtocolException : Exception()
+class PairingRemoteException(val reason: String, val remoteMessage: String) : Exception(remoteMessage)
 
 class PairingClient(
     private val identity: PairingIdentity,
@@ -95,7 +103,7 @@ class PairingClient(
                 .put("invitationSecret", qr.invitationSecret)
                 .put("deviceName", deviceName)
                 .put("platform", "android")
-                .put("capabilities", JSONArray().put("configuration")))
+                .put("capabilities", JSONArray().put("configuration").put("agent")))
             val claimId = claim.optString("claimId").takeIf(String::isNotBlank) ?: throw PairingProtocolException()
             val approval = PairingApproval(claim.optString("verificationCode"), claim.optString("expiresAt"))
             if (!approval.verificationCode.matches(Regex("^[0-9]{6}$"))) throw PairingProtocolException()
@@ -109,7 +117,8 @@ class PairingClient(
                 expiresAt = approved.optString("expiresAt"),
                 desktopIdentity = qr.desktopIdentity,
                 endpoints = qr.endpoints,
-                lastSyncAt = System.currentTimeMillis()
+                lastSyncAt = System.currentTimeMillis(),
+                capabilities = listOf("configuration", "agent")
             )
             if (pc.id.isBlank() || pc.accessToken.isBlank()) throw PairingProtocolException()
             onApproved(pc)
@@ -129,7 +138,8 @@ class PairingClient(
             val updated = pc.copy(
                 accessToken = refreshed.optString("accessToken").ifBlank { auth.optString("accessToken") },
                 expiresAt = refreshed.optString("expiresAt").ifBlank { auth.optString("expiresAt") },
-                lastSyncAt = System.currentTimeMillis()
+                lastSyncAt = System.currentTimeMillis(),
+                capabilities = pc.capabilities
             )
             return PairingSessionResult(updated, readExport(secure))
         } finally {
@@ -179,7 +189,7 @@ class PairingClient(
     }
 }
 
-private class SecureRemoteChannel private constructor(private val socket: RemoteSocket) {
+internal class SecureRemoteChannel private constructor(private val socket: RemoteSocket) {
     companion object {
         suspend fun open(client: OkHttpClient, endpoint: PairingEndpoint): SecureRemoteChannel {
             val url = endpointUrl(endpoint)
@@ -205,25 +215,63 @@ private class SecureRemoteChannel private constructor(private val socket: Remote
     fun close() = socket.close()
 }
 
-private class SecureNoiseChannel(
+internal class SecureNoiseChannel(
     private val framed: FramedSocket,
     private val outgoing: NoiseCipher,
     private val incoming: NoiseCipher
 ) {
-    private var nextId = 1
+    private val nextId = AtomicInteger(1)
     private var applicationPending = ByteArray(0)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val responses = ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<JSONObject>>()
+    private val notifications = Channel<JSONObject>(Channel.UNLIMITED)
+    private val writeLock = kotlinx.coroutines.sync.Mutex()
+
+    init {
+        scope.launch {
+            try {
+                while (true) {
+                    val value = JSONObject(String(readRecord(), StandardCharsets.UTF_8))
+                    val id = value.optString("id")
+                    if (id.isNotBlank()) responses[id]?.complete(value) else notifications.send(value)
+                }
+            } catch (error: Throwable) {
+                responses.values.forEach { it.completeExceptionally(error) }
+                notifications.close(error)
+            }
+        }
+    }
 
     suspend fun call(method: String, params: JSONObject): JSONObject {
-        val id = (nextId++).toString()
+        val id = nextId.getAndIncrement().toString()
         val request = JSONObject().put("jsonrpc", "2.0").put("id", id).put("method", method).put("params", params)
         val record = request.toString().toByteArray(StandardCharsets.UTF_8)
-        framed.write(outgoing.encrypt(encodeVarint(record.size) + record))
-        while (true) {
-            val value = JSONObject(String(readRecord(), StandardCharsets.UTF_8))
-            if (value.optString("id") != id) continue
-            if (value.has("error")) throw PairingProtocolException()
+        val response = kotlinx.coroutines.CompletableDeferred<JSONObject>()
+        responses[id] = response
+        try {
+            writeLock.lock()
+            try {
+                framed.write(outgoing.encrypt(encodeVarint(record.size) + record))
+            } finally {
+                writeLock.unlock()
+            }
+            val value = response.await()
+            if (value.has("error")) {
+                val error = value.optJSONObject("error")
+                val data = error?.optJSONObject("data")
+                throw PairingRemoteException(data?.optString("reason").orEmpty(), data?.optString("message").orEmpty().ifBlank { error?.optString("message").orEmpty() })
+            }
             return value.optJSONObject("result") ?: throw PairingProtocolException()
+        } finally {
+            responses.remove(id)
         }
+    }
+
+    suspend fun nextNotification(): JSONObject = notifications.receive()
+
+    fun close() {
+        scope.cancel()
+        notifications.close()
     }
 
     private suspend fun readRecord(): ByteArray {
@@ -302,7 +350,7 @@ private class NoiseXXInitiator(
     }
 }
 
-private class FramedSocket(private val socket: RemoteSocket) {
+internal class FramedSocket(private val socket: RemoteSocket) {
     private var pending = ByteArray(0)
 
     suspend fun read(): ByteArray {
@@ -342,7 +390,7 @@ private class VarintFramedSocket(private val socket: RemoteSocket) {
     }
 }
 
-private class RemoteSocket private constructor(private val webSocket: WebSocket, private val frames: Channel<ByteArray>) {
+internal class RemoteSocket private constructor(private val webSocket: WebSocket, private val frames: Channel<ByteArray>) {
     companion object {
         suspend fun open(client: OkHttpClient, url: String): RemoteSocket = suspendCancellableCoroutine { continuation ->
             lateinit var socket: RemoteSocket
@@ -384,7 +432,7 @@ private class RemoteSocket private constructor(private val webSocket: WebSocket,
     }
 }
 
-private class NoiseCipher(private val key: ByteArray) {
+internal class NoiseCipher(private val key: ByteArray) {
     private var nonce = 0
 
     fun encrypt(value: ByteArray): ByteArray = chachaEncrypt(key, noiseNonce(nonce++), ByteArray(0), value)

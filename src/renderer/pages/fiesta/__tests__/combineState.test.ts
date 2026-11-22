@@ -18,7 +18,6 @@ describe('combined answer state', () => {
   it('waits for every selected response to settle before auto-combining', () => {
     const state = {
       enabled: true,
-      judgeId: 'cli::claude',
       statuses: ['done', 'streaming'] as const,
       answerCount: 2,
       signature: 'turn-1'
@@ -28,17 +27,16 @@ describe('combined answer state', () => {
     expect(shouldAutoCombine({ ...state, statuses: ['done', 'error'] })).toBe(true)
   })
 
-  it('does not auto-combine when disabled, without a judge, or with fewer than two answers', () => {
+  it('auto-combines with the automatic judge, but not when disabled or with fewer than two answers', () => {
     const state = {
       enabled: true,
-      judgeId: 'cli::claude',
       statuses: ['done', 'done'] as const,
       answerCount: 2,
       signature: 'turn-1'
     }
 
     expect(shouldAutoCombine({ ...state, enabled: false })).toBe(false)
-    expect(shouldAutoCombine({ ...state, judgeId: 'auto' })).toBe(false)
+    expect(shouldAutoCombine(state)).toBe(true)
     expect(shouldAutoCombine({ ...state, answerCount: 1 })).toBe(false)
   })
 
@@ -46,7 +44,6 @@ describe('combined answer state', () => {
     const signature = getCombineSignature('topic-1', 'Question?', ['chatgpt', 'claude'])
     const base = {
       enabled: true,
-      judgeId: 'cli::claude',
       statuses: ['done', 'done'] as const,
       answerCount: 2,
       signature,

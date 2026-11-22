@@ -127,6 +127,13 @@ fun ModelPickerSheet(
                             onToggle = { onToggle(panel.id) }, onMoveUp = { onMove(panel.id, true) }, onMoveDown = { onMove(panel.id, false) })
                     }
                 }
+                if (visible.any { it.kind == PanelKind.PC }) {
+                    item { SectionHeading(stringResource(R.string.your_pc)) }
+                    items(visible.filter { it.kind == PanelKind.PC }, key = { it.id }) { panel ->
+                        ModelPickerRow(panel, panel.id in selectedIds, canAdd = selectedIds.size < 8 || panel.id in selectedIds,
+                            onToggle = { onToggle(panel.id) }, onMoveUp = { onMove(panel.id, true) }, onMoveDown = { onMove(panel.id, false) })
+                    }
+                }
             }
         }
     }
@@ -148,8 +155,8 @@ private fun ModelPickerRow(panel: PanelDefinition, selected: Boolean, canAdd: Bo
     ) {
         ModelAvatar(panel.name, Modifier.size(32.dp))
         Column(Modifier.weight(1f).padding(start = 10.dp)) {
-            Text(panel.name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-            Text(panel.description, color = colors.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (panel.kind == PanelKind.PC) stringResource(R.string.pc_model_name, panel.name) else panel.name, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(if (panel.kind == PanelKind.PC) stringResource(R.string.pc_model_description, panel.description.ifBlank { stringResource(R.string.your_pc) }) else panel.description, color = colors.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (selected) {
             IconButton(onClick = onMoveUp, modifier = Modifier.size(30.dp)) { Icon(Icons.Default.ArrowUpward, stringResource(R.string.move_model_up, panel.name), tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp)) }
@@ -336,6 +343,7 @@ fun SettingsSheet(
 @Composable
 fun CombineSheet(
     endpoints: List<ApiEndpoint>,
+    pcJudges: List<PanelDefinition> = emptyList(),
     answer: String,
     loading: Boolean,
     judgeId: String?,
@@ -352,7 +360,10 @@ fun CombineSheet(
     val sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val colors = MaterialTheme.colorScheme
     var judgeMenu by remember { mutableStateOf(false) }
-    val judge = endpoints.firstOrNull { it.id == judgeId } ?: endpoints.firstOrNull()
+    val requestedPcJudge = pcJudges.firstOrNull { it.id == judgeId }
+    val requestedApiJudge = endpoints.firstOrNull { it.id == judgeId }
+    val pcJudge = requestedPcJudge ?: if (judgeId == null && requestedApiJudge == null) pcJudges.firstOrNull() else null
+    val judge = if (pcJudge == null) requestedApiJudge ?: endpoints.firstOrNull() else null
     val sections = remember(answer) { splitFinalAnswer(answer) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -365,13 +376,14 @@ fun CombineSheet(
             if (answer.isNotBlank()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.final_answer_judge, judge?.name ?: stringResource(R.string.judge)), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.final_answer_judge, pcJudge?.let { stringResource(R.string.pc_model_name, it.name) } ?: judge?.name ?: stringResource(R.string.judge)), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         Text(stringResource(R.string.combined_from_models), color = colors.onSurfaceVariant, fontSize = 12.sp)
                     }
                     Box {
                         TextButton(onClick = { judgeMenu = true }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 5.dp, vertical = 5.dp)) { Text(stringResource(R.string.judge), fontSize = 12.sp) }
                         DropdownMenu(expanded = judgeMenu, onDismissRequest = { judgeMenu = false }) {
                             endpoints.forEach { endpoint -> DropdownMenuItem(text = { Text(endpoint.name) }, onClick = { judgeMenu = false; onJudgeSelected(endpoint.id) }) }
+                            pcJudges.forEach { panel -> DropdownMenuItem(text = { Text(stringResource(R.string.pc_model_name, panel.name)) }, onClick = { judgeMenu = false; onJudgeSelected(panel.id) }) }
                         }
                     }
                     TextButton(onClick = onCopy, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 7.dp, vertical = 5.dp)) { Text(stringResource(R.string.copy), fontSize = 12.sp) }
@@ -389,19 +401,22 @@ fun CombineSheet(
             } else {
                 Text(stringResource(R.string.combine_answers), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Text(stringResource(R.string.choose_api_judge), color = colors.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
-                if (endpoints.isEmpty()) {
+                if (endpoints.isEmpty() && pcJudges.isEmpty()) {
                     Text(stringResource(R.string.add_api_settings), color = colors.onSurfaceVariant, fontSize = 13.sp)
                     Button(onClick = onSettings, modifier = Modifier.padding(top = 10.dp)) { Text(stringResource(R.string.open_settings)) }
                 } else {
                     OutlinedButton(onClick = { judgeMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(judge?.name ?: stringResource(R.string.choose_judge_model), Modifier.weight(1f))
+                        Text(pcJudge?.let { stringResource(R.string.pc_model_name, it.name) } ?: judge?.name ?: stringResource(R.string.choose_judge_model), Modifier.weight(1f))
                         DropdownMenu(expanded = judgeMenu, onDismissRequest = { judgeMenu = false }) {
                             endpoints.forEach { endpoint ->
                                 DropdownMenuItem(text = { Text("${endpoint.name} · ${endpoint.modelId}") }, onClick = { judgeMenu = false; onJudgeSelected(endpoint.id) })
                             }
+                            pcJudges.forEach { panel ->
+                                DropdownMenuItem(text = { Text(stringResource(R.string.pc_model_name, panel.name)) }, onClick = { judgeMenu = false; onJudgeSelected(panel.id) })
+                            }
                         }
                     }
-                    Button(onClick = onCombine, enabled = !loading && judge != null, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), shape = RoundedCornerShape(16.dp)) {
+                    Button(onClick = onCombine, enabled = !loading && (judge != null || pcJudge != null), modifier = Modifier.fillMaxWidth().padding(top = 10.dp), shape = RoundedCornerShape(16.dp)) {
                         Text(stringResource(if (loading) R.string.combining else R.string.combine_answers))
                     }
                 }

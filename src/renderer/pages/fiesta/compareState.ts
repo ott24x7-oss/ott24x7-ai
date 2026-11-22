@@ -239,12 +239,16 @@ export function resolveCompareJudge({
     return savedJudgeId as CompareColumnId
   }
 
+  // Signed-in subscription models answer in the background; typing into a web panel would disturb its chat.
+  const loginModel = chatModelIds.find((id) => id.startsWith('openai-codex::'))
+  if (loginModel) return loginModel
+
   const cli = DEFAULT_COMPARE_CLI_ORDER.find((id) => availableCliIds.includes(id))
   if (cli) return `cli::${cli}`
+  if (chatModelIds[0]) return chatModelIds[0]
 
   const chatGpt = visibleWebAppIds.find((id) => ['openai', 'chatgpt'].includes(id.toLowerCase()))
-  if (chatGpt) return `webapp::${encodeURIComponent(chatGpt)}`
-  return chatModelIds[0] ?? 'auto'
+  return chatGpt ? `webapp::${encodeURIComponent(chatGpt)}` : 'auto'
 }
 
 export type CompareKeyboardAction = { type: 'exit-focus' } | { type: 'focus-model'; modelId: CompareColumnId }

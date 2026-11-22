@@ -1,6 +1,6 @@
 package com.ott24x7.ai.data
 
-enum class PanelKind { WEB, API }
+enum class PanelKind { WEB, API, PC }
 
 data class PanelDefinition(
     val id: String,
@@ -9,7 +9,8 @@ data class PanelDefinition(
     val description: String,
     val loginUrl: String = url,
     val kind: PanelKind = PanelKind.WEB,
-    val endpoint: ApiEndpoint? = null
+    val endpoint: ApiEndpoint? = null,
+    val pcAgent: PcAgent? = null
 )
 
 data class ApiEndpoint(
@@ -56,14 +57,24 @@ object PanelCatalog {
 
     val defaultSelection = listOf("chatgpt", "claude", "gemini", "deepseek")
 
-    fun withEndpoints(endpoints: List<ApiEndpoint>): List<PanelDefinition> = webPanels + endpoints.map {
-        PanelDefinition(
-            id = "api:${it.id}",
-            name = it.name.ifBlank { it.modelId },
-            url = it.baseUrl,
-            description = "${it.modelId} · API",
-            kind = PanelKind.API,
-            endpoint = it
-        )
-    }
+    fun withEndpoints(endpoints: List<ApiEndpoint>, pcAgents: List<PcAgent> = emptyList()): List<PanelDefinition> =
+        webPanels + endpoints.map {
+            PanelDefinition(
+                id = "api:${it.id}",
+                name = it.name.ifBlank { it.modelId },
+                url = it.baseUrl,
+                description = "${it.modelId} · API",
+                kind = PanelKind.API,
+                endpoint = it
+            )
+        } + pcAgents.map {
+            PanelDefinition(
+                id = "pc:${it.pcId}:${it.id}",
+                name = it.name,
+                url = "",
+                description = it.pcName,
+                kind = PanelKind.PC,
+                pcAgent = it
+            )
+        }
 }

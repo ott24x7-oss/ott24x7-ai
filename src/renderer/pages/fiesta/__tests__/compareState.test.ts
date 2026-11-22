@@ -109,23 +109,31 @@ describe('compare state', () => {
         visibleWebAppIds: ['openai'],
         chatModelIds: modelIds
       })
+    ).toBe('openai-codex::gpt-a')
+    expect(
+      resolveCompareJudge({
+        savedJudgeId: 'auto',
+        availableCliIds: ['codex', 'agy', 'claude'],
+        visibleWebAppIds: ['openai'],
+        chatModelIds: ['deepseek::chat']
+      })
     ).toBe('cli::claude')
+    expect(
+      resolveCompareJudge({
+        savedJudgeId: 'auto',
+        availableCliIds: [],
+        visibleWebAppIds: ['openai'],
+        chatModelIds: ['deepseek::chat']
+      })
+    ).toBe('deepseek::chat')
     expect(
       resolveCompareJudge({
         savedJudgeId: 'webapp::removed',
         availableCliIds: [],
         visibleWebAppIds: ['anthropic', 'openai'],
-        chatModelIds: modelIds
+        chatModelIds: []
       })
     ).toBe('webapp::openai')
-    expect(
-      resolveCompareJudge({
-        savedJudgeId: 'cli::unavailable',
-        availableCliIds: [],
-        visibleWebAppIds: ['anthropic'],
-        chatModelIds: modelIds
-      })
-    ).toBe('openai-codex::gpt-a')
   })
 
   it('keeps a disabled model selected while excluding it from sends', () => {

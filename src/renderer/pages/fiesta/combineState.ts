@@ -9,7 +9,6 @@ export function getWebJudgePriority(appId: string): number {
 
 export interface AutoCombineState {
   enabled: boolean
-  judgeId: string
   statuses: readonly CombineResponseStatus[]
   answerCount: number
   signature: string
@@ -31,7 +30,6 @@ export function getCombineSignature(
 
 export function shouldAutoCombine({
   enabled,
-  judgeId,
   statuses,
   answerCount,
   signature,
@@ -39,7 +37,6 @@ export function shouldAutoCombine({
 }: AutoCombineState): boolean {
   return (
     enabled &&
-    judgeId !== 'auto' &&
     statuses.length >= 2 &&
     statuses.every((status) => status === 'done' || status === 'error' || status === 'skipped') &&
     canCombine(answerCount) &&

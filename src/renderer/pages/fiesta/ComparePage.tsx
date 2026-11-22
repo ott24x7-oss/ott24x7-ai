@@ -594,10 +594,15 @@ function ComparePage() {
       }
     }
 
-    // When the chosen judge fails (signed out, model not on the plan, ...), let a model
-    // that just answered write the final answer instead.
+    // If the judge fails (signed out, model not on the plan, ...), a model that just answered takes over.
+    // Web panels are never used as a fallback: typing the judge prompt there would disturb the user's chat.
     const judgeCandidates = [
-      ...new Set<CompareJudgeId>([resolvedJudgeId, ...answerSources.map((source) => source.sourceId as CompareJudgeId)])
+      ...new Set<CompareJudgeId>([
+        resolvedJudgeId,
+        ...answerSources
+          .map((source) => source.sourceId as CompareJudgeId)
+          .filter((sourceId) => !sourceId.startsWith('webapp::'))
+      ])
     ]
     for (const candidateId of judgeCandidates) {
       if (!isCurrent()) return
@@ -1242,7 +1247,6 @@ function ComparePage() {
     if (
       !shouldAutoCombine({
         enabled: autoCombine,
-        judgeId,
         statuses: activeTurnStatuses,
         answerCount: answerSources.length,
         signature,
@@ -1253,16 +1257,7 @@ function ComparePage() {
     }
     lastAutoCombineSignature.current = signature
     void handleCombine()
-  }, [
-    activeTopicId,
-    activeTurn,
-    activeTurnStatuses,
-    answerSources.length,
-    autoCombine,
-    currentQuestion,
-    handleCombine,
-    judgeId
-  ])
+  }, [activeTopicId, activeTurn, activeTurnStatuses, answerSources.length, autoCombine, currentQuestion, handleCombine])
 
   useEffect(
     () => () => {

@@ -89,7 +89,8 @@ data class PairedPc(
     val desktopIdentity: String,
     val endpoints: List<PairingEndpoint>,
     val lastSyncAt: Long,
-    val importedProviderIds: List<String> = emptyList()
+    val importedProviderIds: List<String> = emptyList(),
+    val capabilities: List<String> = listOf("configuration")
 )
 
 object PairedPcCodec {
@@ -104,6 +105,7 @@ object PairedPcCodec {
                 put("desktopIdentity", pc.desktopIdentity)
                 put("lastSyncAt", pc.lastSyncAt)
                 put("importedProviderIds", JSONArray(pc.importedProviderIds))
+                put("capabilities", JSONArray(pc.capabilities))
                 put("endpoints", JSONArray().apply {
                     pc.endpoints.forEach { endpoint ->
                         put(JSONObject().put("host", endpoint.host).put("port", endpoint.port).put("security", endpoint.security))
@@ -119,6 +121,7 @@ object PairedPcCodec {
             val row = array.optJSONObject(index) ?: return@mapNotNull null
             val endpoints = row.optJSONArray("endpoints") ?: JSONArray()
             val imported = row.optJSONArray("importedProviderIds") ?: JSONArray()
+            val capabilities = row.optJSONArray("capabilities") ?: JSONArray().put("configuration")
             PairedPc(
                 id = row.optString("id").ifBlank { row.optString("deviceId") },
                 name = row.optString("name"),
@@ -132,7 +135,8 @@ object PairedPcCodec {
                     }
                 },
                 lastSyncAt = row.optLong("lastSyncAt"),
-                importedProviderIds = (0 until imported.length()).map { imported.optString(it) }.filter(String::isNotBlank)
+                importedProviderIds = (0 until imported.length()).map { imported.optString(it) }.filter(String::isNotBlank),
+                capabilities = (0 until capabilities.length()).map { capabilities.optString(it) }.filter(String::isNotBlank)
             ).takeIf { it.id.isNotBlank() && it.deviceId.isNotBlank() && it.accessToken.isNotBlank() }
         }
     }.getOrDefault(emptyList())

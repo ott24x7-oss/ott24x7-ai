@@ -83,7 +83,9 @@ fun PairingScreen(
     activity: MainActivity,
     onBack: () -> Unit,
     onImported: (List<com.ott24x7.ai.data.ApiEndpoint>) -> Unit,
-    onForgotten: (String) -> Unit
+    onForgotten: (String) -> Unit,
+    onPairedChanged: () -> Unit = {},
+    onOpenPcChat: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val settings = activity.secureSettings
@@ -121,9 +123,10 @@ fun PairingScreen(
                         approval = next
                         state = PairingState.APPROVAL
                     },
-                    onApproved = { settings.savePairedPc(it); pairedPcs = settings.pairedPcs() }
+        onApproved = { settings.savePairedPc(it); pairedPcs = settings.pairedPcs(); onPairedChanged() }
                 )
                 settings.savePairedPc(result.pairedPc)
+                onPairedChanged()
                 showImport(result)
             } catch (error: PairingRejectedException) {
                 state = PairingState.ERROR
@@ -167,6 +170,7 @@ fun PairingScreen(
         val selected = result.export.providers.filter { it.id in selectedProviders }
         val endpoints = selected.flatMap { it.toEndpoints(result.pairedPc.deviceId) }
         settings.savePairedPc(result.pairedPc.copy(importedProviderIds = selected.map(ExportProvider::id)))
+        onPairedChanged()
         onImported(endpoints)
         pairedPcs = settings.pairedPcs()
         pending = null
@@ -181,6 +185,7 @@ fun PairingScreen(
             try {
                 val result = client.sync(pc)
                 settings.savePairedPc(result.pairedPc)
+                onPairedChanged()
                 showImport(result)
             } catch (_: PairingUnavailableException) {
                 state = PairingState.ERROR
@@ -234,7 +239,7 @@ fun PairingScreen(
                         if (pairedPcs.isNotEmpty()) {
                             item { Text(stringResource(R.string.pc_paired_title), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
                             items(pairedPcs, key = { it.id }) { pc ->
-                                PairedPcCard(pc, onSync = { sync(pc) }, onForget = { forgetTarget = pc })
+                                PairedPcCard(pc, onSync = { sync(pc) }, onForget = { forgetTarget = pc }, onRePair = { state = PairingState.IDLE; pending = null })
                             }
                         }
                     }
@@ -246,7 +251,9 @@ fun PairingScreen(
                         export = result.export,
                         selected = selectedProviders,
                         onToggle = { id -> selectedProviders = if (id in selectedProviders) selectedProviders - id else selectedProviders + id },
-                        onImport = ::importSelected
+                        onImport = ::importSelected,
+                        onOpenPcChat = onOpenPcChat,
+                        onRePair = { state = PairingState.IDLE; pending = null }
                     )
                 }
             }
@@ -261,6 +268,7 @@ fun PairingScreen(
             confirmButton = {
                 TextButton(onClick = {
                     settings.forgetPairedPc(pc.id)
+                    onPairedChanged()
                     onForgotten(pc.deviceId)
                     pairedPcs = settings.pairedPcs()
                     forgetTarget = null
@@ -328,7 +336,14 @@ private fun PairingErrorCard(message: Int, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun ProviderImportScreen(export: ProviderExport, selected: Set<String>, onToggle: (String) -> Unit, onImport: () -> Unit) {
+private fun ProviderImportScreen(
+    export: ProviderExport,
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
+    onImport: () -> Unit,
+    onOpenPcChat: () -> Unit,
+    onRePair: () -> Unit
+) {
     val supported = export.providers.filter { it.supported }
     val unsupported = export.providers.filterNot { it.supported }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp)) {
@@ -342,8 +357,19 @@ private fun ProviderImportScreen(export: ProviderExport, selected: Set<String>, 
                     Text(provider.name, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp))
                 }
             }
+            if (supported.isEmpty()) {
+                item {
+                    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text(stringResource(R.string.pc_no_importable_body), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 19.sp)
+                            Button(onClick = onOpenPcChat, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Text(stringResource(R.string.pc_open_models)) }
+                            OutlinedButton(onClick = onRePair, modifier = Modifier.fillMaxWidth().padding(top = 7.dp)) { Text(stringResource(R.string.pc_repair)) }
+                        }
+                    }
+                }
+            }
         }
-        Button(onClick = onImport, enabled = selected.isNotEmpty(), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Text(stringResource(R.string.pc_import_button)) }
+        if (supported.isNotEmpty()) Button(onClick = onImport, enabled = selected.isNotEmpty(), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) { Text(stringResource(R.string.pc_import_button)) }
     }
 }
 
@@ -362,7 +388,7 @@ private fun ProviderImportRow(provider: ExportProvider, checked: Boolean, onTogg
 }
 
 @Composable
-private fun PairedPcCard(pc: PairedPc, onSync: () -> Unit, onForget: () -> Unit) {
+private fun PairedPcCard(pc: PairedPc, onSync: () -> Unit, onForget: () -> Unit, onRePair: () -> Unit) {
     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -374,6 +400,10 @@ private fun PairedPcCard(pc: PairedPc, onSync: () -> Unit, onForget: () -> Unit)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onSync) { Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.size(5.dp)); Text(stringResource(R.string.pc_sync_again)) }
+            }
+            if ("agent" !in pc.capabilities) {
+                Text(stringResource(R.string.pc_agent_repair_hint), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                OutlinedButton(onClick = onRePair, modifier = Modifier.fillMaxWidth().padding(top = 7.dp)) { Text(stringResource(R.string.pc_repair)) }
             }
         }
     }

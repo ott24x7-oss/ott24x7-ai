@@ -123,6 +123,7 @@ import com.ott24x7.ai.data.AccountsWelcomeState
 import com.ott24x7.ai.data.ApiChatMessage
 import com.ott24x7.ai.data.ApiClient
 import com.ott24x7.ai.data.ApiEndpoint
+import com.ott24x7.ai.data.AgentProjection
 import com.ott24x7.ai.data.ChatTurnSummary
 import com.ott24x7.ai.data.CitationParser
 import com.ott24x7.ai.data.DeliveryStatus
@@ -135,17 +136,32 @@ import com.ott24x7.ai.data.PanelAnswer
 import com.ott24x7.ai.data.PanelCatalog
 import com.ott24x7.ai.data.PanelDefinition
 import com.ott24x7.ai.data.PanelKind
+import com.ott24x7.ai.data.PcAgent
+import com.ott24x7.ai.data.PcAgentClient
+import com.ott24x7.ai.data.PcAgentRecoveryException
+import com.ott24x7.ai.data.PcAgentUnavailableException
+import com.ott24x7.ai.data.PcChatResult
+import com.ott24x7.ai.data.PcInteractionPrompt
+import com.ott24x7.ai.data.PcInteractionResponse
+import com.ott24x7.ai.data.PcTokenExpiredException
+import com.ott24x7.ai.data.PcUnreachableException
+import com.ott24x7.ai.data.loadPcAgents
 import com.ott24x7.ai.data.WebPanelScripts
 import com.ott24x7.ai.data.WebSendStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CompletableDeferred
 import org.json.JSONTokener
 import java.io.FileNotFoundException
 import kotlin.coroutines.resume
 import androidx.compose.ui.layout.ContentScale
+
+private data class PendingPcInteraction(val prompt: PcInteractionPrompt, val response: CompletableDeferred<PcInteractionResponse>)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -162,10 +178,12 @@ fun FiestaApp(activity: MainActivity) {
     var accentColor by remember { mutableStateOf(settings.accentColor()) }
     val dark = when (themeMode) { "dark" -> true; "light" -> false; else -> systemDark }
     var endpoints by remember { mutableStateOf(settings.endpoints()) }
-    val availablePanelIds = remember(endpoints) {
-        PanelCatalog.webPanels.map(PanelDefinition::id) + endpoints.map { "api:${it.id}" }
+    var pairedPcs by remember { mutableStateOf(settings.pairedPcs()) }
+    var pcAgents by remember { mutableStateOf(emptyList<PcAgent>()) }
+    val availablePanelIds = remember(endpoints, pcAgents) {
+        PanelCatalog.withEndpoints(endpoints, pcAgents).map(PanelDefinition::id)
     }
-    var selectedIds by remember { mutableStateOf(settings.selectedPanels().filter { it in availablePanelIds }.take(8)) }
+    var selectedIds by remember { mutableStateOf(settings.selectedPanels().take(8)) }
     var readWebAnswers by remember { mutableStateOf(settings.readWebAnswers()) }
     var exaKey by remember { mutableStateOf(settings.exaApiKey()) }
     var openRouterKey by remember { mutableStateOf(settings.openRouterKey()) }
@@ -178,7 +196,7 @@ fun FiestaApp(activity: MainActivity) {
     var compareStack by remember { mutableStateOf(false) }
     var exaTestMessage by remember { mutableStateOf("") }
     var exaTesting by remember { mutableStateOf(false) }
-    val panels = remember(endpoints) { PanelCatalog.withEndpoints(endpoints) }
+    val panels = remember(endpoints, pcAgents) { PanelCatalog.withEndpoints(endpoints, pcAgents) }
     val selectedPanels = panels.filter { it.id in selectedIds }
     var prompt by remember { mutableStateOf("") }
     var currentPrompt by remember { mutableStateOf("") }
@@ -193,6 +211,10 @@ fun FiestaApp(activity: MainActivity) {
     var combineSources by remember { mutableStateOf(emptyList<ExaSource>()) }
     var combineLoading by remember { mutableStateOf(false) }
     var judgeId by remember { mutableStateOf(settings.judgeModelId() ?: endpoints.firstOrNull()?.id) }
+    val pcSessions = remember { mutableStateMapOf<String, String>() }
+    val pcExecutions = remember { mutableStateMapOf<String, Pair<String, String>>() }
+    val pcJobs = remember { mutableMapOf<String, Job>() }
+    var pendingPcInteraction by remember { mutableStateOf<PendingPcInteraction?>(null) }
     val applyEndpoints: (List<ApiEndpoint>) -> Unit = { updated ->
         val updatedIds = updated.map(ApiEndpoint::id)
         val addedIds = updatedIds - endpoints.map(ApiEndpoint::id).toSet()
@@ -234,6 +256,29 @@ fun FiestaApp(activity: MainActivity) {
         }
     }
 
+    LaunchedEffect(showModelPicker, pairedPcs) {
+        if (showModelPicker && pairedPcs.isNotEmpty()) {
+            pcAgents = withContext(Dispatchers.IO) {
+                pairedPcs.filter { "agent" in it.capabilities }.flatMap { pc ->
+                    runCatching { loadPcAgents(settings.pairingIdentity(), pc) }.getOrDefault(emptyList())
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(pcAgents) {
+        if (judgeId == null) pcAgents.firstOrNull()?.let { judgeId = "pc:${it.pcId}:${it.id}" }
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab != MainTab.HOME && selectedTab != MainTab.COMPARE) {
+            pcJobs.values.toList().forEach { it.cancel() }
+            pcJobs.clear()
+            pendingPcInteraction?.response?.complete(PcInteractionResponse.Deny)
+            pendingPcInteraction = null
+        }
+    }
+
     SideEffect {
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).isAppearanceLightStatusBars = !dark
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).isAppearanceLightNavigationBars = !dark
@@ -268,7 +313,7 @@ fun FiestaApp(activity: MainActivity) {
         answers[id] = next
         val timestamp = activeHistoryTimestamp
         val panel = panels.firstOrNull { it.id == id }
-        if (timestamp != null && panel?.kind == PanelKind.API) {
+        if (timestamp != null && (panel?.kind == PanelKind.API || panel?.kind == PanelKind.PC)) {
             val recordIndex = historyTurns.indexOfFirst { it.timestamp == timestamp }
             if (recordIndex >= 0) {
                 val record = historyTurns[recordIndex]
@@ -285,6 +330,12 @@ fun FiestaApp(activity: MainActivity) {
             copyText(value)
             updateAnswer(panel.id) { it.copy(status = DeliveryStatus.COPIED) }
         }
+    }
+
+    suspend fun awaitPcInteraction(interaction: PcInteractionPrompt): PcInteractionResponse {
+        val response = CompletableDeferred<PcInteractionResponse>()
+        withContext(Dispatchers.Main.immediate) { pendingPcInteraction = PendingPcInteraction(interaction, response) }
+        return response.await()
     }
 
     fun runApi(panel: PanelDefinition, text: String, file: ApiAttachment?, turn: Int) {
@@ -315,9 +366,72 @@ fun FiestaApp(activity: MainActivity) {
         }
     }
 
+    fun runPc(panel: PanelDefinition, text: String, turn: Int) {
+        val agent = panel.pcAgent ?: return
+        val pc = settings.pairedPcs().firstOrNull { it.deviceId == agent.pcId || it.id == agent.pcId }
+        if (pc == null || "agent" !in pc.capabilities) {
+            answers[panel.id] = PanelAnswer(status = DeliveryStatus.ERROR)
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.pc_repair_required)) }
+            return
+        }
+        answers[panel.id] = PanelAnswer(status = DeliveryStatus.TYPING, loading = true)
+        val job = scope.launch {
+            try {
+                val result = PcAgentClient(settings.pairingIdentity(), pc, onPcUpdated = { settings.savePairedPc(it) }).chat(
+                    agentId = agent.id,
+                    text = text,
+                    existingSessionId = pcSessions[panel.id],
+                    onText = { value -> if (activeTurn == turn) updateAnswer(panel.id) { it.copy(text = value, status = DeliveryStatus.TYPING, loading = true) } },
+                    onExecution = { sessionId, executionId -> pcExecutions[panel.id] = sessionId to executionId },
+                    onInteraction = ::awaitPcInteraction
+                )
+                pcSessions[panel.id] = result.sessionId
+                pcExecutions.remove(panel.id)
+                if (activeTurn == turn) updateAnswer(panel.id) { it.copy(text = result.text, status = DeliveryStatus.SENT, loading = false) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: PcUnreachableException) {
+                pcExecutions.remove(panel.id)
+                if (activeTurn == turn) updateAnswer(panel.id) { it.copy(status = DeliveryStatus.ERROR, loading = false) }
+                snackbar.showSnackbar(context.getString(R.string.pc_chat_unreachable))
+            } catch (_: PcTokenExpiredException) {
+                pcExecutions.remove(panel.id)
+                if (activeTurn == turn) updateAnswer(panel.id) { it.copy(status = DeliveryStatus.ERROR, loading = false) }
+                val action = snackbar.showSnackbar(context.getString(R.string.pc_token_expired), context.getString(R.string.pc_repair))
+                if (action == androidx.compose.material3.SnackbarResult.ActionPerformed) selectedTab = MainTab.PAIRING
+            } catch (error: PcAgentUnavailableException) {
+                pcExecutions.remove(panel.id)
+                if (activeTurn == turn) updateAnswer(panel.id) { it.copy(status = DeliveryStatus.ERROR, loading = false) }
+                snackbar.showSnackbar(error.message?.take(512).orEmpty().ifBlank { context.getString(R.string.pc_agent_failed) })
+            } catch (_: PcAgentRecoveryException) {
+                pcExecutions.remove(panel.id)
+                if (activeTurn == turn) updateAnswer(panel.id) { it.copy(status = DeliveryStatus.ERROR, loading = false) }
+                snackbar.showSnackbar(context.getString(R.string.pc_chat_recovery_failed))
+            } catch (_: Exception) {
+                pcExecutions.remove(panel.id)
+                if (activeTurn == turn) updateAnswer(panel.id) { it.copy(status = DeliveryStatus.ERROR, loading = false) }
+                snackbar.showSnackbar(context.getString(R.string.pc_agent_failed))
+            }
+        }
+        pcJobs[panel.id] = job
+        job.invokeOnCompletion { if (pcJobs[panel.id] === job) pcJobs.remove(panel.id) }
+    }
+
+    fun cancelPc(panel: PanelDefinition) {
+        val agent = panel.pcAgent ?: return
+        val pc = settings.pairedPcs().firstOrNull { it.deviceId == agent.pcId || it.id == agent.pcId } ?: return
+        val execution = pcExecutions[panel.id] ?: return
+        scope.launch {
+            runCatching { PcAgentClient(settings.pairingIdentity(), pc).cancel(execution.first, execution.second) }
+                .onFailure { snackbar.showSnackbar(context.getString(R.string.pc_cancel_failed)) }
+        }
+    }
+
     fun sendOne(panel: PanelDefinition, text: String, file: ApiAttachment?, turn: Int) {
         if (panel.kind == PanelKind.API) {
             runApi(panel, text, file, turn)
+        } else if (panel.kind == PanelKind.PC) {
+            runPc(panel, text, turn)
         } else {
             answers[panel.id] = PanelAnswer(status = DeliveryStatus.TYPING, loading = true)
             activity.sendPromptToWebPanel(panel, text) { status ->
@@ -377,6 +491,7 @@ fun FiestaApp(activity: MainActivity) {
             }
         }
         selectedPanels.filter { it.kind == PanelKind.API }.forEach { runApi(it, text, attachment, turn) }
+        selectedPanels.filter { it.kind == PanelKind.PC }.forEach { runPc(it, text, turn) }
         attachment = null
     }
 
@@ -391,15 +506,17 @@ fun FiestaApp(activity: MainActivity) {
     }
 
     fun combineAnswers() {
-        val judge = endpoints.firstOrNull { it.id == judgeId } ?: endpoints.firstOrNull()
-        if (judge == null) return
-        judgeId = judge.id
+        val requestedPcJudge = panels.firstOrNull { it.id == judgeId && it.kind == PanelKind.PC }
+        val judgePc = requestedPcJudge ?: if (judgeId == null && endpoints.isEmpty()) panels.firstOrNull { it.kind == PanelKind.PC } else null
+        val judgeEndpoint = if (judgePc == null) endpoints.firstOrNull { it.id == judgeId } ?: endpoints.firstOrNull() else null
+        if (judgeEndpoint == null && judgePc == null) return
+        judgeId = judgeEndpoint?.id ?: judgePc?.id
         combineLoading = true
         combineText = ""
         combineSources = emptyList()
         scope.launch {
             val source = mutableListOf<String>()
-            selectedPanels.filter { it.kind == PanelKind.API }.forEach { panel ->
+            selectedPanels.filter { it.kind == PanelKind.API || it.kind == PanelKind.PC }.forEach { panel ->
                 val text = answers[panel.id]?.text.orEmpty()
                 if (text.isNotBlank()) source += "${panel.name}:\n$text"
             }
@@ -415,16 +532,34 @@ fun FiestaApp(activity: MainActivity) {
             }
             val synthesisPrompt = "Create a concise comparison with exactly these sections: ## Best answer, ## Where they agree, and ## Where they differ. Base each section only on the available responses. Cite any web sources using [1], [2].\n\nUser prompt:\n$currentPrompt\n\nModel responses:\n${source.joinToString("\n\n---\n\n")}"
             try {
-                val result = withContext(Dispatchers.IO) {
-                    ApiClient.stream(
-                        judge, synthesisPrompt, null,
-                        exaApiKey = if (webSearchEnabled) exaKey else null,
-                        onSources = { sources -> mainHandler.post { combineSources = sources } }
-                    ) { delta ->
-                        mainHandler.post { combineText += delta }
+                if (judgeEndpoint != null) {
+                    val result = withContext(Dispatchers.IO) {
+                        ApiClient.stream(
+                            judgeEndpoint, synthesisPrompt, null,
+                            exaApiKey = if (webSearchEnabled) exaKey else null,
+                            onSources = { sources -> mainHandler.post { combineSources = sources } }
+                        ) { delta ->
+                            mainHandler.post { combineText += delta }
+                        }
                     }
+                    combineText = result
+                } else {
+                    val agent = judgePc?.pcAgent ?: throw PcAgentUnavailableException()
+                    val pc = settings.pairedPcs().firstOrNull { it.deviceId == agent.pcId || it.id == agent.pcId } ?: throw PcUnreachableException()
+                    val result = PcAgentClient(settings.pairingIdentity(), pc, onPcUpdated = { settings.savePairedPc(it) }).chat(
+                        agentId = agent.id,
+                        text = synthesisPrompt,
+                        existingSessionId = pcSessions[judgePc!!.id],
+                        onText = { value -> combineText = value },
+                        onExecution = { sessionId, executionId -> pcExecutions[judgePc.id] = sessionId to executionId },
+                        onInteraction = ::awaitPcInteraction
+                    )
+                    pcSessions[judgePc.id] = result.sessionId
+                    pcExecutions.remove(judgePc.id)
+                    combineText = result.text
                 }
-                combineText = result
+            } catch (error: PcAgentUnavailableException) {
+                combineText = error.message?.take(512).orEmpty().ifBlank { context.getString(R.string.pc_agent_failed) }
             } catch (_: Exception) {
                 combineText = context.getString(R.string.judge_failed)
             }
@@ -505,7 +640,8 @@ fun FiestaApp(activity: MainActivity) {
                                 onOpenGoogleCustomTab = { activity.openGoogleSignIn(activity.googleSignInUrl(panel.id, panel.url)) },
                                 googleSignInRequired = googleSignInPanel == panel.id,
                                 modifier = Modifier.fillMaxWidth().weight(1f).padding(12.dp),
-                                onShare = { shareText(context, answers[panel.id]?.text.orEmpty()) }
+                                onShare = { shareText(context, answers[panel.id]?.text.orEmpty()) },
+                                onCancel = { cancelPc(panel) }
                             )
                         }
                     } else {
@@ -577,6 +713,7 @@ fun FiestaApp(activity: MainActivity) {
                                     stack = compareStack,
                                     onViewMode = { compareStack = it },
                                     onShare = { panel -> shareText(context, answers[panel.id]?.text.orEmpty()) },
+                                    onCancel = ::cancelPc,
                                     modifier = Modifier.fillMaxSize()
                                 )
                                 MainTab.STUDIO -> StudioScreenV2(endpoints, onOpenSettings = { selectedTab = MainTab.SETTINGS }) {
@@ -605,6 +742,8 @@ fun FiestaApp(activity: MainActivity) {
                                 MainTab.PAIRING -> PairingScreen(
                                     activity = activity,
                                     onBack = { selectedTab = MainTab.HOME },
+                                    onPairedChanged = { pairedPcs = settings.pairedPcs(); pcAgents = emptyList() },
+                                    onOpenPcChat = { selectedTab = MainTab.HOME; showModelPicker = true },
                                     onImported = { imported ->
                                         val deviceId = imported.firstOrNull()?.pairedDeviceId
                                         val merged = endpoints.filterNot { endpoint -> deviceId != null && endpoint.pairedDeviceId == deviceId } + imported
@@ -743,6 +882,7 @@ fun FiestaApp(activity: MainActivity) {
     if (showCombine) {
         CombineSheet(
             endpoints = endpoints,
+            pcJudges = panels.filter { it.kind == PanelKind.PC },
             answer = combineText,
             loading = combineLoading,
             judgeId = judgeId,
@@ -755,6 +895,44 @@ fun FiestaApp(activity: MainActivity) {
             onShare = { shareText(context, combineText) },
             sources = combineSources,
             onOpenSource = activity::openCustomTab
+        )
+    }
+    pendingPcInteraction?.let { pending ->
+        var answer by remember(pending.prompt.interactionId) { mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                pending.response.complete(PcInteractionResponse.Deny)
+                pendingPcInteraction = null
+            },
+            title = { Text(stringResource(if (pending.prompt.question) R.string.pc_approval_question else R.string.pc_approval_title)) },
+            text = {
+                Column {
+                    Text(pending.prompt.summary.ifBlank { stringResource(R.string.pc_approval_body) }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (pending.prompt.question) {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = answer,
+                            onValueChange = { answer = it },
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                            label = { Text(stringResource(R.string.pc_approval_answer_hint)) }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !pending.prompt.question || answer.isNotBlank(),
+                    onClick = {
+                        pending.response.complete(if (pending.prompt.question) PcInteractionResponse.Answer(answer.trim()) else PcInteractionResponse.Approve)
+                        pendingPcInteraction = null
+                    }
+                ) { Text(stringResource(if (pending.prompt.question) R.string.pc_approval_send else R.string.pc_approval_allow)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pending.response.complete(PcInteractionResponse.Deny)
+                    pendingPcInteraction = null
+                }) { Text(stringResource(R.string.pc_approval_deny)) }
+            }
         )
     }
     selectedHistoryTurn?.let { turn ->
@@ -925,7 +1103,8 @@ private fun AnswerTurn(
     modifier: Modifier = Modifier,
     stack: Boolean = false,
     onViewMode: (Boolean) -> Unit = {},
-    onShare: (PanelDefinition) -> Unit = {}
+    onShare: (PanelDefinition) -> Unit = {},
+    onCancel: (PanelDefinition) -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     BoxWithConstraints(modifier) {
@@ -982,7 +1161,8 @@ private fun AnswerTurn(
                                     onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
                                     googleSignInRequired = googleSignInPanel == panel.id,
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
-                                    onShare = { onShare(panel) }
+                                    onShare = { onShare(panel) },
+                                    onCancel = { onCancel(panel) }
                                 )
                             }
                             if (pair.size == 1) Spacer(Modifier.weight(1f))
@@ -1000,7 +1180,8 @@ private fun AnswerTurn(
                             onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
                             googleSignInRequired = googleSignInPanel == panel.id,
                             modifier = Modifier.fillMaxWidth().height(380.dp),
-                            onShare = { onShare(panel) }
+                            onShare = { onShare(panel) },
+                            onCancel = { onCancel(panel) }
                         )
                     }
                 }
@@ -1022,7 +1203,8 @@ private fun AnswerTurn(
                         onClearLogin = { onClearLogin(panel) }, onOpenGoogleCustomTab = { onOpenGoogle(panel) },
                         googleSignInRequired = googleSignInPanel == panel.id,
                         modifier = Modifier.fillMaxSize(),
-                        onShare = { onShare(panel) }
+                        onShare = { onShare(panel) },
+                        onCancel = { onCancel(panel) }
                     )
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {

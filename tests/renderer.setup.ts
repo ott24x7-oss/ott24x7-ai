@@ -216,6 +216,9 @@ vi.mock('@cherrystudio/ui', async () => {
       )
     },
     NormalTooltip: ({ children }) => children,
+    ResizablePanelGroup: ({ children, className }) => React.createElement('div', { className }, children),
+    ResizablePanel: ({ children, className }) => React.createElement('div', { className }, children),
+    ResizableHandle: () => React.createElement('div', { role: 'separator' }),
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
       if (asChild && React.isValidElement(children)) {

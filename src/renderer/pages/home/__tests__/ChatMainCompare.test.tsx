@@ -169,4 +169,47 @@ describe('ChatMain in Compare', () => {
       else Reflect.deleteProperty(window, 'matchMedia')
     }
   })
+
+  it('keeps the same column elements when the side panel opens on a wide screen', () => {
+    // Remounting the columns reloads web panels and wipes their chats.
+    const originalWidth = window.innerWidth
+    const matchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 })
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: undefined })
+    const props = (finalAnswerPanelOpen: boolean) =>
+      ({
+        topic: { id: 't1' },
+        messages: [],
+        partsByMessageId: {},
+        streamingLayers: {},
+        onBindRuntime: vi.fn(),
+        loadOlder: vi.fn(),
+        hasOlder: false,
+        compare: {
+          columns: [{ id: 'cli::claude', kind: 'cli', cliId: 'claude', name: 'Claude', enabled: true }],
+          layout: { kind: 'columns', columns: 2 },
+          focusedModelId: undefined,
+          canCombine: true,
+          finalAnswerPanelOpen,
+          onCloseFinalAnswer: vi.fn(),
+          onCombine: vi.fn(),
+          finalAnswer: { status: 'done', content: 'OK', judgeName: 'Judge' },
+          cliOutputs: {},
+          deliveryStatuses: {},
+          webWarnings: {}
+        }
+      }) as unknown as Parameters<typeof ChatMain>[0]
+
+    try {
+      const { rerender } = render(<ChatMain {...props(false)} />)
+      const column = screen.getByText('cli answer')
+      rerender(<ChatMain {...props(true)} />)
+      expect(screen.getByText('final answer')).toBeInTheDocument()
+      expect(screen.getByText('cli answer')).toBe(column)
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+      if (matchMediaDescriptor) Object.defineProperty(window, 'matchMedia', matchMediaDescriptor)
+      else Reflect.deleteProperty(window, 'matchMedia')
+    }
+  })
 })

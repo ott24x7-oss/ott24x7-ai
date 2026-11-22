@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
@@ -83,7 +84,8 @@ fun PanelCard(
     onOpenGoogleCustomTab: () -> Unit,
     googleSignInRequired: Boolean,
     modifier: Modifier = Modifier,
-    onShare: () -> Unit = {}
+    onShare: () -> Unit = {},
+    onCancel: (() -> Unit)? = null
 ) {
     val colors = MaterialTheme.colorScheme
     var menuExpanded by remember(panel.id) { mutableStateOf(false) }
@@ -106,13 +108,13 @@ fun PanelCard(
                     shape = RoundedCornerShape(6.dp),
                     border = BorderStroke(1.dp, colors.outline)
                 ) {
-                    Text(if (panel.kind == PanelKind.WEB) "WEB" else "API", Modifier.padding(horizontal = 5.dp, vertical = 2.dp), fontSize = 9.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant)
+                    Text(stringResource(when (panel.kind) { PanelKind.WEB -> R.string.panel_type_web; PanelKind.API -> R.string.panel_type_api; PanelKind.PC -> R.string.panel_type_pc }), Modifier.padding(horizontal = 5.dp, vertical = 2.dp), fontSize = 9.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant)
                 }
                 Spacer(Modifier.weight(1f))
                 Box(Modifier.padding(end = 3.dp)) {
                     StatusLabel(answer.status, answer.loading)
                 }
-                Box {
+                if (panel.kind == PanelKind.WEB) Box {
                     IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.panel_options, panel.name), tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
@@ -173,6 +175,9 @@ fun PanelCard(
                 IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.ContentCopy, stringResource(R.string.copy_answer), tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp)) }
                 if (panel.kind == PanelKind.API) IconButton(onClick = onShare, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Share, stringResource(R.string.share_answer), tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp)) }
                 IconButton(onClick = onRegenerate, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Refresh, stringResource(R.string.regenerate), tint = colors.onSurfaceVariant, modifier = Modifier.size(17.dp)) }
+                if (panel.kind == PanelKind.PC && answer.loading && onCancel != null) {
+                    IconButton(onClick = onCancel, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, stringResource(R.string.cancel_pc_request), tint = colors.error, modifier = Modifier.size(17.dp)) }
+                }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onExpand, modifier = Modifier.size(32.dp)) {
                     Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, stringResource(if (expanded) R.string.close_full_screen else R.string.expand_answer), tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))

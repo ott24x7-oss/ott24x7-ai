@@ -213,24 +213,25 @@ const CompareChatMain: FC<CompareChatMainProps> = ({ compare, baseValue, onRegen
       <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2 pb-40">
         {compare.welcomeCard}
         <div className="relative flex min-h-0 flex-1">
-          {compare.finalAnswerPanelOpen && !isCompactViewport ? (
-            <ResizablePanelGroup id="compare-final-answer-layout" direction="horizontal" className="min-h-0 flex-1">
-              <ResizablePanel id="compare-columns" minSize="380px" className="min-w-0 overflow-hidden">
-                <div className="flex h-full min-h-0 flex-col">{columnsContent}</div>
-              </ResizablePanel>
-              <ResizableHandle withHandle aria-label={t('common.resize_panel')} />
-              <ResizablePanel
-                id="compare-final-answer"
-                defaultSize="40%"
-                minSize="360px"
-                maxSize="60%"
-                className="min-w-0">
-                {finalAnswerPanel}
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          ) : (
-            <div className="flex h-full min-h-0 w-full flex-col">{columnsContent}</div>
-          )}
+          {/* Keep one tree whether the side panel is open or not, so web panels never remount and lose their chats. */}
+          <ResizablePanelGroup id="compare-final-answer-layout" direction="horizontal" className="min-h-0 flex-1">
+            <ResizablePanel id="compare-columns" minSize="380px" className="min-w-0 overflow-hidden">
+              <div className="flex h-full min-h-0 flex-col">{columnsContent}</div>
+            </ResizablePanel>
+            {compare.finalAnswerPanelOpen && !isCompactViewport && (
+              <>
+                <ResizableHandle withHandle aria-label={t('common.resize_panel')} />
+                <ResizablePanel
+                  id="compare-final-answer"
+                  defaultSize="40%"
+                  minSize="360px"
+                  maxSize="60%"
+                  className="min-w-0">
+                  {finalAnswerPanel}
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
           {compare.finalAnswerPanelOpen && isCompactViewport && (
             <div className="absolute inset-0 z-20">
               <button
