@@ -13,10 +13,12 @@ import {
   getCompareKeyboardAction,
   getDefaultCompareJudgeId,
   getFirstRunCompareDefaults,
+  getSignedInAiColumnIds,
   reconcileCompareSelections,
   isCompareChatModel,
   getCompareSetSelection,
   limitCompareSelection,
+  migrateCompareLoginDefaults,
   MAX_COMPARE_COLUMNS,
   removeCompareModel,
   resolveCompareJudge,
@@ -35,32 +37,31 @@ const selection = [
 ] as const
 
 describe('compare state', () => {
-  it('seeds a fresh profile with the four login-based web panels and a matching subscriptions set', () => {
+  it('seeds a fresh profile with the available signed-in models and no web panels', () => {
     const defaults = getFirstRunCompareDefaults({
       isFreshProfile: true,
       defaultsSeeded: false,
       selection: [],
       savedSets: [],
       judgeId: 'auto',
-      enabledSiteAppIds: ['deepseek', 'gemini', 'openai', 'anthropic'],
-      savedSetName: 'My subscriptions'
+      chatModelIds: ['openai-codex::gpt-5', 'openrouter::free'],
+      availableCliIds: ['claude', 'agy', 'codex'],
+      signedInSetName: 'Signed-in AI'
     })
 
     expect(defaults).toEqual({
       selection: [
-        { id: 'webapp::anthropic', enabled: true },
-        { id: 'webapp::openai', enabled: true },
-        { id: 'webapp::gemini', enabled: true },
-        { id: 'webapp::deepseek', enabled: true }
+        { id: 'openai-codex::gpt-5', enabled: true },
+        { id: 'cli::claude', enabled: true },
+        { id: 'cli::agy', enabled: true }
       ],
       savedSet: {
-        id: 'my-subscriptions',
-        name: 'My subscriptions',
+        id: 'signed-in-ai',
+        name: 'Signed-in AI',
         selection: [
-          { id: 'webapp::anthropic', enabled: true },
-          { id: 'webapp::openai', enabled: true },
-          { id: 'webapp::gemini', enabled: true },
-          { id: 'webapp::deepseek', enabled: true }
+          { id: 'openai-codex::gpt-5', enabled: true },
+          { id: 'cli::claude', enabled: true },
+          { id: 'cli::agy', enabled: true }
         ]
       }
     })
@@ -73,8 +74,9 @@ describe('compare state', () => {
       selection: [] as CacheCompareModelSelection[],
       savedSets: [],
       judgeId: 'auto',
-      enabledSiteAppIds: ['openai', 'gemini', 'anthropic', 'deepseek'],
-      savedSetName: 'My subscriptions'
+      chatModelIds: ['openai-codex::gpt-5'] as const,
+      availableCliIds: ['claude'] as const,
+      signedInSetName: 'Signed-in AI'
     }
 
     expect(getFirstRunCompareDefaults({ ...input, isFreshProfile: false })).toBeNull()
@@ -84,6 +86,91 @@ describe('compare state', () => {
       getFirstRunCompareDefaults({ ...input, savedSets: [{ id: 'custom', name: 'Custom', selection: [] }] })
     ).toBeNull()
     expect(getFirstRunCompareDefaults({ ...input, judgeId: 'webapp::openai' })).toBeNull()
+  })
+
+  it('keeps the signed-in set empty until a login becomes available', () => {
+    expect(
+      getFirstRunCompareDefaults({
+        isFreshProfile: true,
+        defaultsSeeded: false,
+        selection: [],
+        savedSets: [],
+        judgeId: 'auto',
+        chatModelIds: [],
+        availableCliIds: [],
+        signedInSetName: 'Signed-in AI'
+      })
+    ).toEqual({
+      selection: [],
+      savedSet: { id: 'signed-in-ai', name: 'Signed-in AI', selection: [] }
+    })
+  })
+
+  it('does not duplicate the Codex CLI when the ChatGPT login model is available', () => {
+    expect(getSignedInAiColumnIds(['openai-codex::gpt-5'], ['codex', 'claude', 'agy'])).toEqual([
+      'openai-codex::gpt-5',
+      'cli::claude',
+      'cli::agy'
+    ])
+  })
+
+  it('migrates only the old web-only default and preserves custom sets', () => {
+    const customSet: CacheCompareSavedSet = {
+      id: 'coding',
+      name: 'Coding',
+      selection: [{ id: 'provider::model', enabled: true }]
+    }
+    const oldWebSelection = [
+      { id: 'webapp::anthropic', enabled: true },
+      { id: 'webapp::openai', enabled: true }
+    ] as const
+    const signedInSelection = [{ id: 'openai-codex::gpt-5', enabled: true }] as const
+    const migrated = migrateCompareLoginDefaults({
+      selection: oldWebSelection,
+      savedSets: [customSet],
+      signedInSelection,
+      oldWebSelection,
+      signedInSetName: 'Signed-in AI'
+    })
+
+    expect(migrated.selection).toEqual(signedInSelection)
+    expect(migrated.savedSets).toEqual([
+      customSet,
+      { id: 'signed-in-ai', name: 'Signed-in AI', selection: signedInSelection }
+    ])
+    expect(migrated.switchedSelection).toBe(true)
+
+    const unchanged = migrateCompareLoginDefaults({
+      selection: migrated.selection,
+      savedSets: migrated.savedSets,
+      signedInSelection,
+      oldWebSelection,
+      signedInSetName: 'Signed-in AI'
+    })
+    expect(unchanged.selection).toEqual(migrated.selection)
+    expect(unchanged.savedSets).toEqual(migrated.savedSets)
+    expect(unchanged.switchedSelection).toBe(false)
+  })
+
+  it('keeps a customized selection while adding the signed-in set', () => {
+    const customSelection = [{ id: 'provider::model', enabled: true }] as const
+    const customSet: CacheCompareSavedSet = {
+      id: 'coding',
+      name: 'Coding',
+      selection: [{ id: 'provider::saved', enabled: true }]
+    }
+    const migrated = migrateCompareLoginDefaults({
+      selection: customSelection,
+      savedSets: [customSet],
+      signedInSelection: [{ id: 'cli::claude', enabled: true }],
+      oldWebSelection: [{ id: 'webapp::openai', enabled: true }],
+      signedInSetName: 'Signed-in AI'
+    })
+
+    expect(migrated.selection).toEqual(customSelection)
+    expect(migrated.savedSets[0]).toEqual(customSet)
+    expect(migrated.savedSets[1].id).toBe('signed-in-ai')
+    expect(migrated.switchedSelection).toBe(false)
   })
 
   it('prefers signed-in judge CLIs in Claude, Antigravity, Codex order, then ChatGPT web', () => {
@@ -231,12 +318,14 @@ describe('compare state', () => {
     })
     const sets = buildCompareDefaultSets({
       freeModels,
+      signedInIds: ['openai-codex::gpt-5', 'cli::claude', 'cli::agy'],
+      signedInSetName: 'Signed-in AI',
       subscriptionIds: ['webapp::claude', 'webapp::openai', 'webapp::gemini', 'webapp::deepseek'],
       freeSetName: 'Free models',
       subscriptionsSetName: 'My subscriptions'
     })
 
-    expect(sets.map((set) => set.id)).toEqual(['my-subscriptions', 'free'])
+    expect(sets.map((set) => set.id)).toEqual(['signed-in-ai', 'my-subscriptions', 'free'])
     expect(sets.every((set) => set.selection.length <= MAX_COMPARE_COLUMNS)).toBe(true)
     expect(
       sets
@@ -246,7 +335,7 @@ describe('compare state', () => {
     ).toEqual(['provider::model-5', 'provider::model-1', 'provider::model-2', 'provider::model-3', 'provider::model-4'])
   })
 
-  it('maps the removed all-enabled set id to My subscriptions', () => {
+  it('maps the removed all-enabled set id to Web panels (extra)', () => {
     expect(resolveCompareSavedSetId('all-enabled')).toBe('my-subscriptions')
     expect(resolveCompareSavedSetId('coding')).toBe('coding')
   })
@@ -293,12 +382,12 @@ describe('compare state', () => {
     ).toEqual([])
   })
 
-  it('prunes stale ids from live and saved selections and reseeds subscriptions if the live selection empties', () => {
+  it('prunes stale ids from live and saved selections and reseeds Signed-in AI if the live selection empties', () => {
     const reconciled = reconcileCompareSelections({
       selection: [
         { id: 'model::removed', enabled: true },
         { id: 'webapp::gone', enabled: true },
-        { id: 'cli::claude', enabled: true }
+        { id: 'cli::removed', enabled: true }
       ],
       savedSets: [
         {
@@ -311,9 +400,9 @@ describe('compare state', () => {
           ]
         }
       ],
-      chatModelIds: ['model::live'],
+      chatModelIds: ['openai-codex::gpt-5', 'model::live'],
       webAppIds: ['openai', 'anthropic', 'gemini', 'deepseek'],
-      cliIds: ['codex'],
+      cliIds: ['claude', 'agy', 'codex'],
       subscriptionAppIds: ['anthropic', 'openai', 'gemini', 'deepseek'],
       isFreshProfile: false,
       defaultsSeeded: true,
@@ -322,16 +411,22 @@ describe('compare state', () => {
     })
 
     expect(reconciled.selection).toEqual([
-      { id: 'webapp::anthropic', enabled: true },
-      { id: 'webapp::openai', enabled: true },
-      { id: 'webapp::gemini', enabled: true },
-      { id: 'webapp::deepseek', enabled: true }
+      { id: 'openai-codex::gpt-5', enabled: true },
+      { id: 'cli::claude', enabled: true },
+      { id: 'cli::agy', enabled: true }
     ])
     expect(reconciled.savedSets).toEqual([
-      { id: 'custom', name: 'Custom', selection: [{ id: 'webapp::openai', enabled: true }] },
       {
-        id: 'my-subscriptions',
-        name: 'My subscriptions',
+        id: 'custom',
+        name: 'Custom',
+        selection: [
+          { id: 'webapp::openai', enabled: true },
+          { id: 'cli::claude', enabled: true }
+        ]
+      },
+      {
+        id: 'signed-in-ai',
+        name: 'Signed-in AI',
         selection: reconciled.selection
       }
     ])

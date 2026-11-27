@@ -1,3 +1,6 @@
+import { rm } from 'node:fs/promises'
+import path from 'node:path'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -103,6 +106,10 @@ export class ChannelManager extends BaseService {
       await runtime.flush().catch((error) => this.logRuntimeError(channelId, error))
       await runtime.dispose()
     }
+    await rm(path.join(application.getPath('feature.agents.channels'), `whatsapp_${channelId}`), {
+      recursive: true,
+      force: true
+    })
     application.get('CacheService').deleteShared(`channel.status.${channelId}`)
   }
 

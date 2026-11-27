@@ -3,6 +3,9 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { useMutation } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
@@ -17,19 +20,25 @@ import type {
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
+import { useModels } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { CompareColumnId, ComparePageConfig } from '@renderer/types/compare'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { MEMORY_CONTENT_LIMIT, parseMemoryFacts } from '@shared/utils/memory'
 
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
 import type { AddNewTopicPayload } from './types'
 import { useChatRuntimeState } from './useChatRuntimeState'
+
+const MEMORY_LEARNING_INPUT_LIMIT = 2000
 
 interface Props {
   topic: Topic
@@ -159,6 +168,12 @@ const ChatContentInner: FC<InnerProps> = ({
   messagesCacheMutate
 }) => {
   const { t } = useTranslation()
+  const memoryLogger = loggerService.withContext('MemoryLearning')
+  const [useMemory] = usePreference('feature.memory.enabled')
+  const [learnFromMessages] = usePreference('feature.memory.learn_from_messages')
+  const { models } = useModels()
+  const { providers: providerRows } = useProviders()
+  const { trigger: createMemory } = useMutation('POST', '/memories', { refresh: ['/memories'] })
   const { reserveBranch } = useTopicBranchActions(topic.id)
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
@@ -175,8 +190,93 @@ const ChatContentInner: FC<InnerProps> = ({
     onBranchLiveStateChange
   })
   const sendMessage = runtime.sendMessage
+
+  const learnFromPrompt = useCallback(
+    async (text: string) => {
+      if (!useMemory || !learnFromMessages || text.trim().length <= 20) return
+      const enabledProviders = new Set(
+        providerRows.filter((provider) => provider.isEnabled).map((provider) => provider.id)
+      )
+      const enabledModels = models.filter((model) => model.isEnabled && enabledProviders.has(model.providerId))
+      const candidate = [
+        enabledModels.find((model) => model.providerId === 'openai-codex'),
+        composerModelId ? enabledModels.find((model) => model.id === composerModelId) : undefined,
+        ...enabledModels
+      ].find((model): model is (typeof enabledModels)[number] => model !== undefined)
+      if (!candidate) return
+      const promptText = text.trim().slice(0, MEMORY_LEARNING_INPUT_LIMIT)
+      try {
+        const result = await ipcApi.request('ai.text.generate', {
+          uniqueModelId: candidate.id,
+          prompt: `Extract 0 to 3 durable user facts from this message only. Return JSON as {"facts":["..."]}. Return an empty facts array for questions, temporary plans, or ordinary conversation.\n\nUser message:\n${promptText}`,
+          reasoningEffort: 'none'
+        })
+        for (const fact of parseMemoryFacts(result.text)) {
+          await createMemory({
+            body: { content: fact.slice(0, MEMORY_CONTENT_LIMIT), sourceTopicId: topic.id, sourceMessageId: null }
+          })
+        }
+      } catch {
+        memoryLogger.debug('memory extraction skipped', { topicId: topic.id, modelId: candidate.id })
+      }
+    },
+    [composerModelId, createMemory, learnFromMessages, memoryLogger, models, providerRows, topic.id, useMemory]
+  )
   const continueRequest = compare?.continueRequest
   const sentContinueRequestRef = useRef<string | undefined>(undefined)
+  const backupStateRef = useRef(
+    new Map<string, { attempted: Set<string>; current?: CompareColumnId; exhausted?: boolean }>()
+  )
+
+  useEffect(() => {
+    if (compare?.turnId) backupStateRef.current.clear()
+  }, [compare?.turnId])
+
+  useEffect(() => {
+    if (!compare || !compare.backupCandidateIds?.length) return
+    const prompt = getLatestPromptForBackup(uiMessages)
+    if (!prompt || prompt.question !== compare.currentQuestion) return
+    const primaryIds = new Set<string>(compare.sendModels.map((model) => model.id))
+    for (const original of compare.sendModels) {
+      const stateKey = `${compare.turnId ?? compare.currentQuestion}:${original.id}`
+      const turnState = backupStateRef.current.get(stateKey) ?? { attempted: new Set<string>() }
+      backupStateRef.current.set(stateKey, turnState)
+      const primary = getLatestApiAnswerForBackup(uiMessages, prompt, original.id)
+      if (!primary || primary.status !== 'error') continue
+      if (turnState.current) {
+        if (turnState.current.startsWith('cli::')) continue
+        const activeBackup = getLatestApiAnswerForBackup(uiMessages, prompt, turnState.current)
+        if (activeBackup?.status !== 'error') continue
+      }
+      if (turnState.attempted.size >= 3) {
+        if (!turnState.exhausted) {
+          turnState.exhausted = true
+          compare.onBackupExhausted?.(
+            original.id,
+            getLatestApiErrorReason(uiMessages, prompt, original.id) ?? 'The selected model failed'
+          )
+        }
+        continue
+      }
+      const backupId = compare.backupCandidateIds.find(
+        (candidateId) =>
+          candidateId !== String(original.id) && !primaryIds.has(candidateId) && !turnState.attempted.has(candidateId)
+      ) as CompareColumnId | undefined
+      const backup = backupId?.startsWith('cli::')
+        ? undefined
+        : compare.backupModels?.find((candidate) => candidate.id === backupId)
+      if (!backupId) continue
+      turnState.attempted.add(backupId)
+      turnState.current = backupId
+      const reason = getLatestApiErrorReason(uiMessages, prompt, original.id) ?? 'the selected model failed'
+      if (backupId.startsWith('cli::')) {
+        compare.onCliBackupRequest?.(original.id, backupId, reason)
+      } else if (backup) {
+        compare.onBackupStart?.(original.id, backup.id, reason)
+        void runtime.chatWriteActions.regenerate(primary.id, { modelId: backup.id }).catch(() => undefined)
+      }
+    }
+  }, [compare, runtime.chatWriteActions, uiMessages])
 
   useEffect(() => {
     if (
@@ -204,7 +304,11 @@ const ChatContentInner: FC<InnerProps> = ({
 
   const handleSend = useCallback(
     async (text: string, options?: Parameters<ChatComposerProps['onSend']>[1]) => {
-      if (!compare) return sendMessage(text, options)
+      if (!compare) {
+        const sent = await sendMessage(text, options)
+        if (sent) void learnFromPrompt(text)
+        return sent
+      }
       if (compare.sendDisabled) return false
       const [webAndCliResults, apiSent] = await Promise.all([
         compare.onSendText(text),
@@ -216,6 +320,7 @@ const ChatContentInner: FC<InnerProps> = ({
             })
           : Promise.resolve(true)
       ])
+      if (apiSent) void learnFromPrompt(text)
       const apiResults = compare.sendModels.map((model) => ({
         columnId: model.id,
         status: apiSent ? ('sent' as const) : ('error' as const),
@@ -234,7 +339,7 @@ const ChatContentInner: FC<InnerProps> = ({
       else toast.success(summary)
       return true
     },
-    [compare, sendMessage, t]
+    [compare, learnFromPrompt, sendMessage, t]
   )
   const compareCurrentQuestion = compare?.currentQuestion
   const compareColumns = compare?.columns
@@ -399,3 +504,63 @@ const ChatContentInner: FC<InnerProps> = ({
 }
 
 export default ChatContent
+
+function getLatestApiErrorReason(
+  messages: readonly CherryUIMessage[],
+  prompt: LatestPromptForBackup | null,
+  modelId: UniqueModelId
+): string | undefined {
+  if (!prompt) return undefined
+  for (let index = messages.length - 1; index > prompt.index; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'assistant' || message.metadata?.modelId !== modelId) continue
+    const reason = (message.metadata as { error?: unknown } | undefined)?.error
+    return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined
+  }
+  return undefined
+}
+
+interface LatestPromptForBackup {
+  question: string
+  index: number
+  messageId: string
+}
+
+function getLatestPromptForBackup(messages: readonly CherryUIMessage[]): LatestPromptForBackup | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role === 'user') {
+      return {
+        question: message.parts
+          .flatMap((part) => (part.type === 'text' ? [part.text] : []))
+          .join('')
+          .trim(),
+        index,
+        messageId: message.id
+      }
+    }
+  }
+  return null
+}
+
+function getLatestApiAnswerForBackup(
+  messages: readonly CherryUIMessage[],
+  prompt: LatestPromptForBackup,
+  modelId: UniqueModelId
+): { id: string; status: 'waiting' | 'streaming' | 'done' | 'error'; content: string } | null {
+  for (let index = messages.length - 1; index > prompt.index; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'assistant' || message.metadata?.modelId !== modelId) continue
+    const status = message.metadata?.status
+    return {
+      id: message.id,
+      content: message.parts
+        .flatMap((part) => (part.type === 'text' ? [part.text] : []))
+        .join('')
+        .trim(),
+      status:
+        status === 'pending' ? 'streaming' : status === 'error' ? 'error' : status === 'success' ? 'done' : 'waiting'
+    }
+  }
+  return null
+}

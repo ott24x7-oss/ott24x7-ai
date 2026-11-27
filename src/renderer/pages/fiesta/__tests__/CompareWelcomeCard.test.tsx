@@ -11,9 +11,9 @@ vi.mock('react-i18next', () => ({
       ({
         'compare.welcome.title': 'Welcome to Compare',
         'compare.welcome.dismiss': 'Dismiss welcome guide',
-        'compare.welcome.step1': 'Sign in once in each panel (Claude, ChatGPT, Gemini, DeepSeek).',
+        'compare.welcome.step1': 'Start with Signed-in AI: sign in to ChatGPT, Claude or Gemini in Providers or Code.',
         'compare.welcome.step2':
-          'Optional: Sign in with ChatGPT in Settings → Providers for a native chat and a faster final answer.',
+          'Web panels for Claude, ChatGPT, Gemini and DeepSeek are optional extras for viewing your existing sessions.',
         'compare.welcome.step3': 'Ask anything — then press ✦ Combine for one final answer.',
         'compare.welcome.panels_link': 'Go to panels',
         'compare.welcome.providers_link': 'Open Providers',
@@ -40,10 +40,12 @@ describe('CompareWelcomeCard', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Welcome to Compare' })).toBeInTheDocument()
-    expect(screen.getByText('Sign in once in each panel (Claude, ChatGPT, Gemini, DeepSeek).')).toBeInTheDocument()
+    expect(
+      screen.getByText('Start with Signed-in AI: sign in to ChatGPT, Claude or Gemini in Providers or Code.')
+    ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Optional: Sign in with ChatGPT in Settings → Providers for a native chat and a faster final answer.'
+        'Web panels for Claude, ChatGPT, Gemini and DeepSeek are optional extras for viewing your existing sessions.'
       )
     ).toBeInTheDocument()
     expect(screen.getByText('Ask anything — then press ✦ Combine for one final answer.')).toBeInTheDocument()

@@ -21,10 +21,15 @@ import {
 } from '@cherrystudio/ui'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import type { CompareColumnId, CompareJudgeId, CompareLayout } from '@renderer/types/compare'
-import type { CacheCompareModelSelection, CacheCompareSavedSet } from '@shared/data/cache/cacheValueTypes'
+import type {
+  CacheCompareBackupModelId,
+  CacheCompareModelSelection,
+  CacheCompareSavedSet
+} from '@shared/data/cache/cacheValueTypes'
 import type { Model } from '@shared/data/types/model'
 import type { CompareCliAvailability, CompareCliId } from '@shared/types/compareCli'
 
+import type { BackupCandidate } from './backupModels'
 import { MAX_COMPARE_COLUMNS, syncCompareModelSelection } from './compareState'
 
 export type { CompareLayout } from '@renderer/types/compare'
@@ -51,6 +56,10 @@ interface CompareToolbarProps {
   onApiPickerOpenChange: (open: boolean) => void
   cliAvailability: readonly CompareCliAvailability[]
   isCheckingClis: boolean
+  onSignIn?: (target: 'openai-codex' | 'claude-code' | 'gemini-cli') => void
+  backupIds?: readonly CacheCompareBackupModelId[]
+  backupCandidates?: readonly BackupCandidate[]
+  onBackupChange?: (ids: CacheCompareBackupModelId[]) => void
 }
 
 const COLUMN_COUNTS = [1, 2, 3, 4] as const
@@ -76,7 +85,11 @@ export function CompareToolbar({
   apiPickerOpen,
   onApiPickerOpenChange,
   cliAvailability,
-  isCheckingClis
+  isCheckingClis,
+  onSignIn = () => undefined,
+  backupIds = [],
+  backupCandidates = [],
+  onBackupChange = () => undefined
 }: CompareToolbarProps) {
   const { t } = useTranslation()
   const [setName, setSetName] = useState('')
@@ -84,7 +97,10 @@ export function CompareToolbar({
   const isAtColumnLimit = selection.length >= MAX_COMPARE_COLUMNS
   const { allApps } = useMiniApps()
   const apps = useMemo(() => allApps.filter((app) => app.status === 'enabled' || app.status === 'pinned'), [allApps])
+  const chatGptModel = models.find((model) => model.providerId === 'openai-codex')
+  const availableCliIds = new Set(cliAvailability.filter((cli) => cli.available).map((cli) => cli.id))
   const activeSetName = useMemo(() => {
+    if (activeSetId === 'signed-in-ai') return t('compare.saved_sets.signed_in_ai')
     if (activeSetId === 'my-subscriptions') return t('compare.saved_sets.my_subscriptions')
     if (activeSetId === 'free') return t('compare.saved_sets.free_models')
     if (activeSetId === 'custom') return t('compare.saved_sets.custom')
@@ -135,6 +151,7 @@ export function CompareToolbar({
         <DropdownMenuContent align="start" className="w-64">
           <DropdownMenuLabel>{t('compare.saved_sets.label')}</DropdownMenuLabel>
           {[
+            ['signed-in-ai', t('compare.saved_sets.signed_in_ai')],
             ['my-subscriptions', t('compare.saved_sets.my_subscriptions')],
             ['free', t('compare.saved_sets.free_models')],
             ['custom', t('compare.saved_sets.custom')]
@@ -145,7 +162,7 @@ export function CompareToolbar({
             </DropdownMenuItem>
           ))}
           {savedSets
-            .filter((set) => !['my-subscriptions', 'free', 'custom', 'all-enabled'].includes(set.id))
+            .filter((set) => !['signed-in-ai', 'my-subscriptions', 'free', 'custom', 'all-enabled'].includes(set.id))
             .map((set) => (
               <DropdownMenuItem key={set.id} onSelect={() => onSelectSet(set.id)}>
                 <span className="flex-1">{set.name}</span>
@@ -157,6 +174,40 @@ export function CompareToolbar({
             <Save className="mr-2 size-3.5" />
             {t('compare.save_set')}
           </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 gap-1 px-2">
+            <span className="text-muted-foreground">{t('compare.backups.prefix')}</span>
+            <span>
+              {backupIds.length === 0
+                ? t('compare.backups.automatic')
+                : t('compare.backups.selected', { count: backupIds.length })}
+            </span>
+            <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-h-[70vh] w-72 overflow-y-auto">
+          <DropdownMenuLabel>{t('compare.backups.label')}</DropdownMenuLabel>
+          <DropdownMenuCheckboxItem
+            checked={backupIds.length === 0}
+            onCheckedChange={(checked) => checked && onBackupChange([])}>
+            {t('compare.backups.automatic')}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuSeparator />
+          {backupCandidates.map((candidate) => (
+            <DropdownMenuCheckboxItem
+              key={candidate.id}
+              checked={backupIds.includes(candidate.id)}
+              disabled={!backupIds.includes(candidate.id) && backupIds.length >= 3}
+              onCheckedChange={(checked) => {
+                const next = checked ? [...backupIds, candidate.id] : backupIds.filter((id) => id !== candidate.id)
+                onBackupChange(next.slice(0, 3))
+              }}>
+              {candidate.kind === 'cli' ? getCliLabel(candidate.cliId!, t) : candidate.model?.name}
+            </DropdownMenuCheckboxItem>
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
       <Select
@@ -197,6 +248,55 @@ export function CompareToolbar({
           </span>
         </Tooltip>
         <DropdownMenuContent align="start" className="max-h-[70vh] w-72 overflow-y-auto">
+          <DropdownMenuLabel>{t('compare.model_group.signed_in_ai')}</DropdownMenuLabel>
+          {chatGptModel ? (
+            <DropdownMenuCheckboxItem
+              checked={selection.some((item) => item.id === chatGptModel.id)}
+              disabled={isAtColumnLimit && !selection.some((item) => item.id === chatGptModel.id)}
+              onCheckedChange={(checked) => handlePickerChange(chatGptModel.id, checked)}>
+              {t('compare.signed_in.chatgpt_model', { model: chatGptModel.name })}
+            </DropdownMenuCheckboxItem>
+          ) : availableCliIds.has('codex') ? (
+            <DropdownMenuCheckboxItem
+              checked={selection.some((item) => item.id === 'cli::codex')}
+              disabled={isAtColumnLimit && !selection.some((item) => item.id === 'cli::codex')}
+              onCheckedChange={(checked) => handlePickerChange('cli::codex', checked)}>
+              {t('compare.cli.account.codex')}
+            </DropdownMenuCheckboxItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => onSignIn('openai-codex')}>
+              <span className="flex-1">{t('compare.signed_in.chatgpt')}</span>
+              <span className="text-xs text-primary">{t('compare.delivery.sign_in')}</span>
+            </DropdownMenuItem>
+          )}
+          {availableCliIds.has('claude') ? (
+            <DropdownMenuCheckboxItem
+              checked={selection.some((item) => item.id === 'cli::claude')}
+              disabled={isAtColumnLimit && !selection.some((item) => item.id === 'cli::claude')}
+              onCheckedChange={(checked) => handlePickerChange('cli::claude', checked)}>
+              {t('compare.cli.account.claude')}
+            </DropdownMenuCheckboxItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => onSignIn('claude-code')}>
+              <span className="flex-1">{t('compare.signed_in.claude')}</span>
+              <span className="text-xs text-primary">{t('compare.delivery.sign_in')}</span>
+            </DropdownMenuItem>
+          )}
+          {availableCliIds.has('agy') ? (
+            <DropdownMenuCheckboxItem
+              checked={selection.some((item) => item.id === 'cli::agy')}
+              disabled={isAtColumnLimit && !selection.some((item) => item.id === 'cli::agy')}
+              onCheckedChange={(checked) => handlePickerChange('cli::agy', checked)}>
+              {t('compare.cli.account.agy')}
+            </DropdownMenuCheckboxItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => onSignIn('gemini-cli')}>
+              <span className="flex-1">{t('compare.signed_in.gemini')}</span>
+              <span className="text-xs text-primary">{t('compare.delivery.sign_in')}</span>
+            </DropdownMenuItem>
+          )}
+          {isCheckingClis && <div className="px-2 py-1 text-xs text-muted-foreground">{t('common.loading')}</div>}
+          <DropdownMenuSeparator />
           <DropdownMenuLabel>{t('compare.model_group.api_models')}</DropdownMenuLabel>
           {models.map((model) => (
             <DropdownMenuCheckboxItem

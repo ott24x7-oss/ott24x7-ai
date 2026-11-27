@@ -456,11 +456,14 @@ export type RendererPersistCacheSchema = {
   'ui.compare.custom_selection': CacheValueTypes.CacheCompareModelSelection[] | null
   'ui.compare.saved_sets': CacheValueTypes.CacheCompareSavedSet[]
   'ui.compare.defaults_seeded': boolean
+  'ui.compare.login_defaults_migrated': boolean
   'ui.compare.welcome_dismissed': boolean
+  'ui.compare.web_panel_hint_dismissed': boolean
   'ui.compare.judge': string
   'ui.studio.sign_in_hint_dismissed': boolean
   'ui.compare.auto_combine': boolean
   'ui.compare.read_web_answers': boolean
+  'ui.compare.backup_models': CacheValueTypes.CacheCompareBackupModelId[]
   'ui.compare.web_search_enabled': boolean
   'ui.compare.final_answers': Record<string, CacheValueTypes.CacheCompareFinalAnswer>
   'ui.compare.topic_ids': string[]
@@ -541,11 +544,14 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.compare.custom_selection': null,
   'ui.compare.saved_sets': [],
   'ui.compare.defaults_seeded': false,
+  'ui.compare.login_defaults_migrated': false,
   'ui.compare.welcome_dismissed': true,
+  'ui.compare.web_panel_hint_dismissed': false,
   'ui.compare.judge': 'auto',
   'ui.studio.sign_in_hint_dismissed': false,
   'ui.compare.auto_combine': true,
   'ui.compare.read_web_answers': true,
+  'ui.compare.backup_models': [],
   'ui.compare.web_search_enabled': false,
   'ui.compare.final_answers': {},
   'ui.compare.topic_ids': [],

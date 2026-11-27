@@ -106,6 +106,13 @@ export const SlackChannelConfigSchema = z.object({
 
 export type SlackChannelConfig = z.infer<typeof SlackChannelConfigSchema>
 
+export const WhatsAppChannelConfigSchema = z.object({
+  type: z.literal('whatsapp'),
+  allowed_numbers: z.array(z.string()).default([])
+})
+
+export type WhatsAppChannelConfig = z.infer<typeof WhatsAppChannelConfigSchema>
+
 // ---- Discriminated union ----
 
 export const ChannelConfigSchema = z.discriminatedUnion('type', [
@@ -116,12 +123,23 @@ export const ChannelConfigSchema = z.discriminatedUnion('type', [
   WeComChannelConfigSchema,
   DingTalkChannelConfigSchema,
   DiscordChannelConfigSchema,
-  SlackChannelConfigSchema
+  SlackChannelConfigSchema,
+  WhatsAppChannelConfigSchema
 ])
 
 export type ChannelConfig = z.infer<typeof ChannelConfigSchema>
 
-export const CHANNEL_TYPES = ['telegram', 'feishu', 'qq', 'wechat', 'wecom', 'dingtalk', 'discord', 'slack'] as const
+export const CHANNEL_TYPES = [
+  'telegram',
+  'feishu',
+  'qq',
+  'wechat',
+  'wecom',
+  'dingtalk',
+  'discord',
+  'slack',
+  'whatsapp'
+] as const
 export type ChannelType = (typeof CHANNEL_TYPES)[number]
 
 export interface ChannelStatus {

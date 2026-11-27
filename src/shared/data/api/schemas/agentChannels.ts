@@ -13,7 +13,8 @@ export const AgentChannelTypeSchema = z.enum([
   'wecom',
   'dingtalk',
   'discord',
-  'slack'
+  'slack',
+  'whatsapp'
 ])
 export type AgentChannelType = z.infer<typeof AgentChannelTypeSchema>
 
@@ -60,6 +61,10 @@ export const SlackAgentChannelConfigSchema = z.strictObject({
   allowed_channel_ids: z.array(z.string()).optional()
 })
 
+export const WhatsAppAgentChannelConfigSchema = z.strictObject({
+  allowed_numbers: z.array(z.string()).optional()
+})
+
 export const AgentChannelConfigSchemasByType = {
   telegram: TelegramAgentChannelConfigSchema,
   feishu: FeishuAgentChannelConfigSchema,
@@ -68,7 +73,8 @@ export const AgentChannelConfigSchemasByType = {
   wecom: WeComAgentChannelConfigSchema,
   dingtalk: DingTalkAgentChannelConfigSchema,
   discord: DiscordAgentChannelConfigSchema,
-  slack: SlackAgentChannelConfigSchema
+  slack: SlackAgentChannelConfigSchema,
+  whatsapp: WhatsAppAgentChannelConfigSchema
 } as const satisfies Record<AgentChannelType, z.ZodType<Record<string, unknown>>>
 
 export const ActiveAgentChannelConfigSchemasByType = {
@@ -89,7 +95,8 @@ export const ActiveAgentChannelConfigSchemasByType = {
   slack: SlackAgentChannelConfigSchema.extend({
     bot_token: z.string().min(1),
     app_token: z.string().min(1)
-  })
+  }),
+  whatsapp: WhatsAppAgentChannelConfigSchema
 } as const satisfies Record<AgentChannelType, z.ZodType<Record<string, unknown>>>
 
 export type TelegramAgentChannelConfig = z.infer<typeof TelegramAgentChannelConfigSchema>
@@ -100,6 +107,7 @@ export type WeComAgentChannelConfig = z.infer<typeof WeComAgentChannelConfigSche
 export type DingTalkAgentChannelConfig = z.infer<typeof DingTalkAgentChannelConfigSchema>
 export type DiscordAgentChannelConfig = z.infer<typeof DiscordAgentChannelConfigSchema>
 export type SlackAgentChannelConfig = z.infer<typeof SlackAgentChannelConfigSchema>
+export type WhatsAppAgentChannelConfig = z.infer<typeof WhatsAppAgentChannelConfigSchema>
 export type AgentChannelConfig =
   | TelegramAgentChannelConfig
   | FeishuAgentChannelConfig
@@ -109,6 +117,7 @@ export type AgentChannelConfig =
   | DingTalkAgentChannelConfig
   | DiscordAgentChannelConfig
   | SlackAgentChannelConfig
+  | WhatsAppAgentChannelConfig
 
 const AgentChannelBaseFields = {
   id: z.string(),
@@ -171,6 +180,10 @@ export const DiscordAgentChannelEntitySchema = createAgentChannelEntitySchema(
   DiscordAgentChannelConfigSchema
 )
 export const SlackAgentChannelEntitySchema = createAgentChannelEntitySchema('slack', SlackAgentChannelConfigSchema)
+export const WhatsAppAgentChannelEntitySchema = createAgentChannelEntitySchema(
+  'whatsapp',
+  WhatsAppAgentChannelConfigSchema
+)
 
 export const AgentChannelEntitySchema = z.discriminatedUnion('type', [
   TelegramAgentChannelEntitySchema,
@@ -180,7 +193,8 @@ export const AgentChannelEntitySchema = z.discriminatedUnion('type', [
   WeComAgentChannelEntitySchema,
   DingTalkAgentChannelEntitySchema,
   DiscordAgentChannelEntitySchema,
-  SlackAgentChannelEntitySchema
+  SlackAgentChannelEntitySchema,
+  WhatsAppAgentChannelEntitySchema
 ])
 export type AgentChannelEntity = z.infer<typeof AgentChannelEntitySchema>
 
@@ -201,6 +215,10 @@ export const DiscordCreateAgentChannelSchema = createAgentChannelMutationSchema(
   DiscordAgentChannelConfigSchema
 )
 export const SlackCreateAgentChannelSchema = createAgentChannelMutationSchema('slack', SlackAgentChannelConfigSchema)
+export const WhatsAppCreateAgentChannelSchema = createAgentChannelMutationSchema(
+  'whatsapp',
+  WhatsAppAgentChannelConfigSchema
+)
 
 export const CreateAgentChannelSchema = z.discriminatedUnion('type', [
   TelegramCreateAgentChannelSchema,
@@ -210,7 +228,8 @@ export const CreateAgentChannelSchema = z.discriminatedUnion('type', [
   WeComCreateAgentChannelSchema,
   DingTalkCreateAgentChannelSchema,
   DiscordCreateAgentChannelSchema,
-  SlackCreateAgentChannelSchema
+  SlackCreateAgentChannelSchema,
+  WhatsAppCreateAgentChannelSchema
 ])
 export type CreateAgentChannelDto = z.infer<typeof CreateAgentChannelSchema>
 
@@ -229,7 +248,8 @@ export const UpdateAgentChannelSchema = z
         WeComAgentChannelConfigSchema,
         DingTalkAgentChannelConfigSchema,
         DiscordAgentChannelConfigSchema,
-        SlackAgentChannelConfigSchema
+        SlackAgentChannelConfigSchema,
+        WhatsAppAgentChannelConfigSchema
       ])
       .optional(),
     isActive: z.boolean().optional(),

@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  Button,
   Input,
   Label,
   Select,
@@ -18,6 +19,7 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { FullAccessConfirmDialog, PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -557,6 +559,94 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
   )
 }
 
+type WhatsAppStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
+
+export const WhatsAppForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  const channelStatus = useSharedCacheValue(`channel.status.${channel.id}` as const)
+  const [status, setStatus] = useState<WhatsAppStatus>(() =>
+    channelStatus?.connected ? 'confirmed' : channel.isActive ? 'pending' : 'idle'
+  )
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+
+  useIpcOn('channel.whatsapp.qr_login', (data) => {
+    if (data.channelId !== channel.id) return
+    if (data.status === 'confirmed') {
+      setQrUrl(null)
+      setStatus('confirmed')
+    } else if (data.status === 'expired') {
+      setQrUrl(null)
+      setStatus('expired')
+    } else if (data.status === 'disconnected') {
+      setQrUrl(null)
+      setStatus('disconnected')
+    } else if (data.status === 'error') {
+      setQrUrl(null)
+      setStatus('error')
+    } else if (data.url) {
+      setQrUrl(data.url)
+      setStatus('pending')
+    }
+  })
+
+  useEffect(() => {
+    if (channelStatus?.connected) setStatus('confirmed')
+  }, [channelStatus?.connected])
+
+  const logout = async () => {
+    await ipcApi.request('channel.whatsapp.logout', channel.id)
+    setStatus('disconnected')
+    onConfigChange({ isActive: false })
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-warning">{t('agent.channels.whatsapp.riskHint')}</p>
+      <p className="text-xs text-info">{t('agent.channels.whatsapp.ownerOnlyHint')}</p>
+      <div className="flex items-center gap-2">
+        {status === 'confirmed' && (
+          <span className="text-xs text-success">{t('agent.channels.whatsapp.connected')}</span>
+        )}
+        {status === 'pending' && <span className="text-xs text-info">{t('agent.channels.whatsapp.loginHint')}</span>}
+        {status === 'expired' && <span className="text-xs text-error">{t('agent.channels.whatsapp.qrExpired')}</span>}
+        {status === 'disconnected' && (
+          <span className="text-xs text-muted-foreground">{t('agent.channels.whatsapp.disconnected')}</span>
+        )}
+        {status === 'error' && <span className="text-xs text-error">{t('agent.channels.error')}</span>}
+        {status === 'confirmed' && (
+          <Button variant="outline" size="sm" onClick={() => void logout()}>
+            {t('agent.channels.whatsapp.logout')}
+          </Button>
+        )}
+      </div>
+      <ChannelFieldsForm
+        channel={channel}
+        onConfigChange={onConfigChange}
+        patchConfig
+        fields={[]}
+        chatIds={{
+          label: t('agent.channels.whatsapp.allowedNumbers'),
+          placeholder: t('agent.channels.whatsapp.allowedNumbersPlaceholder'),
+          hint: t('agent.channels.whatsapp.allowedNumbersHint'),
+          configKey: 'allowed_numbers',
+          fullWidth: true
+        }}
+      />
+      <Dialog open={!!qrUrl} onOpenChange={(open) => !open && setQrUrl(null)}>
+        <DialogContent closeOnOverlayClick={false} className="max-w-90">
+          <DialogHeader>
+            <DialogTitle>{t('agent.channels.whatsapp.qrTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
+            <span className="text-center text-xs text-muted-foreground">{t('agent.channels.whatsapp.qrHint')}</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 export const SlackForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   return (
@@ -609,6 +699,8 @@ export const getFormForType = (type: string) => {
       return WeComForm
     case 'wechat':
       return WeChatForm
+    case 'whatsapp':
+      return WhatsAppForm
     default:
       return null
   }

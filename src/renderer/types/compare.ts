@@ -64,12 +64,16 @@ export interface CompareCliOutput {
 
 export interface ComparePageConfig {
   header: ReactNode
+  webPanelHint?: ReactNode
   welcomeCard?: ReactNode
   selectedModelIds: readonly CompareColumnId[]
   columns: readonly CompareColumn[]
   runtimeOwnerId?: UniqueModelId
   currentQuestion: string
+  turnId?: string
   sendModels: Model[]
+  backupModels?: Model[]
+  backupCandidateIds?: readonly string[]
   webSearchEnabled: boolean
   focusedModelId: CompareColumnId | null
   layout: CompareLayout
@@ -107,4 +111,7 @@ export interface ComparePageConfig {
   onContinueFromAnswer?: (answer: string) => void
   continueRequest?: CompareContinueRequest
   onContinueSent?: (requestId: string) => void
+  onBackupStart?: (originalModelId: CompareColumnId, backupModelId: CompareColumnId, reason: string) => void
+  onBackupExhausted?: (originalModelId: CompareColumnId, reason: string) => void
+  onCliBackupRequest?: (originalModelId: UniqueModelId, backupId: CompareColumnId, reason: string) => void
 }

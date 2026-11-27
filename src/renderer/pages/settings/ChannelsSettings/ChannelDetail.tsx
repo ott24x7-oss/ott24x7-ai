@@ -97,6 +97,8 @@ function getChannelSummary(channel: ChannelData): string {
       break
     case 'wechat':
       break
+    case 'whatsapp':
+      break
   }
   return parts.join(' \u00b7 ')
 }
@@ -494,6 +496,10 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     }
   })
 
+  useIpcOn('channel.whatsapp.qr_login', (data) => {
+    if (channelDef.type === 'whatsapp' && data.status === 'confirmed') void mutate()
+  })
+
   const handleAdd = useCallback(async () => {
     const existingCount = channels?.length ?? 0
     const newChannel = await createChannel({
@@ -503,7 +509,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       config: channelDef.defaultConfig,
       // Feishu and WeChat register by QR, so binding an active channel to an agent
       // starts the adapter flow. Credential-gated channels start inactive.
-      isActive: channelDef.type === 'feishu' || channelDef.type === 'wechat'
+      isActive: channelDef.type === 'feishu' || channelDef.type === 'wechat' || channelDef.type === 'whatsapp'
     } as never)
     if (newChannel) {
       openEditModal(newChannel.id)

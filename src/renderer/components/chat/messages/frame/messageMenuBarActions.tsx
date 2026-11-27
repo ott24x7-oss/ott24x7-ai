@@ -30,6 +30,7 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { readMessageAloud } from '@renderer/services/voice'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -39,6 +40,7 @@ import { createComposerRichClipboardContentFromParts } from '@renderer/utils/mes
 import { getTranslationFromParts, hasTextParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import { MEMORY_CONTENT_LIMIT } from '@shared/utils/memory'
 
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
@@ -278,6 +280,20 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
   await actions.exportToNotes?.(messageForExport)
 })
 
+registerCommand('message.remember', async ({ actions, message, mainTextContent, t }) => {
+  const content = mainTextContent.trim().slice(0, MEMORY_CONTENT_LIMIT)
+  if (!content) return
+  try {
+    await dataApiService.post('/memories', {
+      body: { content, sourceTopicId: message.topicId, sourceMessageId: message.id }
+    })
+    actions.notifySuccess?.(t('settings.memory.saved'))
+  } catch (error) {
+    logger.warn('Failed to remember message', error as Error, { messageId: message.id, topicId: message.topicId })
+    actions.notifyError?.(t('message.error.unknown'))
+  }
+})
+
 registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
   const { messageToPlainText } = await import('@renderer/utils/export')
   await actions.copyText?.(await messageToPlainText(messageForExport), {
@@ -371,6 +387,17 @@ registerToolbarAction({
   label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <EditIcon size={15} />,
   availability: toolbarAvailability('user-edit', (context) => context.isUserMessage && canStartEditing(context))
+})
+
+registerAction({
+  id: 'remember',
+  commandId: 'message.remember',
+  label: ({ t }) => t('settings.memory.remember'),
+  icon: <NotebookPen size={15} />,
+  group: 'save',
+  order: 25,
+  surface: 'menu',
+  availability: ({ isUserMessage, mainTextContent }) => isUserMessage && mainTextContent.trim().length > 0
 })
 
 registerToolbarAction({

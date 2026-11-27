@@ -1,5 +1,4 @@
 import type { CompareColumn, CompareColumnId } from '@renderer/types/compare'
-import { getMySubscriptionColumnIds } from '@renderer/utils/compareSubscriptions'
 import type { CacheCompareModelSelection, CacheCompareSavedSet } from '@shared/data/cache/cacheValueTypes'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -10,6 +9,8 @@ import { isAgentOnlyProvider } from '@shared/utils/provider'
 export { getMySubscriptionColumnIds } from '@renderer/utils/compareSubscriptions'
 
 export const MAX_COMPARE_COLUMNS = 8
+export const SIGNED_IN_COMPARE_SET_ID = 'signed-in-ai'
+export const WEB_PANELS_COMPARE_SET_ID = 'my-subscriptions'
 
 /** Compare columns and judges must be chat models: embedding, rerank, image, video and audio models cannot answer. */
 export function isCompareChatModel(model: Model, provider: Provider | undefined): boolean {
@@ -26,11 +27,15 @@ export function limitCompareSelection(selection: readonly CacheCompareModelSelec
 
 export function buildCompareDefaultSets({
   freeModels,
+  signedInIds,
+  signedInSetName,
   subscriptionIds,
   freeSetName,
   subscriptionsSetName
 }: {
   freeModels: readonly Model[]
+  signedInIds: readonly CompareColumnId[]
+  signedInSetName: string
   subscriptionIds: readonly CompareColumnId[]
   freeSetName: string
   subscriptionsSetName: string
@@ -47,7 +52,12 @@ export function buildCompareDefaultSets({
 
   return [
     {
-      id: 'my-subscriptions',
+      id: SIGNED_IN_COMPARE_SET_ID,
+      name: signedInSetName,
+      selection: limitCompareSelection(signedInIds.map((id) => ({ id, enabled: true })))
+    },
+    {
+      id: WEB_PANELS_COMPARE_SET_ID,
       name: subscriptionsSetName,
       selection: limitCompareSelection(subscriptionIds.map((id) => ({ id, enabled: true })))
     },
@@ -60,10 +70,30 @@ export function buildCompareDefaultSets({
 }
 
 export function resolveCompareSavedSetId(setId: string): string {
-  return setId === 'all-enabled' ? 'my-subscriptions' : setId
+  return setId === 'all-enabled' ? WEB_PANELS_COMPARE_SET_ID : setId
 }
 
 export const DEFAULT_COMPARE_CLI_ORDER: readonly CompareCliId[] = ['claude', 'agy', 'codex']
+
+const SIGNED_IN_COMPARE_CLI_ORDER: readonly CompareCliId[] = ['claude', 'agy']
+
+export function getSignedInAiColumnIds(
+  chatModelIds: readonly string[],
+  availableCliIds: readonly CompareCliId[]
+): CompareColumnId[] {
+  const chatGptModel = chatModelIds.find((id) => id.startsWith('openai-codex::'))
+  const signedInCliIds = new Set(availableCliIds)
+  const chatGptColumn: CompareColumnId | null = chatGptModel
+    ? (chatGptModel as CompareColumnId)
+    : signedInCliIds.has('codex')
+      ? 'cli::codex'
+      : null
+
+  return [
+    ...(chatGptColumn ? [chatGptColumn] : []),
+    ...SIGNED_IN_COMPARE_CLI_ORDER.filter((id) => signedInCliIds.has(id)).map((id): CompareColumnId => `cli::${id}`)
+  ]
+}
 
 export interface ReconcileCompareSelectionsInput {
   selection: readonly CacheCompareModelSelection[]
@@ -76,6 +106,7 @@ export interface ReconcileCompareSelectionsInput {
   defaultsSeeded: boolean
   judgeId: string
   savedSetName: string
+  signedInSetName?: string
 }
 
 export interface ReconciledCompareSelections {
@@ -91,11 +122,10 @@ export function reconcileCompareSelections({
   chatModelIds,
   webAppIds,
   cliIds,
-  subscriptionAppIds,
   isFreshProfile,
   defaultsSeeded,
   judgeId,
-  savedSetName
+  signedInSetName = 'Signed-in AI'
 }: ReconcileCompareSelectionsInput): ReconciledCompareSelections {
   const modelIds = new Set(chatModelIds)
   const appIds = new Set(webAppIds.map((id) => id.toLowerCase()))
@@ -139,24 +169,14 @@ export function reconcileCompareSelections({
     }
   }
 
-  const subscriptionIds = getMySubscriptionColumnIds(subscriptionAppIds)
-  if (subscriptionIds.length === 0) {
-    return {
-      selection: limitedSelection,
-      savedSets: limitedSavedSets,
-      seeded: false,
-      ...(overflowTotal > 0 ? { overflowTotal } : {})
-    }
-  }
-
-  const subscriptionSet: CacheCompareSavedSet = {
-    id: 'my-subscriptions',
-    name: savedSetName,
-    selection: subscriptionIds.map((id) => ({ id, enabled: true }))
+  const signedInSet: CacheCompareSavedSet = {
+    id: SIGNED_IN_COMPARE_SET_ID,
+    name: signedInSetName,
+    selection: getSignedInAiColumnIds(chatModelIds, cliIds).map((id) => ({ id, enabled: true }))
   }
   return {
-    selection: subscriptionSet.selection.map((item) => ({ ...item })),
-    savedSets: [...limitedSavedSets.filter((set) => set.id !== subscriptionSet.id), subscriptionSet],
+    selection: signedInSet.selection.map((item) => ({ ...item })),
+    savedSets: [...limitedSavedSets.filter((set) => set.id !== signedInSet.id), signedInSet],
     seeded: true,
     ...(overflowTotal > 0 ? { overflowTotal } : {})
   }
@@ -168,8 +188,9 @@ interface FirstRunCompareDefaultsInput {
   selection: readonly CacheCompareModelSelection[]
   savedSets: readonly CacheCompareSavedSet[]
   judgeId: string
-  enabledSiteAppIds: readonly string[]
-  savedSetName: string
+  chatModelIds: readonly CompareColumnId[]
+  availableCliIds: readonly CompareCliId[]
+  signedInSetName: string
 }
 
 export function getFirstRunCompareDefaults({
@@ -178,26 +199,78 @@ export function getFirstRunCompareDefaults({
   selection,
   savedSets,
   judgeId,
-  enabledSiteAppIds,
-  savedSetName
+  chatModelIds,
+  availableCliIds,
+  signedInSetName
 }: FirstRunCompareDefaultsInput): { selection: CacheCompareModelSelection[]; savedSet: CacheCompareSavedSet } | null {
   if (!isFreshProfile || defaultsSeeded || selection.length > 0 || savedSets.length > 0 || judgeId !== 'auto')
     return null
 
-  const defaultSelection: CacheCompareModelSelection[] = getMySubscriptionColumnIds(enabledSiteAppIds).map((id) => ({
-    id,
-    enabled: true
-  }))
-  if (defaultSelection.length === 0) return null
+  const defaultSelection: CacheCompareModelSelection[] = getSignedInAiColumnIds(chatModelIds, availableCliIds).map(
+    (id) => ({
+      id,
+      enabled: true
+    })
+  )
 
   return {
     selection: defaultSelection,
     savedSet: {
-      id: 'my-subscriptions',
-      name: savedSetName,
+      id: SIGNED_IN_COMPARE_SET_ID,
+      name: signedInSetName,
       selection: defaultSelection.map((item) => ({ ...item }))
     }
   }
+}
+
+export interface MigrateCompareLoginDefaultsInput {
+  selection: readonly CacheCompareModelSelection[]
+  savedSets: readonly CacheCompareSavedSet[]
+  signedInSelection: readonly CacheCompareModelSelection[]
+  oldWebSelection: readonly CacheCompareModelSelection[]
+  signedInSetName: string
+}
+
+export interface MigratedCompareLoginDefaults {
+  selection: CacheCompareModelSelection[]
+  savedSets: CacheCompareSavedSet[]
+  switchedSelection: boolean
+}
+
+export function migrateCompareLoginDefaults({
+  selection,
+  savedSets,
+  signedInSelection,
+  oldWebSelection,
+  signedInSetName
+}: MigrateCompareLoginDefaultsInput): MigratedCompareLoginDefaults {
+  const signedInSet: CacheCompareSavedSet = {
+    id: SIGNED_IN_COMPARE_SET_ID,
+    name: signedInSetName,
+    selection: signedInSelection.map((item) => ({ ...item }))
+  }
+  const hasSignedInSet = savedSets.some((set) => set.id === signedInSet.id)
+  const switchedSelection = compareSelectionsEqual(selection, oldWebSelection)
+
+  return {
+    selection: switchedSelection
+      ? signedInSet.selection.map((item) => ({ ...item }))
+      : selection.map((item) => ({ ...item })),
+    savedSets: hasSignedInSet
+      ? savedSets.map((set) => ({ ...set, selection: set.selection.map((item) => ({ ...item })) }))
+      : [...savedSets.map((set) => ({ ...set, selection: set.selection.map((item) => ({ ...item })) })), signedInSet],
+    switchedSelection
+  }
+}
+
+function compareSelectionsEqual(
+  left: readonly CacheCompareModelSelection[],
+  right: readonly CacheCompareModelSelection[]
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((item, index) => item.id === right[index]?.id && item.enabled === right[index]?.enabled)
+  )
 }
 
 export function getDefaultCompareJudgeId(

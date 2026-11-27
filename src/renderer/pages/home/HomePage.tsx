@@ -800,6 +800,7 @@ const HomePage: FC<{ compare?: ComparePageConfig }> = ({ compare }) => {
       />
       <Container id="home-page">
         {compare?.header}
+        {compare?.webPanelHint}
         <ContentContainer $detached={isWindowFrame}>
           <Chat
             activeTopic={visibleTopic}

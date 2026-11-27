@@ -42,6 +42,7 @@ describe('endpoint classification', () => {
       | '/knowledge-bases'
       | '/knowledge-bases/:id/items'
       | '/mcp-servers'
+      | '/memories'
       | '/mini-apps'
       | '/models'
       | '/notes'

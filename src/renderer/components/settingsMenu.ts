@@ -2,6 +2,7 @@ import {
   Activity,
   Archive,
   AudioLines,
+  Brain,
   Bell,
   CalendarClock,
   Cloud,
@@ -84,6 +85,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
     groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/memory',
+    titleKey: 'settings.memory.title',
+    icon: createElement(Brain),
+    groupKey: 'settings.menuGroups.personal'
   },
   {
     route: '/settings/computer-use',

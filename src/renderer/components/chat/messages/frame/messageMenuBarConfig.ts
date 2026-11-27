@@ -7,6 +7,7 @@ export type MessageMenuBarButtonId =
   | 'translate'
   | 'useful'
   | 'notes'
+  | 'remember'
   | 'delete'
   | 'more-menu'
 

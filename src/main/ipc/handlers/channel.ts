@@ -1,4 +1,6 @@
 import fs from 'fs'
+import { rm } from 'node:fs/promises'
+import path from 'node:path'
 
 import { application } from '@application'
 import { createAgentChannel, deleteAgentChannel, updateAgentChannel } from '@main/ai/channels'
@@ -55,6 +57,17 @@ export const channelHandlers: IpcHandlersFor<typeof channelRequestSchemas> = {
     } catch {
       return { exists: false }
     }
+  },
+  'channel.whatsapp.logout': async (channelId) => {
+    const adapter = application.get('ChannelManager').getAdapter(channelId)
+    if (adapter?.channelType === 'whatsapp' && 'logout' in adapter && typeof adapter.logout === 'function') {
+      await adapter.logout()
+      return
+    }
+    await rm(path.join(application.getPath('feature.agents.channels'), `whatsapp_${channelId}`), {
+      recursive: true,
+      force: true
+    })
   },
   'channel.get_logs': async (channelId) => application.get('ChannelManager').getChannelLogs(channelId)
 }

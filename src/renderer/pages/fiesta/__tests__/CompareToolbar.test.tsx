@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -88,7 +88,7 @@ describe('CompareToolbar', () => {
     expect(screen.getByRole('button', { name: '3 columns' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('disables Add model at eight columns, shows the limit tooltip, and offers My subscriptions', () => {
+  it('disables Add model at eight columns and keeps the built-in sets in login-first order', () => {
     const selection: CacheCompareModelSelection[] = Array.from({ length: MAX_COMPARE_COLUMNS }, (_, index) => ({
       id: `provider::model-${index}` as const,
       enabled: true
@@ -100,6 +100,19 @@ describe('CompareToolbar', () => {
     expect(screen.getByText('compare.add_model_limit_tooltip')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /compare\.saved_sets\.label/ }))
+    const setMenu = screen.getByText('compare.saved_sets.label').parentElement
+    expect(setMenu).not.toBeNull()
+    expect(
+      within(setMenu!)
+        .getAllByRole('button')
+        .slice(0, 4)
+        .map((item) => item.textContent)
+    ).toEqual([
+      'compare.saved_sets.signed_in_ai',
+      'compare.saved_sets.my_subscriptions',
+      'compare.saved_sets.free_models',
+      'compare.saved_sets.custom'
+    ])
     expect(screen.getByText('compare.saved_sets.my_subscriptions')).toBeInTheDocument()
     expect(screen.queryByText('compare.saved_sets.all_enabled')).not.toBeInTheDocument()
   })

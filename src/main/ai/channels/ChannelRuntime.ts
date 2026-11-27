@@ -156,7 +156,9 @@ export class ChannelRuntime {
       dynamicChatIds: adapter.notifyChatIds.length === 0,
       quarantined: false
     }
-    if (ownership.dynamicChatIds) adapter.notifyChatIds = [...(target.channel.activeChatIds ?? [])]
+    if (ownership.dynamicChatIds) {
+      adapter.notifyChatIds = (target.channel.activeChatIds ?? []).filter((chatId) => adapter.canSendToChatId(chatId))
+    }
     this.bindAdapterEvents(ownership)
     this.ownership = ownership
     this.hooks.onStatus({ channelId: this.channelId, connected: adapter.connected })
@@ -237,7 +239,12 @@ export class ChannelRuntime {
   }
 
   private trackChatId(ownership: AdapterOwnership, chatId: string): void {
-    if (!ownership.dynamicChatIds || ownership.adapter.notifyChatIds.includes(chatId)) return
+    if (
+      !ownership.dynamicChatIds ||
+      !ownership.adapter.canSendToChatId(chatId) ||
+      ownership.adapter.notifyChatIds.includes(chatId)
+    )
+      return
     ownership.adapter.notifyChatIds.push(chatId)
     this.hooks.onDynamicChatId(this.channelId, chatId)
   }

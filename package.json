@@ -358,6 +358,7 @@
     "@viz-js/lang-dot": "^1.0.5",
     "@viz-js/viz": "^3.14.0",
     "@wecom/aibot-node-sdk": "1.0.7",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "@xyflow/react": "^12.4.4",
     "acorn": "8.15.0",
     "adm-zip": "0.4.16",

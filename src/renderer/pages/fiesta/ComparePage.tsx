@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
+import { useQuery } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useDesktopUpdate } from '@renderer/components/app/DesktopUpdateProvider'
 import { GuideBanner } from '@renderer/components/app/GuideBanner'
@@ -33,6 +35,7 @@ import { formatCompareColumnErrorMessage } from '@renderer/utils/compareErrorMes
 import { getMySubscriptionColumnIds } from '@renderer/utils/compareSubscriptions'
 import { GUIDE_AUTO_CHECKLIST_ITEMS, markGuideChecklistOnCompareSend } from '@renderer/utils/guide'
 import type {
+  CacheCompareBackupModelId,
   CacheCompareFinalAnswer,
   CacheCompareModelSelection,
   CacheCompareSavedSet
@@ -40,9 +43,11 @@ import type {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { CompareCliStreamEvent } from '@shared/ipc/schemas/compareCli'
 import type { CompareCliAvailability, CompareCliId } from '@shared/types/compareCli'
+import { buildMemoryPreamble } from '@shared/utils/memory'
 
 // eslint-disable-next-line import-x/no-restricted-paths -- Reuse the normal topic and chat-engine lifecycle for Compare.
 import HomePage from '../home/HomePage'
+import { getAutomaticBackupOrder, getCompareBackupOrder, type BackupCandidate } from './backupModels'
 import { buildCompareCliPrompt, type CompareCliTurn } from './cliConversation'
 import { canCombine, getCombineSignature, shouldAutoCombine, type CombineResponseStatus } from './combineState'
 import { getLatestApiAnswer, getLatestPrompt } from './compareAnswers'
@@ -54,8 +59,10 @@ import {
   getCompareKeyboardAction,
   getCompareSendableColumnIds,
   getCompareSendModelIds,
+  getSignedInAiColumnIds,
   isCompareChatModel,
   limitCompareSelection,
+  migrateCompareLoginDefaults,
   MAX_COMPARE_COLUMNS,
   removeCompareModel,
   reconcileCompareSelections,
@@ -63,9 +70,11 @@ import {
   selectCompareSet,
   resolveCompareJudge,
   reorderCompareModels,
-  setCompareModelEnabled
+  setCompareModelEnabled,
+  SIGNED_IN_COMPARE_SET_ID
 } from './compareState'
 import { CompareToolbar } from './CompareToolbar'
+import { CompareWebPanelHint } from './CompareWebPanelHint'
 import { CompareWelcomeCard } from './CompareWelcomeCard'
 import { OpenRouterFreeModelsDialog } from './OpenRouterFreeModelsDialog'
 import { buildSynthesisPrompt, type SynthesisAnswer } from './synthesisPrompt'
@@ -80,6 +89,8 @@ import {
 
 interface ActiveCliRequest {
   cliId: CompareCliId
+  columnId: CompareColumnId
+  originalColumnId?: CompareColumnId
   userPrompt: string
   content: string
 }
@@ -128,8 +139,11 @@ function ComparePage() {
   const [customSelection, setCustomSelection] = usePersistCache('ui.compare.custom_selection')
   const [savedSets, setSavedSets] = usePersistCache('ui.compare.saved_sets')
   const [defaultsSeeded, setDefaultsSeeded] = usePersistCache('ui.compare.defaults_seeded')
+  const [loginDefaultsMigrated, setLoginDefaultsMigrated] = usePersistCache('ui.compare.login_defaults_migrated')
   const [welcomeDismissed, setWelcomeDismissed] = usePersistCache('ui.compare.welcome_dismissed')
+  const [webPanelHintDismissed, setWebPanelHintDismissed] = usePersistCache('ui.compare.web_panel_hint_dismissed')
   const [judgeIdValue, setJudgeIdValue] = usePersistCache('ui.compare.judge')
+  const [backupIds, setBackupIds] = usePersistCache('ui.compare.backup_models')
   const [autoCombine] = usePersistCache('ui.compare.auto_combine')
   const [readWebAnswers] = usePersistCache('ui.compare.read_web_answers')
   const [webSearchEnabled] = usePersistCache('ui.compare.web_search_enabled')
@@ -149,6 +163,7 @@ function ComparePage() {
   const [webAnswers, setWebAnswers] = useState<Record<string, CompareWebAnswer>>({})
   const [webWarnings, setWebWarnings] = useState<Record<string, boolean>>({})
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, CompareDeliveryResult>>({})
+  const [backupAssignments, setBackupAssignments] = useState<Record<string, CompareColumnId>>({})
   const [cliHistory, setCliHistory] = useState<Record<string, CompareCliTurn[]>>({})
   const [combineOutputs, setCombineOutputs] = useState<Record<string, CompareFinalAnswer>>({})
   const [finalAnswerPanelOpen, setFinalAnswerPanelOpen] = useState(false)
@@ -158,6 +173,7 @@ function ComparePage() {
   const { openTab } = useTabs()
   const webviewRefs = useRef(new Map<string, WebviewTag>())
   const activeCliRequests = useRef(new Map<string, ActiveCliRequest>())
+  const cliBackupAttempts = useRef(new Map<string, Set<string>>())
   const activeCombineRequests = useRef(new Map<string, ActiveCombineRequest>())
   const combineRuns = useRef(new Map<string, string>())
   const activeModelCombineRequests = useRef(new Map<string, ActiveModelCombineRequest>())
@@ -180,6 +196,12 @@ function ComparePage() {
   const { models, isLoading: modelsLoading } = useModels()
   const { allApps, isLoading: miniAppsLoading, updateAppStatus } = useMiniApps()
   const { providers, isLoading: providersLoading } = useProviders()
+  const [memoryEnabled] = usePreference('feature.memory.enabled')
+  const { data: memoryNotes = [] } = useQuery('/memories', {})
+  const memoryPreamble = useMemo(
+    () => (memoryEnabled ? buildMemoryPreamble(memoryNotes) : ''),
+    [memoryEnabled, memoryNotes]
+  )
   const judgeId = judgeIdValue as CompareJudgeId
   const setJudgeId = useCallback((next: CompareJudgeId) => setJudgeIdValue(next), [setJudgeIdValue])
   const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
@@ -190,6 +212,26 @@ function ComparePage() {
   const availableModelsById = useMemo(
     () => new Map(availableModels.map((model) => [model.id, model])),
     [availableModels]
+  )
+  const backupCandidates = useMemo<BackupCandidate[]>(
+    () =>
+      getAutomaticBackupOrder({
+        models: availableModels,
+        providers,
+        availableCliIds: cliAvailability.filter((item) => item.available).map((item) => item.id)
+      }),
+    [availableModels, cliAvailability, providers]
+  )
+  const selectedBackupCandidates = useMemo(
+    () => getCompareBackupOrder({ configuredIds: backupIds, automaticCandidates: backupCandidates }),
+    [backupCandidates, backupIds]
+  )
+  const backupModels = useMemo(
+    () =>
+      selectedBackupCandidates.flatMap((candidate) =>
+        candidate.kind === 'api' && candidate.model ? [candidate.model] : []
+      ),
+    [selectedBackupCandidates]
   )
   const columns = useMemo<CompareColumn[]>(() => {
     const appsById = new Map(allApps.map((app) => [app.appId, app]))
@@ -269,11 +311,16 @@ function ComparePage() {
     () =>
       buildCompareDefaultSets({
         freeModels,
+        signedInIds: getSignedInAiColumnIds(
+          availableModels.map((model) => model.id),
+          cliAvailability.filter((item) => item.available).map((item) => item.id)
+        ),
+        signedInSetName: t('compare.saved_sets.signed_in_ai'),
         subscriptionIds: subscriptionColumnIds,
         freeSetName: t('compare.saved_sets.free_models'),
         subscriptionsSetName: t('compare.saved_sets.my_subscriptions')
       }),
-    [freeModels, subscriptionColumnIds, t]
+    [availableModels, cliAvailability, freeModels, subscriptionColumnIds, t]
   )
   const { uiMessages } = useTopicMessages(activeTopicId ?? '', { enabled: Boolean(activeTopicId) })
   const latestPrompt = useMemo(() => getLatestPrompt(uiMessages), [uiMessages])
@@ -281,6 +328,87 @@ function ComparePage() {
     activeTurn && activeTurn.topicId === activeTopicId ? activeTurn.question : (latestPrompt?.question ?? '')
   const currentPrompt = latestPrompt?.question === currentQuestion ? latestPrompt : null
   const initializedSelectionRef = useRef(false)
+
+  const launchCliBackup = useCallback(
+    (originalColumnId: CompareColumnId, question: string, reason: string, preferredBackupId?: string) => {
+      const originalColumn = columns.find((column) => column.id === originalColumnId)
+      if (!originalColumn || originalColumn.kind === 'web') return false
+      const key = `${activeTurn?.id ?? question}:${originalColumnId}`
+      const attempted = cliBackupAttempts.current.get(key) ?? new Set<string>()
+      cliBackupAttempts.current.set(key, attempted)
+      if (attempted.size >= 3) return false
+
+      const primaryIds = new Set(columns.filter((column) => column.enabled).map((column) => column.id))
+      const backup = selectedBackupCandidates.find(
+        (candidate) =>
+          candidate.kind === 'cli' &&
+          (!preferredBackupId || candidate.id === preferredBackupId) &&
+          !primaryIds.has(candidate.id) &&
+          !attempted.has(candidate.id)
+      )
+      if (!backup || !backup.cliId) return false
+
+      attempted.add(backup.id)
+      const requestId = crypto.randomUUID()
+      const backupName = getCliAccountLabel(backup.cliId, t)
+      const originalName = originalColumn.kind === 'api' ? originalColumn.model.name : originalColumn.name
+      activeCliRequests.current.set(requestId, {
+        cliId: backup.cliId,
+        columnId: backup.id,
+        originalColumnId,
+        userPrompt: question,
+        content: ''
+      })
+      setBackupAssignments((current) => ({ ...current, [originalColumnId]: backup.id }))
+      setDeliveryStatuses((current) => ({
+        ...current,
+        [originalColumnId]: {
+          columnId: originalColumnId,
+          status: 'sent',
+          reason: t('compare.backups.answer_label', {
+            backup: backupName,
+            original: originalName,
+            reason: reason.slice(0, 120)
+          })
+        }
+      }))
+      setCliOutputs((current) => ({
+        ...current,
+        [backup.cliId!]: { content: '', status: 'streaming', requestId, prompt: question }
+      }))
+      void ipcApi
+        .request('compare_cli.run', {
+          id: backup.cliId,
+          requestId,
+          prompt: buildCompareCliPrompt(cliHistory[backup.cliId] ?? [], question, memoryPreamble)
+        })
+        .catch(() => {
+          activeCliRequests.current.delete(requestId)
+          setCliOutputs((current) => ({
+            ...current,
+            [backup.cliId!]: {
+              content: '',
+              status: 'error',
+              error: t('compare.cli.start_failed'),
+              prompt: question
+            }
+          }))
+          const retried = launchCliBackup(originalColumnId, question, t('compare.cli.start_failed'))
+          if (!retried) {
+            setDeliveryStatuses((current) => ({
+              ...current,
+              [originalColumnId]: {
+                columnId: originalColumnId,
+                status: 'error',
+                reason: `${t('compare.cli.start_failed')} ${t('compare.backups.all_failed')}`
+              }
+            }))
+          }
+        })
+      return true
+    },
+    [activeTurn?.id, cliHistory, columns, memoryPreamble, selectedBackupCandidates, t]
+  )
 
   const loadCliAvailability = useCallback(() => {
     if (cliAvailabilityRef.current) return Promise.resolve(cliAvailabilityRef.current)
@@ -367,13 +495,31 @@ function ComparePage() {
     for (const column of columns) {
       if (!column.enabled) continue
       if (column.kind === 'api') {
-        const answer = getLatestApiAnswer(uiMessages, currentPrompt, column.id)
-        if (answer?.content)
-          sources.push({ sourceId: column.id, modelName: column.model.name, content: answer.content })
+        const answerId = backupAssignments[column.id] ?? column.id
+        const answerModelId = answerId
+        const answer = answerId.startsWith('cli::')
+          ? undefined
+          : getLatestApiAnswer(uiMessages, currentPrompt, answerModelId)
+        if (answer?.content) {
+          const answerModel = availableModelsById.get(answerModelId)
+          sources.push({
+            sourceId: column.id,
+            modelName: answerModel ? `${answerModel.name} (backup)` : column.model.name,
+            content: answer.content
+          })
+        }
       } else if (column.kind === 'cli') {
-        const answer = cliOutputs[column.cliId]
+        const answerId = backupAssignments[column.id] ?? column.id
+        const answer = answerId.startsWith('cli::') ? cliOutputs[answerId.slice('cli::'.length)] : undefined
         if (answer?.prompt === currentQuestion && answer.content) {
-          sources.push({ sourceId: column.id, modelName: column.name, content: answer.content })
+          const answerName = answerId.startsWith('cli::')
+            ? getCliAccountLabel(answerId.slice('cli::'.length) as CompareCliId, t)
+            : column.name
+          sources.push({
+            sourceId: column.id,
+            modelName: answerId === column.id ? column.name : `${answerName} (backup)`,
+            content: answer.content
+          })
         }
       } else {
         const answer = webAnswers[column.appId]
@@ -383,7 +529,17 @@ function ComparePage() {
       }
     }
     return sources
-  }, [cliOutputs, columns, currentPrompt, currentQuestion, uiMessages, webAnswers])
+  }, [
+    availableModelsById,
+    backupAssignments,
+    cliOutputs,
+    columns,
+    currentPrompt,
+    currentQuestion,
+    t,
+    uiMessages,
+    webAnswers
+  ])
 
   const activeTurnStatuses = useMemo<CombineResponseStatus[]>(() => {
     if (!activeTurn || activeTurn.topicId !== activeTopicId || activeTurn.question !== currentQuestion) return []
@@ -392,10 +548,16 @@ function ComparePage() {
       const column = columns.find((candidate) => candidate.id === id)
       if (!column) return 'skipped'
       if (column.kind === 'api') {
-        return getLatestApiAnswer(uiMessages, currentPrompt, column.id)?.status ?? 'waiting'
+        const answerId = backupAssignments[column.id] ?? column.id
+        if (answerId.startsWith('cli::')) {
+          const output = cliOutputs[answerId.slice('cli::'.length)]
+          return output?.prompt === currentQuestion ? output.status : 'waiting'
+        }
+        return getLatestApiAnswer(uiMessages, currentPrompt, answerId)?.status ?? 'waiting'
       }
       if (column.kind === 'cli') {
-        const output = cliOutputs[column.cliId]
+        const answerId = backupAssignments[column.id] ?? column.id
+        const output = answerId.startsWith('cli::') ? cliOutputs[answerId.slice('cli::'.length)] : undefined
         return output?.prompt === currentQuestion ? output.status : 'waiting'
       }
       const answer = webAnswers[column.appId]
@@ -411,7 +573,8 @@ function ComparePage() {
     currentQuestion,
     readWebAnswers,
     uiMessages,
-    webAnswers
+    webAnswers,
+    backupAssignments
   ])
 
   const canCombineAnswers = canCombine(answerSources.length)
@@ -599,6 +762,7 @@ function ComparePage() {
     const judgeCandidates = [
       ...new Set<CompareJudgeId>([
         resolvedJudgeId,
+        ...selectedBackupCandidates.map((candidate) => candidate.id as CompareJudgeId),
         ...answerSources
           .map((source) => source.sourceId as CompareJudgeId)
           .filter((sourceId) => !sourceId.startsWith('webapp::'))
@@ -636,6 +800,7 @@ function ComparePage() {
     finalAnswer,
     markGuideDone,
     resolveJudge,
+    selectedBackupCandidates,
     setCombineError,
     t
   ])
@@ -678,6 +843,7 @@ function ComparePage() {
         }))
         return
       }
+      const answerColumnId = active.originalColumnId ?? active.columnId
       if (event.type === 'done') {
         setCliHistory((current) => ({
           ...current,
@@ -708,18 +874,20 @@ function ComparePage() {
           [active.cliId]: { content: active.content, status: 'error', error: message, prompt: active.userPrompt }
         }))
         const failedColumn = columns.find(
-          (column): column is Extract<CompareColumn, { kind: 'cli' }> =>
-            column.kind === 'cli' && column.cliId === active.cliId
+          (column): column is Extract<CompareColumn, { kind: 'api' | 'cli' }> =>
+            (column.kind === 'api' || column.kind === 'cli') && column.id === answerColumnId
         )
         if (failedColumn) {
-          const reason = formatCompareColumnErrorMessage(
-            failedColumn.name,
-            message,
-            t('compare.api.chat_model_required')
-          )
+          const failedName = failedColumn.kind === 'api' ? failedColumn.model.name : failedColumn.name
+          const reason = formatCompareColumnErrorMessage(failedName, message, t('compare.api.chat_model_required'))
+          const retried = launchCliBackup(answerColumnId, active.userPrompt, message)
           setDeliveryStatuses((current) => ({
             ...current,
-            [failedColumn.id]: { columnId: failedColumn.id, status: 'error', reason }
+            [failedColumn.id]: {
+              columnId: failedColumn.id,
+              status: retried ? 'sent' : 'error',
+              reason: retried ? current[failedColumn.id]?.reason : `${reason} ${t('compare.backups.all_failed')}`
+            }
           }))
           setCliOutputs((current) => ({
             ...current,
@@ -729,7 +897,7 @@ function ComparePage() {
       }
       activeCliRequests.current.delete(event.requestId)
     },
-    [columns, t]
+    [columns, launchCliBackup, t]
   )
   useIpcOn('compare_cli.stream', handleCliEvent)
   const handleFocusShortcut = useCallback(
@@ -749,6 +917,7 @@ function ComparePage() {
 
   const handleSendText = useCallback(
     async (text: string, targetOverride?: readonly CompareColumnId[]) => {
+      if (targetOverride === undefined) cliBackupAttempts.current.clear()
       const requestedIds = new Set(targetOverride ?? sendColumnIds)
       const selectedForSend = new Set(
         [...requestedIds].filter((id) => {
@@ -758,6 +927,7 @@ function ComparePage() {
       )
       const targetIds = [...selectedForSend]
       if (targetIds.length === 0) return []
+      if (backupIds.length === 0) await loadCliAvailability()
       markGuideChecklistOnCompareSend(targetIds, markGuideDone)
 
       for (const wait of webWaitControllers.current.values()) wait.controller.abort()
@@ -906,8 +1076,13 @@ function ComparePage() {
             activeCliRequests.current.delete(existing.requestId)
           }
           const requestId = crypto.randomUUID()
-          const prompt = buildCompareCliPrompt(cliHistory[column.cliId] ?? [], text)
-          activeCliRequests.current.set(requestId, { cliId: column.cliId, userPrompt: text, content: '' })
+          const prompt = buildCompareCliPrompt(cliHistory[column.cliId] ?? [], text, memoryPreamble)
+          activeCliRequests.current.set(requestId, {
+            cliId: column.cliId,
+            columnId: column.id,
+            userPrompt: text,
+            content: ''
+          })
           setCliOutputs((current) => ({
             ...current,
             [column.cliId]: { content: '', status: 'streaming', requestId, prompt: text }
@@ -933,7 +1108,10 @@ function ComparePage() {
                       prompt: text
                     }
                   }))
-                  return { columnId: column.id, status: 'error', reason }
+                  const retried = launchCliBackup(column.id, text, reason)
+                  return retried
+                    ? { columnId: column.id, status: 'sent' }
+                    : { columnId: column.id, status: 'error', reason: `${reason} ${t('compare.backups.all_failed')}` }
                 }
               )
           ]
@@ -965,7 +1143,11 @@ function ComparePage() {
       cliOutputs,
       columns,
       focusedModelId,
+      loadCliAvailability,
+      launchCliBackup,
       markGuideDone,
+      memoryPreamble,
+      backupIds,
       readWebAnswers,
       resolveJudge,
       sendColumnIds,
@@ -1067,10 +1249,69 @@ function ComparePage() {
       ...Object.fromEntries(results.map((result) => [result.columnId, result]))
     }))
   }, [])
+  const handleBackupStart = useCallback(
+    (originalModelId: CompareColumnId, backupModelId: CompareColumnId, reason: string) => {
+      const originalColumn = columns.find((column) => column.id === originalModelId)
+      const backupModel = availableModelsById.get(backupModelId)
+      const backupName =
+        backupModel?.name ??
+        (backupModelId.startsWith('cli::')
+          ? getCliAccountLabel(backupModelId.slice(6) as CompareCliId, t)
+          : backupModelId)
+      const originalName =
+        originalColumn?.kind === 'api' || originalColumn?.kind === 'cli'
+          ? originalColumn.kind === 'api'
+            ? originalColumn.model.name
+            : originalColumn.name
+          : originalModelId
+      setBackupAssignments((current) => ({ ...current, [originalModelId]: backupModelId }))
+      if (originalColumn) {
+        setDeliveryStatuses((current) => ({
+          ...current,
+          [originalModelId]: {
+            columnId: originalModelId,
+            status: 'sent',
+            reason: t('compare.backups.answer_label', {
+              backup: backupName,
+              original: originalName,
+              reason: reason.slice(0, 120)
+            })
+          }
+        }))
+      }
+    },
+    [availableModelsById, columns, t]
+  )
+  const handleBackupExhausted = useCallback(
+    (originalModelId: CompareColumnId, reason: string) => {
+      setDeliveryStatuses((current) => ({
+        ...current,
+        [originalModelId]: {
+          columnId: originalModelId,
+          status: 'error',
+          reason: `${reason.slice(0, 120)} ${t('compare.backups.all_failed')}`
+        }
+      }))
+    },
+    [t]
+  )
+  const handleCliBackupRequest = useCallback(
+    (originalModelId: UniqueModelId, backupId: CompareColumnId, reason: string) => {
+      void launchCliBackup(originalModelId, currentQuestion, reason, backupId)
+    },
+    [currentQuestion, launchCliBackup]
+  )
   const handleOpenHistory = useCallback(() => {
     void EventEmitter.emit(EVENT_NAMES.COMPARE_OPEN_HISTORY)
   }, [])
   const handleOpenModelPicker = useCallback(() => setApiPickerOpen(true), [])
+  const handleSignIn = useCallback(
+    (target: 'openai-codex' | 'claude-code' | 'gemini-cli') => {
+      setApiPickerOpen(false)
+      openTab(target === 'gemini-cli' ? '/code?tool=antigravity-cli' : `/settings/provider?id=${target}`)
+    },
+    [openTab]
+  )
   const handleApiPickerOpenChange = useCallback(
     (open: boolean) => {
       setApiPickerOpen(open)
@@ -1130,10 +1371,7 @@ function ComparePage() {
     if (modelsLoading || providersLoading || miniAppsLoading || initializedSelectionRef.current) return
     let cancelled = false
     const initializeSelection = async () => {
-      const hasCliSelections = [...selection, ...savedSets.flatMap((set) => set.selection)].some((item) =>
-        item.id.startsWith('cli::')
-      )
-      const availability = hasCliSelections ? await loadCliAvailability() : []
+      const availability = await loadCliAvailability()
       if (cancelled) return
       const reconciled = reconcileCompareSelections({
         // Other windows can create the persist cache first, so seed whenever Compare is still empty.
@@ -1148,9 +1386,24 @@ function ComparePage() {
           .filter((app) => app.kind === 'site' && (app.status === 'enabled' || app.status === 'pinned'))
           .map((app) => app.appId),
         judgeId,
-        savedSetName: t('compare.saved_sets.my_subscriptions')
+        savedSetName: t('compare.saved_sets.my_subscriptions'),
+        signedInSetName: t('compare.saved_sets.signed_in_ai')
       })
       initializedSelectionRef.current = true
+      const migrated = !loginDefaultsMigrated
+        ? migrateCompareLoginDefaults({
+            selection: reconciled.selection,
+            savedSets: reconciled.savedSets,
+            signedInSelection: getSignedInAiColumnIds(
+              availableModels.map((model) => model.id),
+              availability.filter((item) => item.available).map((item) => item.id)
+            ).map((id) => ({ id, enabled: true })),
+            oldWebSelection: subscriptionColumnIds.map((id) => ({ id, enabled: true })),
+            signedInSetName: t('compare.saved_sets.signed_in_ai')
+          })
+        : null
+      const nextSelection = migrated?.selection ?? reconciled.selection
+      const nextSavedSets = migrated?.savedSets ?? reconciled.savedSets
       if (customSelection === null) setCustomSelection(reconciled.seeded ? [] : reconciled.selection)
       if (reconciled.overflowTotal) {
         toast.info(
@@ -1160,17 +1413,19 @@ function ComparePage() {
           })
         )
       }
-      if (JSON.stringify(reconciled.selection) !== JSON.stringify(selection)) setSelection(reconciled.selection)
-      if (JSON.stringify(reconciled.savedSets) !== JSON.stringify(savedSets)) setSavedSets(reconciled.savedSets)
+      if (JSON.stringify(nextSelection) !== JSON.stringify(selection)) setSelection(nextSelection)
+      if (JSON.stringify(nextSavedSets) !== JSON.stringify(savedSets)) setSavedSets(nextSavedSets)
       if (reconciled.seeded) {
         setDefaultsSeeded(true)
         setWelcomeDismissed(false)
-        setActiveSetId('my-subscriptions')
-      } else if (
-        !cacheService.hadPersistCacheAtStartup &&
-        !defaultsSeeded &&
-        (selection.length > 0 || savedSets.length > 0)
-      ) {
+        setActiveSetId(SIGNED_IN_COMPARE_SET_ID)
+      } else if (migrated?.switchedSelection) {
+        setActiveSetId(SIGNED_IN_COMPARE_SET_ID)
+      }
+      if (!loginDefaultsMigrated) {
+        setLoginDefaultsMigrated(true)
+      }
+      if (!cacheService.hadPersistCacheAtStartup && !defaultsSeeded && (selection.length > 0 || savedSets.length > 0)) {
         setDefaultsSeeded(true)
       }
     }
@@ -1185,6 +1440,7 @@ function ComparePage() {
     customSelection,
     judgeId,
     loadCliAvailability,
+    loginDefaultsMigrated,
     miniAppsLoading,
     modelsLoading,
     providersLoading,
@@ -1194,7 +1450,9 @@ function ComparePage() {
     setSavedSets,
     setSelection,
     setCustomSelection,
+    setLoginDefaultsMigrated,
     setWelcomeDismissed,
+    subscriptionColumnIds,
     t
   ])
 
@@ -1302,8 +1560,12 @@ function ComparePage() {
         onOpenFreeModels={openFreeModels}
         apiPickerOpen={apiPickerOpen}
         onApiPickerOpenChange={handleApiPickerOpenChange}
+        onSignIn={handleSignIn}
         cliAvailability={cliAvailability}
         isCheckingClis={isCheckingClis}
+        backupIds={backupIds}
+        backupCandidates={backupCandidates}
+        onBackupChange={(ids: CacheCompareBackupModelId[]) => setBackupIds(ids)}
       />
     ),
     [
@@ -1315,11 +1577,15 @@ function ComparePage() {
       handleOpenHistory,
       openFreeModels,
       handleApiPickerOpenChange,
+      handleSignIn,
       handleJudgeChange,
       handleJudgePickerOpen,
       handleSaveSet,
       handleSelectSet,
       handleSelectionChange,
+      backupCandidates,
+      backupIds,
+      setBackupIds,
       apiPickerOpen,
       cliAvailability,
       isCheckingClis,
@@ -1329,6 +1595,13 @@ function ComparePage() {
       savedSets,
       selection
     ]
+  )
+  const webPanelHint = useMemo(
+    () =>
+      !webPanelHintDismissed && selection.some((item) => item.id.startsWith('webapp::')) ? (
+        <CompareWebPanelHint onDismiss={() => setWebPanelHintDismissed(true)} />
+      ) : null,
+    [selection, setWebPanelHintDismissed, webPanelHintDismissed]
   )
   const handleDismissWelcome = useCallback(() => setWelcomeDismissed(true), [setWelcomeDismissed])
   const handleGoToPanels = useCallback(() => {
@@ -1368,12 +1641,16 @@ function ComparePage() {
   const compareConfig = useMemo<ComparePageConfig>(
     () => ({
       header: toolbar,
+      webPanelHint,
       welcomeCard,
       selectedModelIds: selection.map((item) => item.id),
       columns,
       runtimeOwnerId: columns.find((column) => column.kind === 'api')?.id,
       currentQuestion,
+      turnId: activeTurn?.id,
       sendModels,
+      backupModels,
+      backupCandidateIds: selectedBackupCandidates.map((candidate) => candidate.id),
       webSearchEnabled,
       focusedModelId,
       layout,
@@ -1407,7 +1684,10 @@ function ComparePage() {
       onCloseFinalAnswer: handleCloseFinalAnswer,
       finalAnswer,
       onCopyFinalAnswer: handleCopyFinalAnswer,
-      onUseWebAnswer: handleUseWebAnswer
+      onUseWebAnswer: handleUseWebAnswer,
+      onBackupStart: handleBackupStart,
+      onBackupExhausted: handleBackupExhausted,
+      onCliBackupRequest: handleCliBackupRequest
     }),
     [
       canCombineAnswers,
@@ -1434,18 +1714,25 @@ function ComparePage() {
       handleToggleModel,
       handleUseSubscriptions,
       handleUseWebAnswer,
+      handleBackupStart,
+      handleBackupExhausted,
+      handleCliBackupRequest,
       handleWebviewRef,
       judgeId,
       judgeOptions,
       currentQuestion,
+      activeTurn?.id,
       layout,
       sendColumnIds,
       sendModels,
+      backupModels,
+      selectedBackupCandidates,
       webSearchEnabled,
       subscriptionColumnIds,
       selection,
       toolbar,
       webAnswers,
+      webPanelHint,
       webWarnings,
       welcomeCard
     ]

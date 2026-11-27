@@ -78,5 +78,14 @@ export const loadChannelAdapter: ChannelAdapterLoader = async (channel, agentId)
         channelConfig: channel.config
       })
     }
+    case 'whatsapp': {
+      const { createWhatsAppAdapter } = await import('./adapters/whatsapp/WhatsAppAdapter')
+      return createWhatsAppAdapter({
+        channelId: channel.id,
+        channelType: channel.type,
+        agentId,
+        channelConfig: channel.config
+      })
+    }
   }
 }

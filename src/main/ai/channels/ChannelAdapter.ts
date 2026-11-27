@@ -231,6 +231,11 @@ export abstract class ChannelAdapter extends EventEmitter {
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
   abstract sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void>
 
+  canSendToChatId(chatId: string): boolean {
+    void chatId
+    return true
+  }
+
   /**
    * Send a file to a chat. Non-abstract so adapters can adopt outbound file
    * forwarding incrementally — the default rejects with a clear reason for

@@ -4,13 +4,18 @@ export interface CompareCliTurn {
 }
 
 /** Keep a small stateless transcript so each CLI process can answer follow-up prompts. */
-export function buildCompareCliPrompt(history: readonly CompareCliTurn[], currentPrompt: string): string {
+export function buildCompareCliPrompt(
+  history: readonly CompareCliTurn[],
+  currentPrompt: string,
+  memoryPreamble?: string
+): string {
   const recent = history.slice(-20)
   const transcript = recent
     .map((turn) => `${turn.role === 'user' ? 'User' : 'Assistant'}:\n${turn.content}`)
     .join('\n\n')
   return [
     'Answer the current user message as a single, read-only response. Do not use tools or modify files.',
+    memoryPreamble,
     transcript ? `Previous turns:\n${transcript}` : '',
     `Current user message:\n${currentPrompt}`
   ]

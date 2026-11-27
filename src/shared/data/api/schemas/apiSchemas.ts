@@ -35,6 +35,7 @@ import type { GroupSchemas } from './groups'
 import type { JobSchemas } from './jobs'
 import type { KnowledgeSchemas } from './knowledges'
 import type { McpServerSchemas } from './mcpServers'
+import type { MemorySchemas } from './memories'
 import type { MessageSchemas } from './messages'
 import type { MiniAppSchemas } from './miniApps'
 import type { ModelSchemas } from './models'
@@ -74,6 +75,7 @@ export type ApiSchemas = AssertValidSchemas<
     TranslateSchemas &
     FileSchemas &
     McpServerSchemas &
+    MemorySchemas &
     KnowledgeSchemas &
     MiniAppSchemas &
     NoteSchemas &

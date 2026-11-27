@@ -40,6 +40,8 @@ export type CacheCompareModelSelection = {
   enabled: boolean
 }
 
+export type CacheCompareBackupModelId = UniqueModelId | `cli::${string}`
+
 export type CacheCompareSavedSet = {
   id: string
   name: string

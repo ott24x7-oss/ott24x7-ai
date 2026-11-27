@@ -50,6 +50,10 @@ export const channelRequestSchemas = {
     input: z.string(),
     output: z.object({ exists: z.boolean(), userId: z.string().optional() })
   }),
+  'channel.whatsapp.logout': defineRoute({
+    input: z.string(),
+    output: z.void()
+  }),
   'channel.get_logs': defineRoute({ input: z.string(), output: z.array(channelLogEntry) })
 }
 
@@ -69,5 +73,10 @@ export type ChannelEventSchemas = {
     status: QrStatus
     appId?: string
     appSecret?: string
+  }
+  'channel.whatsapp.qr_login': {
+    channelId: string
+    url: string
+    status: QrStatus
   }
 }

@@ -21,6 +21,7 @@ import {
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
+import { memoryService } from '@main/data/services/MemoryService'
 import { messageService } from '@main/data/services/MessageService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -37,6 +38,7 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
+import { buildMemoryPreamble } from '@shared/utils/memory'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
@@ -469,7 +471,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const { messages: rawHistory, retainedContext } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
@@ -480,6 +482,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           subscriber
         )
       )
+      const history = await this.addMemoryPreamble(rawHistory)
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
@@ -566,7 +569,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [{ span: rootSpan }] = turnRootSpans
 
     try {
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const { messages: rawHistory, retainedContext } = await this.resolveCompactedHistory(
         parent.id,
         req.topicId,
         [model],
@@ -574,6 +577,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         contextSettingsOverride,
         toCompactionSink([target.id], subscriber)
       )
+      const history = await this.addMemoryPreamble(rawHistory)
       const request = this.buildStreamRequest(
         req.topicId,
         assistantId,
@@ -713,7 +717,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const { messages: rawHistory, retainedContext } = await this.resolveCompactedHistory(
         anchor.id,
         req.topicId,
         [model],
@@ -721,6 +725,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         contextSettingsOverride,
         toCompactionSink([anchor.id], subscriber)
       )
+      const history = await this.addMemoryPreamble(rawHistory)
       return {
         topicId: req.topicId,
         models: [
@@ -815,7 +820,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
+      const { messages: compactedRawHistory, retainedContext } = await this.resolveCompactedHistory(
         req.userMessageId,
         req.topicId,
         [model],
@@ -823,7 +828,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         contextSettingsOverride,
         toCompactionSink([placeholder.id], subscriber)
       )
-      const history = withSteerReminder(compactedHistory)
+      const history = withSteerReminder(await this.addMemoryPreamble(compactedRawHistory))
       return {
         topicId: req.topicId,
         models: [
@@ -1115,6 +1120,25 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       fastMode,
       ...(webSearch !== undefined ? { webSearch } : {}),
       ...(retainedContext ? { retainedContext } : {})
+    }
+  }
+
+  private async addMemoryPreamble(history: CherryUIMessage[]): Promise<CherryUIMessage[]> {
+    try {
+      if (application.get('PreferenceService').get('feature.memory.enabled') !== true) return history
+      const notes = memoryService.list()
+      if (notes.length === 0) return history
+      const preamble = buildMemoryPreamble(notes)
+      if (!preamble) return history
+      const memoryMessage = {
+        id: `memory-context-${crypto.randomUUID()}`,
+        role: 'system' as const,
+        parts: [{ type: 'text' as const, text: preamble }]
+      } as CherryUIMessage
+      return [memoryMessage, ...history]
+    } catch (error) {
+      logger.warn('memory preamble unavailable', { error })
+      return history
     }
   }
 }
