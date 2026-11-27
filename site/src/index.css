@@ -1,0 +1,396 @@
+@import 'tailwindcss';
+
+/*
+ * OTT24x7 theme (matches ott24x7.com): near-black base, red primary,
+ * red + cyan/indigo gradients, Space Grotesk headings, IBM Plex Mono labels.
+ * Dark is the default; [data-theme='light'] swaps the tokens.
+ */
+:root,
+[data-theme='dark'] {
+  --bg: #050609;
+  --surface: #0c0f14;
+  --surface-2: #11151c;
+  --border: #1b212c;
+  --border-strong: #2a3240;
+  --text: #f7f7f9;
+  --muted: #9aa4b8;
+  --red: #f41a1a;
+  --red-soft: #ff4057;
+  --red-text: #ff7180;
+  --blue: #38bdf8;
+  --indigo: #818cf8;
+  --blue-text: #67d0fb;
+  --glow-red: rgba(244, 26, 26, 0.32);
+  --glow-blue: rgba(56, 189, 248, 0.22);
+  --frame: #0e1218;
+  --frame-edge: #262d39;
+  --pill: rgba(15, 23, 42, 0.75);
+  --trace-red: rgba(255, 64, 87, 0.55);
+  --trace-blue: rgba(56, 189, 248, 0.5);
+  --trace-base: rgba(148, 163, 184, 0.1);
+  color-scheme: dark;
+}
+[data-theme='light'] {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f6;
+  --border: #e3e6ed;
+  --border-strong: #cfd4de;
+  --text: #0a0c11;
+  --muted: #4b5466;
+  --red: #e11414;
+  --red-soft: #e5233a;
+  --red-text: #c8102e;
+  --blue: #0ea5e9;
+  --indigo: #6366f1;
+  --blue-text: #0369a1;
+  --glow-red: rgba(244, 26, 26, 0.16);
+  --glow-blue: rgba(56, 189, 248, 0.16);
+  --frame: #e8ebf1;
+  --frame-edge: #cfd4de;
+  --pill: rgba(255, 255, 255, 0.8);
+  --trace-red: rgba(225, 20, 20, 0.35);
+  --trace-blue: rgba(14, 165, 233, 0.35);
+  --trace-base: rgba(15, 23, 42, 0.07);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-red: var(--red);
+  --color-red-text: var(--red-text);
+  --color-blue: var(--blue);
+  --color-blue-text: var(--blue-text);
+  --color-accent: var(--red);
+  --color-accent-text: var(--red-text);
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+::selection {
+  background: color-mix(in srgb, var(--red) 40%, transparent);
+  color: #fff;
+}
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* Gradient words, same as the ott24x7.com hero */
+@utility text-grad-red {
+  background: linear-gradient(135deg, #ff7180, #ff4057 60%, #f41a1a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility text-grad-blue {
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+[data-theme='light'] .text-grad-red {
+  background: linear-gradient(135deg, #f41a1a, #c8102e);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+[data-theme='light'] .text-grad-blue {
+  background: linear-gradient(135deg, #0284c7, #4f46e5);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+@utility bg-red-grad {
+  background-image: linear-gradient(180deg, #f75454 0%, #f41a1a 55%, #cd1616 100%);
+}
+@utility card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+/* Buttons: the ott24x7.com red button and a dark glass secondary */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.875rem;
+  padding: 0 1.25rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease, border-color 160ms ease,
+    filter 160ms ease;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn-primary {
+  color: #fff;
+  background-image: linear-gradient(180deg, #f75454 0%, #f41a1a 55%, #cd1616 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 12px 28px -12px rgba(244, 26, 26, 0.75);
+}
+.btn-primary:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 16px 36px -12px rgba(244, 26, 26, 0.9);
+}
+.btn-secondary {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 1px solid var(--border-strong);
+  backdrop-filter: blur(8px);
+}
+.btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--blue) 60%, var(--border-strong));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--blue) 25%, transparent), 0 10px 30px -14px var(--glow-blue);
+}
+
+/* Mono "status" pill with a live dot, like ott24x7.com */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+  background: var(--pill);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+.live-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--red);
+  box-shadow: 0 0 10px 1px var(--glow-red);
+}
+.live-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 1px solid var(--red);
+  opacity: 0;
+  animation: ping 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes ping {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  80%,
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* Cards with a red → cyan edge on hover */
+.tech-card {
+  position: relative;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+.tech-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--red-soft), transparent 40%, transparent 60%, var(--blue));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.tech-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 60px -30px var(--glow-red);
+}
+.tech-card:hover::before {
+  opacity: 1;
+}
+
+/* Icon chip: dark tile, glowing edge */
+.chip {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.8rem;
+  border: 1px solid var(--border-strong);
+  background: radial-gradient(120% 120% at 30% 0%, color-mix(in srgb, var(--red) 22%, transparent), transparent 60%),
+    var(--surface-2);
+  color: var(--red-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 24px -14px var(--glow-red);
+}
+.chip.blue {
+  background: radial-gradient(120% 120% at 30% 0%, color-mix(in srgb, var(--blue) 22%, transparent), transparent 60%),
+    var(--surface-2);
+  color: var(--blue-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 24px -14px var(--glow-blue);
+}
+
+/* HUD corner brackets around screenshots */
+.hud {
+  position: relative;
+}
+.hud::before,
+.hud::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  z-index: 2;
+}
+.hud::before {
+  top: -9px;
+  left: -9px;
+  border-top: 2px solid var(--red-soft);
+  border-left: 2px solid var(--red-soft);
+  border-top-left-radius: 6px;
+}
+.hud::after {
+  bottom: -9px;
+  right: -9px;
+  border-bottom: 2px solid var(--blue);
+  border-right: 2px solid var(--blue);
+  border-bottom-right-radius: 6px;
+}
+
+/* Scroll-in animation. Elements start visible if JS or motion is off. */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 600ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: var(--d, 0ms);
+}
+.js .reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero glow: red left, cyan right */
+.hero-glow {
+  position: absolute;
+  inset: -10% -20% auto;
+  height: 900px;
+  background: radial-gradient(38% 40% at 30% 38%, var(--glow-red) 0%, transparent 70%),
+    radial-gradient(34% 36% at 72% 50%, var(--glow-blue) 0%, transparent 70%);
+  filter: blur(14px);
+  pointer-events: none;
+}
+.grid-fade {
+  background-image: linear-gradient(var(--trace-base) 1px, transparent 1px),
+    linear-gradient(90deg, var(--trace-base) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(60% 55% at 50% 35%, #000 0%, transparent 80%);
+}
+.noise {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+}
+
+/* Circuit traces: data pulses travel along the lines */
+.trace-pulse {
+  stroke-dasharray: 14 220;
+  animation: pulse-run 5.5s linear infinite;
+}
+@keyframes pulse-run {
+  from {
+    stroke-dashoffset: 234;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* FAQ */
+details > summary {
+  list-style: none;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+details[open] .chev {
+  transform: rotate(45deg);
+  color: var(--red-text);
+}
+
+/* Carousel */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+dialog::backdrop {
+  background: rgba(3, 4, 6, 0.9);
+  backdrop-filter: blur(6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .js .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .trace-pulse,
+  .live-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+  }
+}
