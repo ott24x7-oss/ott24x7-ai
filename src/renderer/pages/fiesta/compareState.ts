@@ -75,19 +75,29 @@ export function resolveCompareSavedSetId(setId: string): string {
 
 export const DEFAULT_COMPARE_CLI_ORDER: readonly CompareCliId[] = ['claude', 'agy', 'codex']
 
+const WEAK_LOGIN_MODEL_PATTERN = /(mini|nano|spark)/i
+
+/** The strongest ChatGPT login (openai-codex) model: highest GPT version, full-size before mini/spark. */
+export function pickBestChatGptLoginModel(chatModelIds: readonly string[]): string | undefined {
+  const rank = (id: string) => {
+    const version = Number(/gpt-(\d+(?:\.\d+)?)/i.exec(id)?.[1] ?? 0)
+    return version * 10 - (WEAK_LOGIN_MODEL_PATTERN.test(id) ? 5 : 0)
+  }
+  return chatModelIds
+    .filter((id) => id.startsWith('openai-codex::'))
+    .reduce<string | undefined>((best, id) => (best === undefined || rank(id) > rank(best) ? id : best), undefined)
+}
+
 const SIGNED_IN_COMPARE_CLI_ORDER: readonly CompareCliId[] = ['claude', 'agy']
 
 export function getSignedInAiColumnIds(
   chatModelIds: readonly string[],
   availableCliIds: readonly CompareCliId[]
 ): CompareColumnId[] {
-  const chatGptModel = chatModelIds.find((id) => id.startsWith('openai-codex::'))
+  // ChatGPT answers through the in-app login; the Codex CLI is only used when picked by hand.
+  const chatGptModel = pickBestChatGptLoginModel(chatModelIds)
   const signedInCliIds = new Set(availableCliIds)
-  const chatGptColumn: CompareColumnId | null = chatGptModel
-    ? (chatGptModel as CompareColumnId)
-    : signedInCliIds.has('codex')
-      ? 'cli::codex'
-      : null
+  const chatGptColumn = chatGptModel ? (chatGptModel as CompareColumnId) : null
 
   return [
     ...(chatGptColumn ? [chatGptColumn] : []),
@@ -263,6 +273,49 @@ export function migrateCompareLoginDefaults({
   }
 }
 
+/**
+ * Moves saved Compare columns from the ChatGPT Codex CLI to the ChatGPT login model, and points the
+ * Signed-in AI set at the strongest login model. The current selection follows when it mirrored that set.
+ */
+export function upgradeSignedInChatGptColumns({
+  selection,
+  savedSets,
+  chatModelIds
+}: {
+  selection: readonly CacheCompareModelSelection[]
+  savedSets: readonly CacheCompareSavedSet[]
+  chatModelIds: readonly string[]
+}): { selection: CacheCompareModelSelection[]; savedSets: CacheCompareSavedSet[] } {
+  const best = pickBestChatGptLoginModel(chatModelIds)
+  const copy = (items: readonly CacheCompareModelSelection[]) => items.map((item) => ({ ...item }))
+  if (!best)
+    return {
+      selection: copy(selection),
+      savedSets: savedSets.map((set) => ({ ...set, selection: copy(set.selection) }))
+    }
+
+  const upgrade = (items: readonly CacheCompareModelSelection[], replaceLoginModels: boolean) => {
+    const next: CacheCompareModelSelection[] = []
+    for (const item of items) {
+      const isChatGpt = item.id === 'cli::codex' || (replaceLoginModels && item.id.startsWith('openai-codex::'))
+      const id = isChatGpt ? (best as CompareColumnId) : item.id
+      if (!next.some((existing) => existing.id === id)) next.push({ ...item, id })
+    }
+    return next
+  }
+  const oldSignedIn = savedSets.find((set) => set.id === SIGNED_IN_COMPARE_SET_ID)
+  const followsSignedIn = oldSignedIn !== undefined && compareSelectionsEqual(selection, oldSignedIn.selection)
+  const nextSavedSets = savedSets.map((set) => ({
+    ...set,
+    selection: upgrade(set.selection, set.id === SIGNED_IN_COMPARE_SET_ID)
+  }))
+  const nextSignedIn = nextSavedSets.find((set) => set.id === SIGNED_IN_COMPARE_SET_ID)
+  return {
+    selection: followsSignedIn && nextSignedIn ? copy(nextSignedIn.selection) : upgrade(selection, false),
+    savedSets: nextSavedSets
+  }
+}
+
 function compareSelectionsEqual(
   left: readonly CacheCompareModelSelection[],
   right: readonly CacheCompareModelSelection[]
@@ -313,8 +366,8 @@ export function resolveCompareJudge({
   }
 
   // Signed-in subscription models answer in the background; typing into a web panel would disturb its chat.
-  const loginModel = chatModelIds.find((id) => id.startsWith('openai-codex::'))
-  if (loginModel) return loginModel
+  const loginModel = pickBestChatGptLoginModel(chatModelIds)
+  if (loginModel) return loginModel as CompareColumnId
 
   const cli = DEFAULT_COMPARE_CLI_ORDER.find((id) => availableCliIds.includes(id))
   if (cli) return `cli::${cli}`

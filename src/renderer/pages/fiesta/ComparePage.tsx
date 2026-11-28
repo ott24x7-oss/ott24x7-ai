@@ -60,6 +60,7 @@ import {
   getCompareSendableColumnIds,
   getCompareSendModelIds,
   getSignedInAiColumnIds,
+  upgradeSignedInChatGptColumns,
   isCompareChatModel,
   limitCompareSelection,
   migrateCompareLoginDefaults,
@@ -84,7 +85,8 @@ import {
   readVisibleLastAnswer,
   sendPromptToWebPanel,
   sendPromptToWebPanels,
-  waitForVisibleLastAnswer
+  waitForVisibleLastAnswer,
+  withTimeout
 } from './webPanelAdapters'
 
 interface ActiveCliRequest {
@@ -129,6 +131,8 @@ interface ActiveWebWait {
 }
 
 const CLI_NAMES: Record<CompareCliId, string> = { claude: 'Claude', agy: 'Gemini', codex: 'ChatGPT' }
+// Each CLI probe is capped at 5 s in main; this only guards against the IPC call itself never settling.
+const CLI_AVAILABILITY_TIMEOUT_MS = 12_000
 const compareLogger = loggerService.withContext('ComparePage')
 
 function ComparePage() {
@@ -414,8 +418,7 @@ function ComparePage() {
     if (cliAvailabilityRef.current) return Promise.resolve(cliAvailabilityRef.current)
     if (cliAvailabilityRequest.current) return cliAvailabilityRequest.current
 
-    const request = ipcApi
-      .request('compare_cli.available', {})
+    const request = withTimeout(ipcApi.request('compare_cli.available', {}), CLI_AVAILABILITY_TIMEOUT_MS)
       .catch(() => [] as CompareCliAvailability[])
       .then((availability) => {
         cliAvailabilityRef.current = availability
@@ -1402,8 +1405,13 @@ function ComparePage() {
             signedInSetName: t('compare.saved_sets.signed_in_ai')
           })
         : null
-      const nextSelection = migrated?.selection ?? reconciled.selection
-      const nextSavedSets = migrated?.savedSets ?? reconciled.savedSets
+      const upgraded = upgradeSignedInChatGptColumns({
+        selection: migrated?.selection ?? reconciled.selection,
+        savedSets: migrated?.savedSets ?? reconciled.savedSets,
+        chatModelIds: availableModels.map((model) => model.id)
+      })
+      const nextSelection = upgraded.selection
+      const nextSavedSets = upgraded.savedSets
       if (customSelection === null) setCustomSelection(reconciled.seeded ? [] : reconciled.selection)
       if (reconciled.overflowTotal) {
         toast.info(

@@ -14,6 +14,8 @@ import {
   getDefaultCompareJudgeId,
   getFirstRunCompareDefaults,
   getSignedInAiColumnIds,
+  pickBestChatGptLoginModel,
+  upgradeSignedInChatGptColumns,
   reconcileCompareSelections,
   isCompareChatModel,
   getCompareSetSelection,
@@ -112,6 +114,58 @@ describe('compare state', () => {
       'cli::claude',
       'cli::agy'
     ])
+  })
+
+  it('uses the ChatGPT login, never the Codex CLI, for the Signed-in AI set', () => {
+    expect(getSignedInAiColumnIds([], ['codex', 'claude'])).toEqual(['cli::claude'])
+  })
+
+  it('picks the strongest ChatGPT login model over Spark and mini models', () => {
+    expect(
+      pickBestChatGptLoginModel([
+        'openai-codex::gpt-5.3-codex-spark',
+        'openai-codex::gpt-5.4-mini',
+        'openai-codex::gpt-6.1-sol',
+        'openai-codex::gpt-5.5',
+        'openrouter::gpt-9'
+      ])
+    ).toBe('openai-codex::gpt-6.1-sol')
+    expect(pickBestChatGptLoginModel(['openai-codex::gpt-6-mini', 'openai-codex::gpt-6'])).toBe('openai-codex::gpt-6')
+    expect(pickBestChatGptLoginModel(['provider::model'])).toBeUndefined()
+  })
+
+  it('moves saved ChatGPT CLI columns to the strongest login model', () => {
+    const oldSignedIn = [
+      { id: 'openai-codex::gpt-5.3-codex-spark' as const, enabled: true },
+      { id: 'cli::claude' as const, enabled: true }
+    ]
+    const result = upgradeSignedInChatGptColumns({
+      selection: oldSignedIn,
+      savedSets: [
+        { id: 'signed-in-ai', name: 'Signed-in AI', selection: oldSignedIn },
+        {
+          id: 'mine',
+          name: 'Mine',
+          selection: [
+            { id: 'cli::codex', enabled: false },
+            { id: 'openai-codex::gpt-5.5', enabled: true }
+          ]
+        }
+      ],
+      chatModelIds: ['openai-codex::gpt-5.3-codex-spark', 'openai-codex::gpt-5.5', 'openai-codex::gpt-6-sol']
+    })
+    expect(result.selection.map((item) => item.id)).toEqual(['openai-codex::gpt-6-sol', 'cli::claude'])
+    expect(result.savedSets[0].selection.map((item) => item.id)).toEqual(['openai-codex::gpt-6-sol', 'cli::claude'])
+    // A custom set keeps its chosen login model; only the CLI column moves to the login.
+    expect(result.savedSets[1].selection).toEqual([
+      { id: 'openai-codex::gpt-6-sol', enabled: false },
+      { id: 'openai-codex::gpt-5.5', enabled: true }
+    ])
+  })
+
+  it('leaves the Codex CLI alone when there is no ChatGPT login model', () => {
+    const selection = [{ id: 'cli::codex' as const, enabled: true }]
+    expect(upgradeSignedInChatGptColumns({ selection, savedSets: [], chatModelIds: [] }).selection).toEqual(selection)
   })
 
   it('migrates only the old web-only default and preserves custom sets', () => {
@@ -244,7 +298,7 @@ describe('compare state', () => {
     const mixed: CacheCompareModelSelection[] = [
       { id: 'webapp::openai', enabled: true },
       { id: 'openai-codex::gpt-a', enabled: true },
-      { id: 'cli::claude', enabled: true }
+      { id: 'cli::claude' as const, enabled: true }
     ]
 
     expect(getCompareSendModelIds(mixed, null, false)).toEqual(['webapp::openai', 'openai-codex::gpt-a', 'cli::claude'])
@@ -396,7 +450,7 @@ describe('compare state', () => {
           selection: [
             { id: 'model::removed', enabled: true },
             { id: 'webapp::openai', enabled: true },
-            { id: 'cli::claude', enabled: true }
+            { id: 'cli::claude' as const, enabled: true }
           ]
         }
       ],
@@ -421,7 +475,7 @@ describe('compare state', () => {
         name: 'Custom',
         selection: [
           { id: 'webapp::openai', enabled: true },
-          { id: 'cli::claude', enabled: true }
+          { id: 'cli::claude' as const, enabled: true }
         ]
       },
       {

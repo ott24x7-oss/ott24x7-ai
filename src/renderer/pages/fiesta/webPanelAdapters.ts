@@ -118,6 +118,29 @@ export interface WebSendResult {
 
 export type WebPanelSendStatus = 'sent' | 'login-needed' | 'input-not-found' | 'failed'
 
+// A webview that is still loading or detached never settles executeJavaScript, which used to block Send forever.
+export const WEB_PANEL_SCRIPT_TIMEOUT_MS = 10_000
+
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), timeoutMs)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
+}
+
+function runPanelScript(webview: Pick<WebviewTag, 'executeJavaScript'>, script: string): Promise<unknown> {
+  return withTimeout(webview.executeJavaScript(script, true), WEB_PANEL_SCRIPT_TIMEOUT_MS)
+}
+
 interface InjectionResult {
   status: Exclude<WebPanelSendStatus, 'failed'>
   clicked?: boolean
@@ -135,7 +158,7 @@ export async function sendPromptToWebPanel(
   prompt: string
 ): Promise<WebPanelSendStatus> {
   const adapter = getWebPanelAdapter(appId)
-  const result = (await webview.executeJavaScript(buildInsertPromptScript(adapter, prompt), true)) as InjectionResult
+  const result = (await runPanelScript(webview, buildInsertPromptScript(adapter, prompt))) as InjectionResult
   if (result?.status !== 'sent') return result?.status ?? 'input-not-found'
   if (result.clicked) return 'sent'
   if (!adapter.enterToSend) return 'input-not-found'
@@ -175,7 +198,7 @@ export async function readVisibleLastAnswer(
 ): Promise<string> {
   const adapter = getWebPanelAdapter(appId)
   if (!adapter.lastAnswerSelector) return ''
-  const text = await webview.executeJavaScript(buildReadLastAnswerScript(adapter), true)
+  const text = await runPanelScript(webview, buildReadLastAnswerScript(adapter))
   return typeof text === 'string' ? text.trim() : ''
 }
 
@@ -185,7 +208,7 @@ export async function readVisibleLastAnswerState(
 ): Promise<WebAnswerSnapshot> {
   const adapter = getWebPanelAdapter(appId)
   if (!adapter.lastAnswerSelector) return { text: '', generating: false }
-  const value = await webview.executeJavaScript(buildReadLastAnswerStateScript(adapter), true)
+  const value = await runPanelScript(webview, buildReadLastAnswerStateScript(adapter))
   if (!value || typeof value !== 'object') return { text: '', generating: false }
   const snapshot = value as WebAnswerSnapshot
   return {

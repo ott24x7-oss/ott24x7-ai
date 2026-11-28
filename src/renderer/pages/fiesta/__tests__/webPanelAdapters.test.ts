@@ -7,6 +7,7 @@ import {
   mapWebPanelSendStatus,
   readVisibleLastAnswer,
   sendPromptToWebPanels,
+  WEB_PANEL_SCRIPT_TIMEOUT_MS,
   sendPromptToWebPanel,
   WEB_PANEL_ADAPTERS
 } from '../webPanelAdapters'
@@ -90,6 +91,22 @@ describe('web panel send adapters', () => {
     ])
     expect(copyPrompt).toHaveBeenCalledOnce()
     expect(copyPrompt).toHaveBeenCalledWith('Try this prompt')
+  })
+
+  it('does not block Send when a web panel never answers its script', async () => {
+    vi.useFakeTimers()
+    try {
+      const stuck = { focus: vi.fn(), executeJavaScript: vi.fn(() => new Promise(() => {})), sendInputEvent: vi.fn() }
+      const copyPrompt = vi.fn().mockResolvedValue(undefined)
+      const send = sendPromptToWebPanels([{ appId: 'openai', webview: stuck }], 'hi', copyPrompt)
+      const read = readVisibleLastAnswer(stuck, 'openai').catch(() => 'failed')
+      await vi.advanceTimersByTimeAsync(WEB_PANEL_SCRIPT_TIMEOUT_MS + 1)
+      await expect(send).resolves.toEqual([{ appId: 'openai', status: 'failed' }])
+      await expect(read).resolves.toBe('failed')
+      expect(copyPrompt).toHaveBeenCalledWith('hi')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it.each([
