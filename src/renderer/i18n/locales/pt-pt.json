@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "Carregar imagem",
   "settings.general.label": "Configurações gerais",
   "settings.general.restore.button": "Restaurar",
+  "settings.general.retry.backup_models": "Usar modelos de reserva no chat",
+  "settings.general.retry.backup_models_description": "Repetir automaticamente as respostas de chat falhadas com o próximo modelo de reserva disponível",
   "settings.general.retry.enabled": "Ativar novas tentativas",
   "settings.general.sections.agent": "Comportamento do agente",
   "settings.general.sections.developer": "Opções de programador",

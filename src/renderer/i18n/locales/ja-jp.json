@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "画像アップロード",
   "settings.general.label": "一般設定",
   "settings.general.restore.button": "復元",
+  "settings.general.retry.backup_models": "チャットでバックアップモデルを使う",
+  "settings.general.retry.backup_models_description": "失敗したチャットの回答を、次に利用可能なバックアップモデルで自動的に再試行します",
   "settings.general.retry.enabled": "再試行を有効にする",
   "settings.general.sections.agent": "エージェントの動作",
   "settings.general.sections.developer": "開発者向けオプション",

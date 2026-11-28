@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "Görsel Yükleme",
   "settings.general.label": "Genel Ayarlar",
   "settings.general.restore.button": "Geri Yükle",
+  "settings.general.retry.backup_models": "Sohbette yedek modelleri kullan",
+  "settings.general.retry.backup_models_description": "Başarısız sohbet yanıtlarını kullanılabilir sonraki yedek modelle otomatik olarak yeniden dene",
   "settings.general.retry.enabled": "Yeniden denemeyi etkinleştir",
   "settings.general.sections.agent": "Ajan davranışı",
   "settings.general.sections.developer": "Geliştirici seçenekleri",

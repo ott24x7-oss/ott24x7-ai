@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "Încărcare imagine",
   "settings.general.label": "Setări generale",
   "settings.general.restore.button": "Restaurează",
+  "settings.general.retry.backup_models": "Folosește modele de rezervă în chat",
+  "settings.general.retry.backup_models_description": "Reîncearcă automat răspunsurile eșuate din chat cu următorul model de rezervă disponibil",
   "settings.general.retry.enabled": "Activează reîncercarea",
   "settings.general.sections.agent": "Comportamentul agentului",
   "settings.general.sections.developer": "Opțiuni pentru dezvoltatori",

@@ -488,6 +488,13 @@
       "description": "Enable model call retry/fallback (v2 新增，非迁移)"
     },
     {
+      "targetKey": "chat.backup_models.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Automatically retry failed chat turns with configured backup models"
+    },
+    {
       "targetKey": "chat.retry.fallback_model_ids",
       "type": "PreferenceTypes.RetryFallbackModelId[]",
       "defaultValue": [],

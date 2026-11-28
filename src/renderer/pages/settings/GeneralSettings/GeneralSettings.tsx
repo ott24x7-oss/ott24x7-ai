@@ -67,6 +67,7 @@ const GeneralSettings: FC = () => {
   })
   const [clientId] = usePreference('app.user.id')
   const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
+  const [backupModelsEnabled, setBackupModelsEnabled] = usePreference('chat.backup_models.enabled')
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
@@ -429,6 +430,20 @@ const GeneralSettings: FC = () => {
             checked={retryEnabled}
             onCheckedChange={(checked) => void setRetryEnabled(checked)}
             aria-label={t('settings.general.retry.enabled')}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-backup-models-enabled" className="items-start scroll-mt-6">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle>{t('settings.general.retry.backup_models')}</SettingRowTitle>
+            <SettingDescription className="mt-1.5 leading-5">
+              {t('settings.general.retry.backup_models_description')}
+            </SettingDescription>
+          </div>
+          <Switch
+            checked={backupModelsEnabled}
+            onCheckedChange={(checked) => void setBackupModelsEnabled(checked)}
+            aria-label={t('settings.general.retry.backup_models')}
           />
         </SettingRow>
         {retryEnabled && (

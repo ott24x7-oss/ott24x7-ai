@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "Tải lên hình ảnh",
   "settings.general.label": "Cài đặt chung",
   "settings.general.restore.button": "Khôi phục",
+  "settings.general.retry.backup_models": "Sử dụng mô hình dự phòng trong trò chuyện",
+  "settings.general.retry.backup_models_description": "Tự động thử lại các câu trả lời trò chuyện thất bại bằng mô hình dự phòng khả dụng tiếp theo",
   "settings.general.retry.enabled": "Bật thử lại",
   "settings.general.sections.agent": "Hành vi của tác nhân",
   "settings.general.sections.developer": "Tùy chọn nhà phát triển",

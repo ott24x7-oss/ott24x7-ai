@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "圖片上傳",
   "settings.general.label": "一般設定",
   "settings.general.restore.button": "復原",
+  "settings.general.retry.backup_models": "在聊天中使用備用模型",
+  "settings.general.retry.backup_models_description": "使用下一個可用的備用模型自動重試失敗的聊天回覆",
   "settings.general.retry.enabled": "啟用重試",
   "settings.general.sections.agent": "智慧體行為",
   "settings.general.sections.developer": "開發者選項",

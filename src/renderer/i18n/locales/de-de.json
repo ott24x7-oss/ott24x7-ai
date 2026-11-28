@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "Bild-Upload",
   "settings.general.label": "Allgemeine Einstellungen",
   "settings.general.restore.button": "Wiederherstellen",
+  "settings.general.retry.backup_models": "Backup-Modelle im Chat verwenden",
+  "settings.general.retry.backup_models_description": "Fehlgeschlagene Chat-Antworten automatisch mit dem nächsten verfügbaren Backup-Modell erneut versuchen",
   "settings.general.retry.enabled": "Wiederholungen aktivieren",
   "settings.general.sections.agent": "Agent-Verhalten",
   "settings.general.sections.developer": "Entwickleroptionen",

@@ -126,6 +126,8 @@ export interface PreferenceSchemas {
     'assistant.icon_type': PreferenceTypes.AssistantIconType
     // redux/settings/assistantsTabSortType
     'assistant.tab.sort_type': PreferenceTypes.AssistantTabSortType
+    // target-key-definitions/complex/complex
+    'chat.backup_models.enabled': boolean
     // redux/settings/codeCollapsible
     'chat.code.collapsible': boolean
     // redux/settings/codeEditor.autocompletion
@@ -703,6 +705,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'assistant.archive.related_topics': false,
     'assistant.icon_type': 'emoji',
     'assistant.tab.sort_type': 'list',
+    'chat.backup_models.enabled': true,
     'chat.code.collapsible': false,
     'chat.code.editor.autocompletion': true,
     'chat.code.editor.enabled': false,
@@ -974,7 +977,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 308
+ * - 总配置项: 309
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0

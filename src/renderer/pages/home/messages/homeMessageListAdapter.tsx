@@ -56,6 +56,7 @@ import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } fr
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
+import type { BackupNotice } from '../backupRetry'
 import {
   consumePendingTopicImageActions,
   rejectPendingTopicImageActions,
@@ -88,6 +89,7 @@ interface HomeMessageListParams {
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
+  backupNotice?: BackupNotice
 }
 
 export function useHomeMessageListProviderValue({
@@ -106,7 +108,8 @@ export function useHomeMessageListProviderValue({
   onBindRuntime,
   onStartBranchDraft,
   onComponentUpdate,
-  onFirstUpdate
+  onFirstUpdate,
+  backupNotice
 }: HomeMessageListParams): MessageListProviderValue {
   const topicId = topic.id
   const assistantId = topic.assistantId
@@ -161,6 +164,40 @@ export function useHomeMessageListProviderValue({
       return item
     })
   }, [messages, resolvedAssistantId, topicId])
+
+  const backupMessageTail = useMemo(() => {
+    if (!backupNotice) return undefined
+    const promptIndex = backupNotice.promptId
+      ? messages.findIndex((message) => message.id === backupNotice.promptId)
+      : -1
+    const target = [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === 'assistant' &&
+          (promptIndex < 0 || messages.indexOf(message) > promptIndex) &&
+          (message.metadata?.modelId === backupNotice.backupModelId || message.id === backupNotice.failedMessageId)
+      )
+    if (!target) return undefined
+
+    return {
+      messageId: target.id,
+      content: (
+        <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          {backupNotice.backupModelName && (
+            <div>
+              {t('compare.backups.answer_label', {
+                backup: backupNotice.backupModelName,
+                original: backupNotice.originalModelName,
+                reason: backupNotice.reason.slice(0, 120)
+              })}
+            </div>
+          )}
+          {backupNotice.exhausted && <div>{t('compare.backups.all_failed')}</div>}
+        </div>
+      )
+    }
+  }, [backupNotice, messages, t])
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
@@ -803,13 +840,15 @@ export function useHomeMessageListProviderValue({
       getMessageActivityState,
       isMessageTranslating,
       ...pickMessageLeafState(leafCapabilities),
-      getTranslationLanguageLabel
+      getTranslationLanguageLabel,
+      messageTail: backupMessageTail
     }),
     [
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
       isMessageTranslating,
+      backupMessageTail,
       getTranslationLanguageLabel,
       hasOlder,
       isInitialLoading,

@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
@@ -18,6 +18,7 @@ import type {
   ChatContextUsageSource,
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useModels } from '@renderer/hooks/useModel'
@@ -27,11 +28,13 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { CompareColumnId, ComparePageConfig } from '@renderer/types/compare'
 import type { Topic } from '@renderer/types/topic'
+import { getAutomaticBackupOrder, getCompareBackupOrder } from '@renderer/utils/backupModels'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { MEMORY_CONTENT_LIMIT, parseMemoryFacts } from '@shared/utils/memory'
 
+import { getLatestPromptForBackup, useBackupRetry, type BackupNotice, type BackupRetryDecision } from './backupRetry'
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
@@ -171,6 +174,8 @@ const ChatContentInner: FC<InnerProps> = ({
   const memoryLogger = loggerService.withContext('MemoryLearning')
   const [useMemory] = usePreference('feature.memory.enabled')
   const [learnFromMessages] = usePreference('feature.memory.learn_from_messages')
+  const [backupModelsEnabled] = usePreference('chat.backup_models.enabled')
+  const [configuredBackupIds] = usePersistCache('ui.compare.backup_models')
   const { models } = useModels()
   const { providers: providerRows } = useProviders()
   const { trigger: createMemory } = useMutation('POST', '/memories', { refresh: ['/memories'] })
@@ -224,59 +229,93 @@ const ChatContentInner: FC<InnerProps> = ({
   )
   const continueRequest = compare?.continueRequest
   const sentContinueRequestRef = useRef<string | undefined>(undefined)
-  const backupStateRef = useRef(
-    new Map<string, { attempted: Set<string>; current?: CompareColumnId; exhausted?: boolean }>()
+  const [backupNotice, setBackupNotice] = useState<BackupNotice | undefined>(undefined)
+  const normalBackupCandidates = useMemo(() => {
+    const automaticCandidates = getAutomaticBackupOrder({
+      models: Array.isArray(models) ? models : [],
+      providers: Array.isArray(providerRows) ? providerRows : [],
+      availableCliIds: []
+    })
+    return getCompareBackupOrder({
+      configuredIds: configuredBackupIds,
+      automaticCandidates,
+      max: 3
+    }).filter((candidate) => candidate.kind === 'api' && candidate.model)
+  }, [configuredBackupIds, models, providerRows])
+  const normalBackupCandidateIds = useMemo(
+    () => normalBackupCandidates.map((candidate) => candidate.id),
+    [normalBackupCandidates]
   )
-
-  useEffect(() => {
-    if (compare?.turnId) backupStateRef.current.clear()
-  }, [compare?.turnId])
-
-  useEffect(() => {
-    if (!compare || !compare.backupCandidateIds?.length) return
-    const prompt = getLatestPromptForBackup(uiMessages)
-    if (!prompt || prompt.question !== compare.currentQuestion) return
-    const primaryIds = new Set<string>(compare.sendModels.map((model) => model.id))
-    for (const original of compare.sendModels) {
-      const stateKey = `${compare.turnId ?? compare.currentQuestion}:${original.id}`
-      const turnState = backupStateRef.current.get(stateKey) ?? { attempted: new Set<string>() }
-      backupStateRef.current.set(stateKey, turnState)
-      const primary = getLatestApiAnswerForBackup(uiMessages, prompt, original.id)
-      if (!primary || primary.status !== 'error') continue
-      if (turnState.current) {
-        if (turnState.current.startsWith('cli::')) continue
-        const activeBackup = getLatestApiAnswerForBackup(uiMessages, prompt, turnState.current)
-        if (activeBackup?.status !== 'error') continue
+  const normalBackupModels = useMemo(
+    () =>
+      new Map<string, (typeof models)[number]>(
+        normalBackupCandidates.flatMap((candidate) => (candidate.model ? [[candidate.id, candidate.model]] : []))
+      ),
+    [normalBackupCandidates]
+  )
+  const handleNormalBackupRetry = useCallback(
+    (decision: Extract<BackupRetryDecision, { kind: 'retry' }>) => {
+      const backup = normalBackupModels.get(decision.backupId)
+      if (!backup) return
+      const prompt = getLatestPromptForBackup(uiMessages)
+      const originalModel = models.find((model) => model.id === decision.originalId)
+      setBackupNotice({
+        promptId: prompt?.messageId,
+        failedMessageId: decision.answer.id,
+        originalModelName: originalModel?.name ?? decision.originalId,
+        backupModelId: backup.id,
+        backupModelName: backup.name,
+        reason: decision.reason
+      })
+      void runtime.chatWriteActions.regenerate(decision.answer.id, { modelId: backup.id }).catch(() => undefined)
+    },
+    [models, normalBackupModels, runtime.chatWriteActions, uiMessages]
+  )
+  const handleNormalBackupExhausted = useCallback(
+    (decision: Extract<BackupRetryDecision, { kind: 'exhausted' }>) => {
+      const prompt = getLatestPromptForBackup(uiMessages)
+      const originalModel = models.find((model) => model.id === decision.originalId)
+      setBackupNotice((current) => ({
+        promptId: prompt?.messageId ?? current?.promptId,
+        failedMessageId: decision.answer.id,
+        originalModelName: current?.originalModelName ?? originalModel?.name ?? decision.originalId,
+        backupModelId: current?.backupModelId,
+        backupModelName: current?.backupModelName,
+        reason: decision.reason,
+        exhausted: true
+      }))
+    },
+    [models, uiMessages]
+  )
+  useBackupRetry({
+    enabled: Boolean(compare) || backupModelsEnabled,
+    messages: uiMessages,
+    candidateIds: compare?.backupCandidateIds ?? normalBackupCandidateIds,
+    mode: compare ? 'compare' : 'chat',
+    primaryIds: compare?.sendModels.map((model) => model.id),
+    currentQuestion: compare?.currentQuestion,
+    scopeKey: compare?.turnId,
+    resetKey: compare?.turnId,
+    onRetry: (decision) => {
+      if (!compare) return handleNormalBackupRetry(decision)
+      if (decision.backupId.startsWith('cli::')) {
+        compare.onCliBackupRequest?.(
+          decision.originalId as UniqueModelId,
+          decision.backupId as CompareColumnId,
+          decision.reason
+        )
+        return
       }
-      if (turnState.attempted.size >= 3) {
-        if (!turnState.exhausted) {
-          turnState.exhausted = true
-          compare.onBackupExhausted?.(
-            original.id,
-            getLatestApiErrorReason(uiMessages, prompt, original.id) ?? 'The selected model failed'
-          )
-        }
-        continue
-      }
-      const backupId = compare.backupCandidateIds.find(
-        (candidateId) =>
-          candidateId !== String(original.id) && !primaryIds.has(candidateId) && !turnState.attempted.has(candidateId)
-      ) as CompareColumnId | undefined
-      const backup = backupId?.startsWith('cli::')
-        ? undefined
-        : compare.backupModels?.find((candidate) => candidate.id === backupId)
-      if (!backupId) continue
-      turnState.attempted.add(backupId)
-      turnState.current = backupId
-      const reason = getLatestApiErrorReason(uiMessages, prompt, original.id) ?? 'the selected model failed'
-      if (backupId.startsWith('cli::')) {
-        compare.onCliBackupRequest?.(original.id, backupId, reason)
-      } else if (backup) {
-        compare.onBackupStart?.(original.id, backup.id, reason)
-        void runtime.chatWriteActions.regenerate(primary.id, { modelId: backup.id }).catch(() => undefined)
-      }
+      const backup = compare.backupModels?.find((candidate) => candidate.id === decision.backupId)
+      if (!backup) return
+      compare.onBackupStart?.(decision.originalId as CompareColumnId, backup.id, decision.reason)
+      void runtime.chatWriteActions.regenerate(decision.answer.id, { modelId: backup.id }).catch(() => undefined)
+    },
+    onExhausted: (decision) => {
+      if (compare) compare.onBackupExhausted?.(decision.originalId as CompareColumnId, decision.reason)
+      else handleNormalBackupExhausted(decision)
     }
-  }, [compare, runtime.chatWriteActions, uiMessages])
+  })
 
   useEffect(() => {
     if (
@@ -426,6 +465,7 @@ const ChatContentInner: FC<InnerProps> = ({
         openCitationsPanel={onOpenCitationsPanel}
         onStartBranchDraft={reserveBranch}
         compare={compare}
+        backupNotice={compare ? undefined : backupNotice}
         onRegenerateModel={handleRegenerateCompareModel}
       />
     </div>
@@ -504,63 +544,3 @@ const ChatContentInner: FC<InnerProps> = ({
 }
 
 export default ChatContent
-
-function getLatestApiErrorReason(
-  messages: readonly CherryUIMessage[],
-  prompt: LatestPromptForBackup | null,
-  modelId: UniqueModelId
-): string | undefined {
-  if (!prompt) return undefined
-  for (let index = messages.length - 1; index > prompt.index; index -= 1) {
-    const message = messages[index]
-    if (message.role !== 'assistant' || message.metadata?.modelId !== modelId) continue
-    const reason = (message.metadata as { error?: unknown } | undefined)?.error
-    return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined
-  }
-  return undefined
-}
-
-interface LatestPromptForBackup {
-  question: string
-  index: number
-  messageId: string
-}
-
-function getLatestPromptForBackup(messages: readonly CherryUIMessage[]): LatestPromptForBackup | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message.role === 'user') {
-      return {
-        question: message.parts
-          .flatMap((part) => (part.type === 'text' ? [part.text] : []))
-          .join('')
-          .trim(),
-        index,
-        messageId: message.id
-      }
-    }
-  }
-  return null
-}
-
-function getLatestApiAnswerForBackup(
-  messages: readonly CherryUIMessage[],
-  prompt: LatestPromptForBackup,
-  modelId: UniqueModelId
-): { id: string; status: 'waiting' | 'streaming' | 'done' | 'error'; content: string } | null {
-  for (let index = messages.length - 1; index > prompt.index; index -= 1) {
-    const message = messages[index]
-    if (message.role !== 'assistant' || message.metadata?.modelId !== modelId) continue
-    const status = message.metadata?.status
-    return {
-      id: message.id,
-      content: message.parts
-        .flatMap((part) => (part.type === 'text' ? [part.text] : []))
-        .join('')
-        .trim(),
-      status:
-        status === 'pending' ? 'streaming' : status === 'error' ? 'error' : status === 'success' ? 'done' : 'waiting'
-    }
-  }
-  return null
-}

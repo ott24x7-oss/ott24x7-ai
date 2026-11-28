@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "Téléchargement d'images",
   "settings.general.label": "Paramètres généraux",
   "settings.general.restore.button": "Restaurer",
+  "settings.general.retry.backup_models": "Utiliser des modèles de secours dans le chat",
+  "settings.general.retry.backup_models_description": "Réessayer automatiquement les réponses de chat échouées avec le prochain modèle de secours disponible",
   "settings.general.retry.enabled": "Activer les nouvelles tentatives",
   "settings.general.sections.agent": "Comportement de l’agent",
   "settings.general.sections.developer": "Options de développement",

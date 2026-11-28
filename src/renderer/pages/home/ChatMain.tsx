@@ -21,6 +21,7 @@ import { getModelLogoRef } from '@renderer/utils/model'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import type { BackupNotice } from './backupRetry'
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 
 interface ChatMainProps {
@@ -38,6 +39,7 @@ interface ChatMainProps {
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   compare?: ComparePageConfig
+  backupNotice?: BackupNotice
   onRegenerateModel?: (modelId: CompareColumnId) => void
 }
 
@@ -56,6 +58,7 @@ const ChatMain: FC<ChatMainProps> = ({
   openCitationsPanel,
   onStartBranchDraft,
   compare,
+  backupNotice,
   onRegenerateModel
 }) => {
   const baseValue = useHomeMessageListProviderValue({
@@ -71,7 +74,8 @@ const ChatMain: FC<ChatMainProps> = ({
     hasOlder,
     selectAllPagination,
     openCitationsPanel,
-    onStartBranchDraft
+    onStartBranchDraft,
+    backupNotice
   })
   if (!compare) {
     return (

@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "อัปโหลดรูปภาพ",
   "settings.general.label": "การตั้งค่าทั่วไป",
   "settings.general.restore.button": "กู้คืน",
+  "settings.general.retry.backup_models": "ใช้โมเดลสำรองในการแชต",
+  "settings.general.retry.backup_models_description": "ลองตอบแชตที่ล้มเหลวอีกครั้งโดยอัตโนมัติด้วยโมเดลสำรองถัดไปที่พร้อมใช้งาน",
   "settings.general.retry.enabled": "เปิดใช้การลองใหม่",
   "settings.general.sections.agent": "พฤติกรรมเอเจนต์",
   "settings.general.sections.developer": "ตัวเลือกนักพัฒนา",

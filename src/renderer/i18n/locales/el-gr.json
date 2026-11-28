@@ -5019,6 +5019,8 @@
   "settings.general.image_upload": "Φόρτωση εικόνων",
   "settings.general.label": "Γενικές ρυθμίσεις",
   "settings.general.restore.button": "Αποκατάσταση",
+  "settings.general.retry.backup_models": "Χρήση εφεδρικών μοντέλων στη συνομιλία",
+  "settings.general.retry.backup_models_description": "Αυτόματη επανάληψη αποτυχημένων απαντήσεων συνομιλίας με το επόμενο διαθέσιμο εφεδρικό μοντέλο",
   "settings.general.retry.enabled": "Ενεργοποίηση επανάληψης",
   "settings.general.sections.agent": "Συμπεριφορά πράκτορα",
   "settings.general.sections.developer": "Επιλογές προγραμματιστή",
